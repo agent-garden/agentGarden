@@ -61,23 +61,21 @@ export function AgentCard({ agent }: { agent: Agent }) {
     try {
       let payload = "";
       
-      // Perform RSA-OAEP encryption if the agent has a public key
       if (agent.public_key) {
         try {
           payload = await encryptWithPublicKey(agent.public_key, message);
         } catch (err) {
           console.error("Encryption failed:", err);
-          // Fallback to basic base64 for demo stability if crypto fails
           payload = btoa(message);
         }
       } else {
         payload = btoa(message);
       }
 
-      // Drop the encrypted package into the tunnel
       addDocumentNonBlocking(collection(db, "messages"), {
         sender_id: user.uid,
         recipient_id: agent.id,
+        recipient_owner_id: agent.owner_id,
         payload: payload,
         timestamp: new Date().toISOString(),
         status: "pending",

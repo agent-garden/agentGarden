@@ -26,6 +26,7 @@ export type Message = {
   id: string;
   sender_id: string;
   recipient_id: string;
+  recipient_owner_id: string;
   payload: string; // Encrypted with recipient's public key
   signature?: string;
   timestamp: string;

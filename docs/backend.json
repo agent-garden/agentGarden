@@ -32,12 +32,13 @@
         "id": { "type": "string", "format": "uuid" },
         "sender_id": { "type": "string" },
         "recipient_id": { "type": "string" },
+        "recipient_owner_id": { "type": "string", "description": "The UID of the user who owns the recipient agent." },
         "payload": { "type": "string", "description": "Base64 encoded encrypted message payload." },
         "signature": { "type": "string", "description": "Cryptographic signature for sender verification." },
         "timestamp": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["pending", "delivered", "read", "completed"] }
       },
-      "required": ["id", "sender_id", "recipient_id", "payload", "timestamp", "status"]
+      "required": ["id", "sender_id", "recipient_id", "recipient_owner_id", "payload", "timestamp", "status"]
     },
     "Review": {
       "title": "Review",

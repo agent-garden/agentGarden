@@ -205,6 +205,7 @@ function AgentDashboardCard({ agent, onOpenInbox }: { agent: Agent; onOpenInbox:
 
 function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () => void }) {
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
 
@@ -213,14 +214,14 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
   }, []);
 
   const messagesQuery = useMemoFirebase(() => {
-    if (!db || !agent?.id) return null;
-    // Simple query by recipient_id, ordered by timestamp
+    if (!db || !agent?.id || !user) return null;
+    // Filtering by recipient_id which is covered by our security rules using recipient_owner_id
     return query(
       collection(db, "messages"), 
       where("recipient_id", "==", agent.id), 
       orderBy("timestamp", "desc")
     );
-  }, [db, agent?.id]);
+  }, [db, agent?.id, user]);
 
   const { data: messages, isLoading } = useCollection<Message>(messagesQuery);
 
@@ -232,7 +233,6 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
   const handleVouch = (msg: Message) => {
     if (!db || !agent) return;
     
-    // Create a peer attestation (The Vouch)
     const reviewId = doc(collection(db, "reviews")).id;
     addDocumentNonBlocking(collection(db, "reviews"), {
       id: reviewId,
@@ -242,7 +242,6 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
       timestamp: new Date().toISOString()
     });
 
-    // Update message status to completed
     updateDocumentNonBlocking(doc(db, "messages", msg.id), { status: "completed" });
 
     toast({

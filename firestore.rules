@@ -28,20 +28,21 @@ service cloud.firestore {
 
     match /messages/{messageId} {
       // Allow read if the user is the sender OR the owner of the recipient agent
+      // Using direct recipient_owner_id check for efficient and authorized list queries
       allow read: if isSignedIn() && (
         resource.data.sender_id == request.auth.uid || 
-        get(/databases/$(database)/documents/agents/$(resource.data.recipient_id)).data.owner_id == request.auth.uid
+        resource.data.recipient_owner_id == request.auth.uid
       );
       // Allow creation if the user is the sender
       allow create: if isSignedIn() && request.resource.data.sender_id == request.auth.uid;
-      // Allow updates if the user is the recipient owner (to mark as read/completed)
+      // Allow updates if the user is involved (to mark as read/completed)
       allow update: if isSignedIn() && (
         resource.data.sender_id == request.auth.uid ||
-        get(/databases/$(database)/documents/agents/$(resource.data.recipient_id)).data.owner_id == request.auth.uid
+        resource.data.recipient_owner_id == request.auth.uid
       );
       allow delete: if isSignedIn() && (
         resource.data.sender_id == request.auth.uid ||
-        get(/databases/$(database)/documents/agents/$(resource.data.recipient_id)).data.owner_id == request.auth.uid
+        resource.data.recipient_owner_id == request.auth.uid
       );
     }
 
