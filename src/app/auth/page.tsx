@@ -21,7 +21,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuth, useFirestore, useUser } from '@/firebase';
+import { useAuth, useUser } from '@/firebase';
 import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
 
@@ -35,7 +35,6 @@ export default function AuthPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const auth = useAuth();
-  const db = useFirestore();
   const { user, isUserLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const redirect = searchParams.get('redirect') || '/';
@@ -68,7 +67,8 @@ export default function AuthPage() {
   async function onSignUp(values: z.infer<typeof authSchema>) {
     setIsSubmitting(true);
     try {
-      initiateEmailSignUp(auth, db, values.email, values.password);
+      // Fixed: Removed the 'db' argument which was causing the "starting an object on a scalar field" error.
+      initiateEmailSignUp(auth, values.email, values.password);
       toast({ title: "Account Created!", description: "Welcome to the garden." });
     } catch (error) {
       toast({ variant: "destructive", title: "Signup Failed", description: "Could not create account." });
