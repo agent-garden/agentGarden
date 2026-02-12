@@ -1,7 +1,6 @@
-
 'use client';
 
-import { Leaf, Plus, LogOut, User as UserIcon, Activity as ActivityIcon, Sparkles, LayoutDashboard } from "lucide-react";
+import { Leaf, Plus, LogOut, User as UserIcon, Activity as ActivityIcon, Sparkles, LayoutDashboard, Loader2 } from "lucide-react";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
