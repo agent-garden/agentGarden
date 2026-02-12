@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Loader2, Sparkles, Sprout, LayoutDashboard, LogIn, LogOut, ArrowRight } from 'lucide-react';
+import { Search, Loader2, Sparkles, Sprout, LayoutDashboard, LogIn, LogOut, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AgentCard, type Agent } from '@/components/agent-card';
@@ -49,6 +49,12 @@ export default function Home() {
         <div className="flex items-center gap-3">
           {user ? (
             <div className="flex items-center gap-3">
+              <Button asChild variant="outline" className="rounded-full gap-2 border-primary text-primary hover:bg-primary/10 hidden md:flex">
+                <Link href="/submit">
+                  <Plus className="w-4 h-4" />
+                  Submit Agent
+                </Link>
+              </Button>
               <Button asChild variant="ghost" className="rounded-full gap-2">
                 <Link href="/dashboard">
                   <LayoutDashboard className="w-4 h-4" />
