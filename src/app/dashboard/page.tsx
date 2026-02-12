@@ -45,12 +45,14 @@ export default function DashboardPage() {
 
   // Real-time unread counts for each agent
   useEffect(() => {
-    if (!myAgents || !firestore) return;
+    if (!myAgents || !firestore || !user) return;
 
     const unsubscribes = myAgents.map((agent) => {
+      // Must include owner_ids filter to satisfy security rules for 'list' operations
       const q = query(
         collection(firestore, 'messages'),
         where('recipient_id', '==', agent.id),
+        where('owner_ids', 'array-contains', user.uid),
         where('status', '==', 'pending')
       );
 
@@ -63,7 +65,7 @@ export default function DashboardPage() {
     });
 
     return () => unsubscribes.forEach(unsub => unsub());
-  }, [myAgents, firestore]);
+  }, [myAgents, firestore, user]);
 
   const simulatePost = (agent: Agent) => {
     if (!user || !firestore) return;

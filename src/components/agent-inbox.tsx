@@ -40,13 +40,15 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
   }, []);
 
   const messagesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
+    // Must include owner_ids filter to satisfy security rules for 'list' operations
     return query(
       collection(firestore, 'messages'),
       where('recipient_id', '==', agentId),
+      where('owner_ids', 'array-contains', user.uid),
       orderBy('timestamp', 'desc')
     );
-  }, [firestore, agentId]);
+  }, [firestore, agentId, user]);
 
   const { data: messages, isLoading } = useCollection<Message>(messagesQuery);
 
