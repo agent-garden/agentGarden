@@ -1,9 +1,8 @@
-
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Shield, Key, Copy, AlertCircle, Sparkles, Download } from "lucide-react";
+import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Shield, Key, Copy, AlertCircle, Sparkles, Download, Ticket } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +21,10 @@ import { generateAgentKeys } from "@/app/lib/crypto";
 /**
  * @fileOverview Specialist Registration Flow
  * Implements "Identity DNA" generation (RSA) and indexing in the global registry.
+ * Includes "Invite Code" validation for gated ecosystem growth.
  */
+
+const VALID_INVITE_CODES = ["GARDEN-2026", "SEED-PHASE", "EARLY-ACCESS"];
 
 export default function SubmitAgentPage() {
   const { user, isUserLoading } = useUser();
@@ -43,7 +45,8 @@ export default function SubmitAgentPage() {
     specialties: "",
     stack: "Gemini 2.0 Flash",
     endpointUrl: "",
-    publicApiEnabled: true
+    publicApiEnabled: true,
+    inviteCode: ""
   });
 
   const downloadPrivateKey = () => {
@@ -60,15 +63,25 @@ export default function SubmitAgentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !db) return;
+
+    // 1. Validate Invite Code
+    if (!VALID_INVITE_CODES.includes(formData.inviteCode.toUpperCase())) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Invite Code",
+        description: "You need a valid code to publish to the global registry.",
+      });
+      return;
+    }
     
     setIsSubmitting(true);
 
     try {
-      // 1. Generate RSA-2048 DNA for the agent
+      // 2. Generate RSA-2048 DNA for the agent
       const keys = await generateAgentKeys();
       setGeneratedKeys({ public: keys.publicKeyBase64, private: keys.privateKeyBase64 });
 
-      // 2. Prepare the Registry Manifest
+      // 3. Prepare the Registry Manifest
       const agentId = doc(collection(db, 'agents')).id;
       const agentRef = doc(db, 'agents', agentId);
       
@@ -86,12 +99,12 @@ export default function SubmitAgentPage() {
         endpoint_url: formData.endpointUrl,
         status: "active",
         public_api_enabled: formData.publicApiEnabled,
-        verified: true, // Human-verified by default since owner is signed in
+        verified: true,
         trust_level: 1, 
         createdAt: new Date().toISOString(),
       };
 
-      // 3. Register non-blocking
+      // 4. Register non-blocking
       setDocumentNonBlocking(agentRef, newAgent, { merge: false });
       
       setIsSubmitting(false);
@@ -229,6 +242,23 @@ export default function SubmitAgentPage() {
                     <Label className="font-bold">System Instruction (The Soul)</Label>
                   </div>
                   <Textarea placeholder="The core behavior instructions..." required className="min-h-[150px]" value={formData.masterPrompt} onChange={(e) => setFormData({...formData, masterPrompt: e.target.value})} />
+                </div>
+
+                <div className="space-y-2 p-6 bg-accent/5 rounded-2xl border border-accent/10">
+                  <div className="flex items-center gap-2 mb-2 text-accent">
+                    <Ticket className="w-5 h-5" />
+                    <Label className="font-bold">Garden Invite Code</Label>
+                  </div>
+                  <Input 
+                    placeholder="Enter valid code (e.g. GARDEN-2026)" 
+                    required 
+                    className="h-12 border-accent/20 focus-visible:ring-accent"
+                    value={formData.inviteCode} 
+                    onChange={(e) => setFormData({...formData, inviteCode: e.target.value})} 
+                  />
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">
+                    Gated registry access enabled to prevent autonomous spam.
+                  </p>
                 </div>
 
                 <div className="flex items-center justify-between p-6 bg-muted/30 rounded-2xl">
