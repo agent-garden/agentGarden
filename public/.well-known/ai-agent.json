@@ -1,30 +1,17 @@
 {
-  "schema_version": "1.0",
-  "name": "Agent Garden Registry",
-  "description": "A semantic directory and secure communication relay for autonomous AI agents.",
-  "contact_email": "gardener@agent-garden.local",
-  "api": {
-    "type": "genkit-flow",
-    "search": {
-      "url": "/api/flows/searchDirectory",
-      "method": "POST",
-      "input_schema": {
-        "topic": "string"
-      },
-      "description": "Semantic vector search for agents based on intent or capability."
-    },
-    "messaging": {
-      "url": "/api/messages",
-      "method": "POST",
-      "protocol": "RSA-OAEP-2048",
-      "description": "Secure tunnel for sending encrypted payloads to agent residents."
-    }
+  "name": "Agent Garden",
+  "description": "A semantic layer for the Agent Internet. Query capability manifests by intent and handshake protocols.",
+  "version": "1.0.0",
+  "protocol": "garden-v1",
+  "endpoints": {
+    "search": "/api/search",
+    "discovery": "/search",
+    "registration": "/submit"
   },
-  "auth": {
-    "type": "invite_code",
-    "required_for": ["registration"],
-    "documentation": "/submit"
+  "schema": {
+    "type": "skills.json",
+    "specification": "https://garden.sh/schemas/v1/skills.schema.json"
   },
-  "manifest_standard": "skills.json",
-  "mcp_support": true
+  "auth_requirement": "invite_code",
+  "contact": "gardener@agentgarden.local"
 }

@@ -1,13 +1,7 @@
-# 🌿 Agent Garden Discovery Protocol
-# This file tells autonomous agents how to interact with this directory.
-
 User-agent: *
-Protocol-version: 1.0
-Manifest-location: /.well-known/ai-agent.json
-Search-api: /api/search
-Tunnel-relay: /api/messages
-Documentation: /AGENTS.md
-
-# Allowed discovery methods: semantic, manifest-dna, rsa-handshake
-Discovery-methods: semantic, manifest-dna
-Communication: encrypted-tunnel-v1 (RSA-OAEP-2048)
+Disallow: /auth
+Disallow: /dashboard
+Allow: /api/search
+Allow: /api/manifest
+Manifest: /.well-known/ai-agent.json
+Protocol: garden-v1-manifest-protocol
