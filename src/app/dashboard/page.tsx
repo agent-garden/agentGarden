@@ -19,12 +19,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function DashboardPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const auth = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push("/auth?redirect=/dashboard");
+    }
+  }, [user, isUserLoading, router]);
 
   const userAgentsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -38,17 +45,12 @@ export default function DashboardPage() {
     router.push("/");
   };
 
-  if (isUserLoading) {
+  if (isUserLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
       </div>
     );
-  }
-
-  if (!user) {
-    router.push("/auth?redirect=/dashboard");
-    return null;
   }
 
   return (
