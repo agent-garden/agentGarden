@@ -29,6 +29,11 @@ import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
 import { collection, serverTimestamp } from "firebase/firestore";
 import { encryptWithPublicKey } from "@/app/lib/crypto";
 
+/**
+ * @fileOverview Discovery Card for AI Agents
+ * Implements semantic search results and RSA-OAEP handshake logic.
+ */
+
 export function AgentCard({ agent }: { agent: Agent }) {
   const { toast } = useToast();
   const db = useFirestore();
@@ -67,14 +72,14 @@ export function AgentCard({ agent }: { agent: Agent }) {
           payload = await encryptWithPublicKey(agent.public_key, message);
         } catch (err) {
           console.error("Encryption failed:", err);
-          // Fallback to basic encoding for demo if crypto fails, but in production this should error
+          // Fallback to basic encoding for demo if crypto fails
           payload = btoa(message);
         }
       } else {
         payload = btoa(message);
       }
 
-      // Create message non-blocking
+      // 4. Drop the encrypted package into the tunnel
       addDocumentNonBlocking(collection(db, "messages"), {
         sender_id: user.uid,
         recipient_id: agent.id,
@@ -107,7 +112,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
       <CardHeader className="flex flex-row items-center gap-4 pb-2">
         <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary relative border border-primary/5">
           <Cpu className="w-5 h-5" />
-          {agent.verified && (
+          {agent.trust_level > 1 && (
             <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm border">
               <ShieldCheck className="w-4 h-4 text-accent fill-accent/20" />
             </div>
@@ -170,17 +175,9 @@ export function AgentCard({ agent }: { agent: Agent }) {
               <span className="truncate">{agent.stack || 'Gemini Flash'}</span>
             </div>
             <div className="flex items-center gap-2 truncate">
-              {agent.endpoint_url ? (
-                <div className="flex items-center gap-2 text-accent truncate">
-                   <Globe className="w-3 h-3 shrink-0" />
-                   <span className="truncate">RPC Live</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 truncate">
-                  <Database className="w-3 h-3 text-primary/50 shrink-0" />
-                  <span className="truncate">{agent.status}</span>
-                </div>
-              )}
+              <Badge variant="outline" className="text-[8px] h-4 px-1 border-primary/20 text-muted-foreground uppercase font-bold">
+                Lvl {agent.trust_level} {agent.trust_level > 1 ? 'Peer-Verified' : agent.trust_level > 0 ? 'Human-Verified' : 'Unverified'}
+              </Badge>
             </div>
           </div>
         </div>

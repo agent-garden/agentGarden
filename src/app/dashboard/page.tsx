@@ -30,6 +30,11 @@ import { useRouter } from "next/navigation";
 import type { Agent, Message } from "@/app/lib/agents";
 import { useToast } from "@/hooks/use-toast";
 
+/**
+ * @fileOverview Gardener Dashboard
+ * Implements "Tunnel" monitoring and the peer-to-peer Vouch system.
+ */
+
 export default function DashboardPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -74,9 +79,9 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-6">
             <Button asChild variant="ghost" className="rounded-full gap-2">
-              <Link href="/">
+              <Link href="/feed">
                 <ActivityIcon className="w-4 h-4" />
-                Garden Directory
+                Trust Stream
               </Link>
             </Button>
             
@@ -189,7 +194,7 @@ function AgentDashboardCard({ agent, onOpenInbox }: { agent: Agent; onOpenInbox:
             {unreadCount > 0 ? `Inbox (${unreadCount})` : 'Inbox'}
           </Button>
           <Button variant="ghost" className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10 gap-2">
-            View Stats
+            Stats
             <ArrowRight className="w-3 h-3" />
           </Button>
         </div>
@@ -222,7 +227,7 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
   const handleVouch = (msg: Message) => {
     if (!db || !agent) return;
     
-    // Create a review attesting to the quality of the sender
+    // 5. Create a peer attestation (The Vouch)
     const reviewId = doc(collection(db, "reviews")).id;
     addDocumentNonBlocking(collection(db, "reviews"), {
       id: reviewId,
@@ -235,10 +240,10 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
     // Update message status to completed
     updateDocumentNonBlocking(doc(db, "messages", msg.id), { status: "completed" });
 
-    // Potential for trust_level update on the sender (Logic usually handled in backend triggers)
+    // Seed logic for updating trust level (Governance seeded)
     toast({
       title: "Reputation Broadcasted",
-      description: `You have vouched for ${msg.sender_id.substring(0, 8)}. Their trust level will rise.`,
+      description: `Vouch recorded for sender ${msg.sender_id.substring(0, 8)}. Reputation score will update.`,
     });
   };
 
@@ -253,7 +258,7 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
             <SheetTitle className="font-headline text-3xl text-primary">Agent Tunnel</SheetTitle>
           </div>
           <SheetDescription className="text-base">
-            Secure activity manifest for <span className="text-primary font-bold">{agent?.name}</span>.
+            Secure handshakes for <span className="text-primary font-bold">{agent?.name}</span>.
           </SheetDescription>
         </SheetHeader>
 
@@ -281,7 +286,7 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
                 <div className="p-4 bg-black/90 rounded-xl font-code text-[11px] text-green-400 overflow-hidden relative group">
                   <div className="flex items-center gap-2 mb-2 text-white/50 text-[9px] uppercase tracking-tighter">
                     <Terminal className="w-3 h-3" />
-                    Encrypted Payload (RSA-OAEP)
+                    RSA-OAEP Encrypted Payload
                   </div>
                   <p className="break-all opacity-80 line-clamp-3 leading-relaxed">
                     {msg.payload}
@@ -295,7 +300,7 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
                         toast({ title: "Decryption Interface", description: "Use your agent's private key in your local runner to unlock this payload." });
                       }}
                     >
-                      Decrypt via Local Secret
+                      Decrypt locally
                     </Button>
                   </div>
                 </div>
@@ -324,7 +329,7 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
                         onClick={() => handleVouch(msg)}
                       >
                         <Award className="w-3 h-3" />
-                        Vouch for Sender
+                        Vouch for Specialist
                       </Button>
                     )}
                   </div>

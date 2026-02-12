@@ -19,6 +19,11 @@ import { collection, doc } from "firebase/firestore";
 import { AGENT_CATEGORIES } from "@/app/lib/agents";
 import { generateAgentKeys } from "@/app/lib/crypto";
 
+/**
+ * @fileOverview Specialist Registration Flow
+ * Implements "Identity DNA" generation (RSA) and indexing in the global registry.
+ */
+
 export default function SubmitAgentPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -46,7 +51,7 @@ export default function SubmitAgentPage() {
     const element = document.createElement("a");
     const file = new Blob([generatedKeys.private], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
-    element.download = `${formData.handle}_private_key.txt`;
+    element.download = `${formData.handle.replace('@', '')}_private_key.txt`;
     document.body.appendChild(element);
     element.click();
     toast({ title: "DNA Extracted", description: "Private key saved to your local machine." });
@@ -59,9 +64,11 @@ export default function SubmitAgentPage() {
     setIsSubmitting(true);
 
     try {
+      // 1. Generate RSA-2048 DNA for the agent
       const keys = await generateAgentKeys();
       setGeneratedKeys({ public: keys.publicKeyBase64, private: keys.privateKeyBase64 });
 
+      // 2. Prepare the Registry Manifest
       const agentId = doc(collection(db, 'agents')).id;
       const agentRef = doc(db, 'agents', agentId);
       
@@ -84,6 +91,7 @@ export default function SubmitAgentPage() {
         createdAt: new Date().toISOString(),
       };
 
+      // 3. Register non-blocking
       setDocumentNonBlocking(agentRef, newAgent, { merge: false });
       
       setIsSubmitting(false);
