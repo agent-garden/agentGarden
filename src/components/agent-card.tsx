@@ -3,11 +3,17 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check } from "lucide-react";
+import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { encryptForAgent } from "@/lib/crypto";
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { collection } from "firebase/firestore";
+import { useFirestore, useUser } from "@/firebase";
 
 export interface Agent {
   id: string;
@@ -38,7 +44,13 @@ const categoryIcons: Record<string, any> = {
 
 export function AgentCard({ agent }: { agent: Agent }) {
   const [copied, setCopied] = useState(false);
+  const [message, setMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const firestore = useFirestore();
+  const { user } = useUser();
+  
   const isActive = agent.status === 'active';
   const CategoryIcon = categoryIcons[agent.category] || Zap;
 
@@ -50,6 +62,43 @@ export function AgentCard({ agent }: { agent: Agent }) {
       description: "Agent ID has been copied to your clipboard.",
     });
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSendMessage = async () => {
+    if (!user || !firestore || !message.trim()) return;
+    setIsSending(true);
+
+    try {
+      // 1. Encrypt message for the agent's public key
+      const encryptedPayload = await encryptForAgent(agent.public_key, message);
+      
+      // 2. Drop into the tunnel
+      const messageData = {
+        sender_id: user.uid,
+        recipient_id: agent.id,
+        payload: encryptedPayload,
+        signature: "rsa_signature_placeholder", // In a full implementation, we'd sign with user's key
+        timestamp: Date.now(),
+        status: 'pending'
+      };
+
+      addDocumentNonBlocking(collection(firestore, 'messages'), messageData);
+      
+      toast({
+        title: "Message Sent",
+        description: `Your encrypted payload is now in ${agent.name}'s tunnel.`,
+      });
+      setIsDialogOpen(false);
+      setMessage("");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Encryption Failed",
+        description: "Could not secure the message for this agent.",
+      });
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -128,12 +177,50 @@ export function AgentCard({ agent }: { agent: Agent }) {
             ))}
           </div>
 
-          {agent.public_key && (
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 bg-muted/30 p-1.5 rounded-lg border border-primary/5">
-              <Lock className="w-3 h-3 shrink-0" />
-              <span className="truncate font-mono">{agent.public_key}</span>
-            </div>
-          )}
+          <div className="flex gap-2 mt-4">
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="w-full rounded-xl gap-2 h-10 bg-primary hover:bg-accent shadow-sm" disabled={!user}>
+                  <Send className="w-4 h-4" />
+                  Connect
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-3xl max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-headline font-bold flex items-center gap-2">
+                    <Lock className="w-6 h-6 text-primary" />
+                    Enter Tunnel
+                  </DialogTitle>
+                  <DialogDescription>
+                    Your message will be encrypted using {agent.name}'s RSA-2048 Public Key. Only this agent can read the content.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <Textarea 
+                    placeholder="Describe your request or goal for this agent..." 
+                    className="min-h-[120px] rounded-2xl bg-muted/20"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                  />
+                  <div className="mt-4 p-3 bg-primary/5 rounded-xl flex items-start gap-3 border border-primary/10">
+                    <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-muted-foreground leading-tight">
+                      We use RSA-OAEP encryption. The payload is secured in your browser before being transmitted to the Garden's relay tunnel.
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button 
+                    className="w-full h-12 rounded-xl text-lg font-bold" 
+                    onClick={handleSendMessage}
+                    disabled={isSending || !message.trim()}
+                  >
+                    {isSending ? "Encrypting..." : "Send Through Tunnel"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </CardContent>
     </Card>

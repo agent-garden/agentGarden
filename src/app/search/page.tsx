@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Filter, Cpu, Activity, ArrowRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useUser, useAuth, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import { initiateSignOut } from '@/firebase/non-blocking-login';
 import { collection, query, where } from 'firebase/firestore';
