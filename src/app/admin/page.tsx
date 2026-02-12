@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -24,9 +23,10 @@ import {
   Check,
   Terminal,
   Sprout,
-  Tag,
   Star,
-  UserPlus
+  UserPlus,
+  Trash2,
+  ThumbsUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,11 +42,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { setAdminPrivileges, batchGenerateInviteCodes, updateMonthlyLimit } from '@/app/actions/admin';
+import { setAdminPrivileges, batchGenerateInviteCodes, updateMonthlyLimit, approveInviteRequests } from '@/app/actions/admin';
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 import { type Agent } from '@/components/agent-card';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
@@ -58,8 +59,10 @@ export default function AdminPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedTemplate, setCopiedTemplate] = useState(false);
+  
+  // Selection State
+  const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
 
-  // Check for the DB-backed role
   const adminDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'roles_admin', user.uid);
@@ -83,7 +86,6 @@ export default function AdminPage() {
   const isAuthorized = hasAdminClaim || !!adminDoc;
   const isAuthLoading = isUserLoading || isAdminDocLoading;
 
-  // Strict Route Guard: Redirect if not authorized
   useEffect(() => {
     if (!isAuthLoading && !isAuthorized && user) {
       const timer = setTimeout(() => {
@@ -146,18 +148,40 @@ export default function AdminPage() {
     }
   };
 
-  const handleUpdateLimit = async (userId: string, currentLimit: number) => {
-    const newLimitRaw = prompt("Enter new monthly invite limit:", currentLimit.toString());
-    if (newLimitRaw === null) return;
-    const newLimit = parseInt(newLimitRaw);
-    if (isNaN(newLimit)) return;
+  const handleApproveSelected = async () => {
+    if (selectedRequestIds.length === 0) return;
+    setIsProcessing(true);
 
+    const pendingRequests = requests?.filter(r => selectedRequestIds.includes(r.id) && r.status === 'pending') || [];
+    
     try {
-      await updateMonthlyLimit(userId, newLimit);
-      toast({ title: "Updated", description: "User limit has been synchronized." });
+      const approvalData = pendingRequests.map(r => ({ id: r.id, email: r.email }));
+      const result = await approveInviteRequests(approvalData);
+      
+      toast({ 
+        title: "Bulk Approval Successful", 
+        description: `${result.results.length} gardeners approved. Codes generated.` 
+      });
+      setSelectedRequestIds([]);
     } catch (err) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to update limit." });
+      toast({ variant: "destructive", title: "Approval Failed", description: "Could not synchronize approvals." });
+    } finally {
+      setIsProcessing(false);
     }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedRequestIds.length === (requests?.filter(r => r.status === 'pending').length || 0)) {
+      setSelectedRequestIds([]);
+    } else {
+      setSelectedRequestIds(requests?.filter(r => r.status === 'pending').map(r => r.id) || []);
+    }
+  };
+
+  const toggleSelectRequest = (id: string) => {
+    setSelectedRequestIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
   const copyEmailTemplate = () => {
@@ -234,6 +258,8 @@ Welcome to the infrastructure. Let’s build the civilization.
     );
   }
 
+  const pendingCount = requests?.filter(r => r.status === 'pending').length || 0;
+
   return (
     <main className="min-h-screen bg-background p-6 md:p-12">
       <div className="max-w-6xl mx-auto">
@@ -261,7 +287,7 @@ Welcome to the infrastructure. Let’s build the civilization.
         <Tabs defaultValue="requests" className="space-y-6">
           <TabsList className="bg-white/50 border border-primary/5 rounded-2xl p-1 h-auto w-full md:w-auto">
             <TabsTrigger value="requests" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm flex-1 md:flex-none">
-              <UserPlus className="w-4 h-4 mr-2" /> Requests
+              <UserPlus className="w-4 h-4 mr-2" /> Requests {pendingCount > 0 && <Badge variant="secondary" className="ml-2 h-5 w-5 p-0 flex items-center justify-center rounded-full bg-primary text-white">{pendingCount}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="tracker" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm flex-1 md:flex-none">
               <Ticket className="w-4 h-4 mr-2" /> Code Tracker
@@ -279,9 +305,21 @@ Welcome to the infrastructure. Let’s build the civilization.
 
           <TabsContent value="requests">
             <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white/70 backdrop-blur-md">
-              <CardHeader>
-                <CardTitle>Invite Requests</CardTitle>
-                <CardDescription>Garden access applications awaiting human review.</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Invite Requests</CardTitle>
+                  <CardDescription>Garden access applications awaiting review.</CardDescription>
+                </div>
+                {selectedRequestIds.length > 0 && (
+                  <Button 
+                    onClick={handleApproveSelected} 
+                    disabled={isProcessing}
+                    className="rounded-xl gap-2 bg-accent hover:bg-primary shadow-lg"
+                  >
+                    {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThumbsUp className="w-4 h-4" />}
+                    Approve Selected ({selectedRequestIds.length})
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="p-0">
                 {isRequestsLoading ? (
@@ -290,8 +328,16 @@ Welcome to the infrastructure. Let’s build the civilization.
                   <Table>
                     <TableHeader className="bg-primary/5">
                       <TableRow>
+                        <TableHead className="w-[50px]">
+                          <Checkbox 
+                            checked={selectedRequestIds.length === pendingCount && pendingCount > 0}
+                            onCheckedChange={toggleSelectAll}
+                            className="rounded-sm border-primary/20"
+                          />
+                        </TableHead>
                         <TableHead className="font-bold">Name</TableHead>
                         <TableHead className="font-bold">Email</TableHead>
+                        <TableHead className="font-bold">Status</TableHead>
                         <TableHead className="font-bold">Intended Use</TableHead>
                         <TableHead className="font-bold text-center">Date</TableHead>
                       </TableRow>
@@ -299,8 +345,29 @@ Welcome to the infrastructure. Let’s build the civilization.
                     <TableBody>
                       {requests?.map((req) => (
                         <TableRow key={req.id} className="hover:bg-primary/5 transition-colors">
+                          <TableCell>
+                            <Checkbox 
+                              disabled={req.status !== 'pending'}
+                              checked={selectedRequestIds.includes(req.id)}
+                              onCheckedChange={() => toggleSelectRequest(req.id)}
+                              className="rounded-sm border-primary/20"
+                            />
+                          </TableCell>
                           <TableCell className="font-bold">{req.name}</TableCell>
                           <TableCell className="text-sm">{req.email}</TableCell>
+                          <TableCell>
+                            {req.status === 'approved' ? (
+                              <Badge variant="secondary" className="bg-accent/10 text-accent gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Approved
+                              </Badge>
+                            ) : req.status === 'rejected' ? (
+                              <Badge variant="destructive" className="gap-1">
+                                <XCircle className="w-3 h-3" /> Rejected
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-primary border-primary/20">Pending</Badge>
+                            )}
+                          </TableCell>
                           <TableCell className="text-xs max-w-xs truncate">{req.intended_use}</TableCell>
                           <TableCell className="text-[10px] text-muted-foreground text-center">
                             {new Date(req.created_at || 0).toLocaleDateString()}
@@ -309,8 +376,8 @@ Welcome to the infrastructure. Let’s build the civilization.
                       ))}
                       {requests?.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">
-                            No pending requests in the registry.
+                          <TableCell colSpan={6} className="h-32 text-center text-muted-foreground italic">
+                            No requests in the registry.
                           </TableCell>
                         </TableRow>
                       )}

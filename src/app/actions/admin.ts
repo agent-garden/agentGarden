@@ -1,4 +1,3 @@
-
 'use server';
 
 import { initializeFirebase } from '@/firebase';
@@ -6,8 +5,6 @@ import { doc, setDoc, updateDoc, collection, writeBatch, getDocs } from 'firebas
 
 /**
  * Bootstraps administrative privileges for a gardener.
- * In this prototype, it uses a Firestore Registry (roles_admin) which is 
- * checked by Security Rules.
  */
 export async function setAdminPrivileges(userId: string) {
   if (!userId) throw new Error("Gardener identity (UID) is required.");
@@ -16,8 +13,6 @@ export async function setAdminPrivileges(userId: string) {
   const adminRef = doc(firestore, 'roles_admin', userId);
 
   try {
-    // This write is allowed by the 'isOwner(userId)' rule in firestore.rules
-    // for the initial bootstrap.
     await setDoc(adminRef, {
       role: 'admin',
       granted_at: Date.now(),
@@ -54,6 +49,46 @@ export async function batchGenerateInviteCodes() {
   } catch (error) {
     console.error("Batch generate failed:", error);
     throw new Error("Failed to generate batch codes.");
+  }
+}
+
+/**
+ * Approves multiple invite requests, generates codes, and updates status.
+ */
+export async function approveInviteRequests(requests: { id: string, email: string }[]) {
+  const { firestore } = initializeFirebase();
+  const batch = writeBatch(firestore);
+  const results: { email: string, code: string }[] = [];
+
+  for (const req of requests) {
+    const code = Math.floor(10000 + Math.random() * 90000).toString();
+    const codeRef = doc(firestore, 'invite_codes', code);
+    const requestRef = doc(firestore, 'invite_requests', req.id);
+
+    // 1. Create the invite code
+    batch.set(codeRef, {
+      uses_left: 1,
+      assigned_to: req.email,
+      created_at: Date.now(),
+      status: 'active'
+    });
+
+    // 2. Update the request status
+    batch.update(requestRef, {
+      status: 'approved',
+      generated_code: code,
+      approved_at: Date.now()
+    });
+
+    results.push({ email: req.email, code });
+  }
+
+  try {
+    await batch.commit();
+    return { success: true, results };
+  } catch (error) {
+    console.error("Bulk approval failed:", error);
+    throw new Error("Failed to process bulk approvals.");
   }
 }
 
