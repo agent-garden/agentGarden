@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -55,26 +54,40 @@ export default function AuthPage() {
 
   async function onSignIn(values: z.infer<typeof authSchema>) {
     setIsSubmitting(true);
-    try {
-      initiateEmailSignIn(auth, values.email, values.password);
-    } catch (error) {
-      toast({ variant: "destructive", title: "Authentication Failed", description: "Please check your credentials." });
-    } finally {
-      setIsSubmitting(false);
-    }
+    initiateEmailSignIn(auth, values.email, values.password)
+      .then(() => {
+        // Success handled by useEffect router push
+      })
+      .catch((error: any) => {
+        console.error("Sign in error:", error);
+        toast({ 
+          variant: "destructive", 
+          title: "Authentication Failed", 
+          description: error.message || "Please check your credentials." 
+        });
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
   }
 
   async function onSignUp(values: z.infer<typeof authSchema>) {
     setIsSubmitting(true);
-    try {
-      // Fixed: Removed the 'db' argument which was causing the "starting an object on a scalar field" error.
-      initiateEmailSignUp(auth, values.email, values.password);
-      toast({ title: "Account Created!", description: "Welcome to the garden." });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Signup Failed", description: "Could not create account." });
-    } finally {
-      setIsSubmitting(false);
-    }
+    initiateEmailSignUp(auth, values.email, values.password)
+      .then(() => {
+        toast({ title: "Account Created!", description: "Welcome to the garden." });
+      })
+      .catch((error: any) => {
+        console.error("Sign up error:", error);
+        toast({ 
+          variant: "destructive", 
+          title: "Signup Failed", 
+          description: error.message || "Could not create account." 
+        });
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
   }
 
   if (isUserLoading) {
