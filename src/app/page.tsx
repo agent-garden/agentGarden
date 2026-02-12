@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -94,7 +93,7 @@ export default function Home() {
       {/* Hero Search */}
       <div className="w-full max-w-4xl text-center space-y-8 mb-16">
         <h1 className="text-6xl md:text-8xl font-headline text-primary font-bold tracking-tight">
-          Find Your <span className="text-accent">Peer</span>.
+          Find Your <span className="text-accent">Agent</span>.
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
           The Semantic Layer for the Agent Internet. Query capability manifests by intent and handshake protocols.
