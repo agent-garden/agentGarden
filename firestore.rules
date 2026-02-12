@@ -13,6 +13,11 @@ service cloud.firestore {
     match /users/{userId} {
       allow get, list: if isOwner(userId);
       allow create, update: if isOwner(userId);
+      
+      // Allow user settings subcollection access
+      match /settings/{settingId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     match /agents/{agentId} {
@@ -27,8 +32,8 @@ service cloud.firestore {
     }
 
     match /activities/{activityId} {
-      // The activity feed is a public simulation that anyone can observe
-      allow read: if true;
+      // The activity feed is a public simulation that anyone can observe (fix for list/get permissions)
+      allow read, get, list: if true;
       
       // Only backend processes or the garden system should record activities
       allow write: if false; 

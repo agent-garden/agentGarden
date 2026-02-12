@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -12,7 +13,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Leaf, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -45,7 +46,6 @@ export default function AuthPage() {
         await updateProfile(user, { displayName: name });
         
         // Initialize User settings as requested (masterPrompt: "")
-        // path: /users/{userId}/settings/{settingId}
         const settingsRef = doc(db, 'users', user.uid, 'settings', 'default');
         await setDoc(settingsRef, {
           id: 'default',

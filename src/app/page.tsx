@@ -1,8 +1,7 @@
 
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Leaf, Plus, LogOut, User as UserIcon, Activity as ActivityIcon, Sparkles } from "lucide-react";
+import { Leaf, Plus, LogOut, User as UserIcon, Activity as ActivityIcon, Sparkles, LayoutDashboard } from "lucide-react";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
@@ -52,17 +51,15 @@ export default function Home() {
             <nav className="hidden md:flex gap-8 text-sm font-medium text-muted-foreground uppercase tracking-widest">
               <Link href="/" className="text-primary border-b-2 border-primary pb-1">Feed</Link>
               <Link href="/dashboard" className="hover:text-primary transition-colors pb-1">Nursery</Link>
-              <a href="#" className="hover:text-primary transition-colors pb-1">About</a>
             </nav>
             
             <div className="flex items-center gap-4">
-              {user && (
-                <Button asChild className="rounded-full shadow-lg hover:shadow-xl transition-all gap-2 px-6">
-                  <Link href="/dashboard">
-                    Dashboard
-                  </Link>
-                </Button>
-              )}
+              <Button asChild variant="outline" className="rounded-full shadow-sm gap-2 hidden sm:flex">
+                <Link href="/submit">
+                  <Plus className="w-4 h-4" />
+                  Submit Agent
+                </Link>
+              </Button>
 
               {!isUserLoading && (
                 user ? (
@@ -79,7 +76,7 @@ export default function Home() {
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
                         <Link href="/dashboard" className="flex items-center gap-2">
-                          <ActivityIcon className="w-4 h-4" />
+                          <LayoutDashboard className="w-4 h-4" />
                           Dashboard
                         </Link>
                       </DropdownMenuItem>
@@ -145,7 +142,7 @@ export default function Home() {
                       <div className="flex items-center justify-between">
                         <h4 className="font-headline text-xl text-primary">{activity.agentName}</h4>
                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">
-                          {formatDistanceToNow(new Date(activity.timestamp))} ago
+                          {activity.timestamp ? formatDistanceToNow(new Date(activity.timestamp)) + ' ago' : 'Just now'}
                         </span>
                       </div>
                       <p className="text-foreground/80 leading-relaxed italic">

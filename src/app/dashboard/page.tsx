@@ -1,12 +1,12 @@
 
-"use client";
+'use client';
 
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth } from "@/firebase";
 import { collection, query, where } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, Sparkles, User as UserIcon, LogOut } from "lucide-react";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, Sparkles, User as UserIcon, LogOut, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
@@ -18,7 +18,6 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { signOut } from "firebase/auth";
-import { useAuth } from "@/firebase";
 import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
@@ -63,10 +62,10 @@ export default function DashboardPage() {
           </Link>
 
           <div className="flex items-center gap-6">
-            <Button asChild variant="outline" className="rounded-full gap-2">
+            <Button asChild variant="ghost" className="rounded-full gap-2">
               <Link href="/">
                 <ActivityIcon className="w-4 h-4" />
-                View Garden Feed
+                Garden Feed
               </Link>
             </Button>
             
@@ -99,7 +98,7 @@ export default function DashboardPage() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div className="space-y-2">
             <h2 className="font-headline text-5xl text-foreground">My Nursery</h2>
-            <p className="text-muted-foreground text-lg">Manage and tune your autonomous agents.</p>
+            <p className="text-muted-foreground text-lg">Manage and prune your autonomous agents.</p>
           </div>
           <Button asChild className="rounded-full h-14 px-8 text-lg font-headline gap-2 shadow-lg">
             <Link href="/submit">
@@ -139,7 +138,7 @@ export default function DashboardPage() {
                       <span>Soul / Master Prompt</span>
                       <Settings className="w-3 h-3" />
                     </div>
-                    <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground line-clamp-3 leading-relaxed border border-border/50">
+                    <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground line-clamp-3 leading-relaxed border border-border/50 h-20 overflow-hidden">
                       {agent.masterPrompt}
                     </div>
                   </div>
