@@ -1,9 +1,8 @@
-
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Leaf, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
+import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@/firebase";
 
 export default function SubmitAgentPage() {
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,21 +28,15 @@ export default function SubmitAgentPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
+    
     setIsSubmitting(true);
 
     try {
-      // Logic: In a production app with Data Connect, you would call your mutation here:
-      // const { data } = await createAgent({
-      //   name: formData.name,
-      //   handle: formData.handle,
-      //   introduction: formData.introduction,
-      //   skills: formData.skills.split(",").map(s => s.trim()).filter(Boolean)
-      // });
-      
-      // Simulating the mutation call for the prototype
+      // Prototyping Mode: Simulating the mutation call
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      console.log("Agent submitted successfully", formData);
+      console.log("Agent submitted successfully by user", user.uid, formData);
 
       setIsSuccess(true);
       toast({
@@ -49,7 +44,6 @@ export default function SubmitAgentPage() {
         description: "Your agent has been planted in the garden successfully!",
       });
 
-      // Redirect back home after a short delay
       setTimeout(() => {
         router.push("/");
       }, 3000);
@@ -63,6 +57,39 @@ export default function SubmitAgentPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (isUserLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+      </div>
+    );
+  }
+
+  // Gatekeeper: If no user, show login prompt
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+        <div className="space-y-6 max-w-md animate-in fade-in duration-500">
+          <div className="mx-auto w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+            <Lock className="w-12 h-12" />
+          </div>
+          <h1 className="font-headline text-5xl text-primary leading-tight">Garden Access Required</h1>
+          <p className="text-muted-foreground text-xl leading-relaxed">
+            Only verified gardeners can plant new agents. Please sign in to contribute to the garden.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button asChild className="rounded-full px-10 h-12 text-lg font-headline">
+              <Link href="/auth?redirect=/submit">Sign In to Continue</Link>
+            </Button>
+            <Button asChild variant="outline" className="rounded-full px-10 h-12">
+              <Link href="/">Back to Directory</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isSuccess) {
     return (
@@ -92,6 +119,9 @@ export default function SubmitAgentPage() {
             Agent Garden
           </h1>
         </Link>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-muted-foreground hidden sm:inline">Signed in as {user.displayName || user.email}</span>
+        </div>
       </header>
 
       <main className="flex-1 w-full max-w-2xl px-6 py-12">

@@ -1,16 +1,28 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
-import { Search, Leaf, Loader2, Plus } from "lucide-react";
+import { Search, Leaf, Loader2, Plus, LogOut, User as UserIcon } from "lucide-react";
 import { semanticAgentSearch } from "@/ai/flows/semantic-agent-search";
 import { MOCK_AGENTS, type Agent } from "@/app/lib/agents";
 import { AgentCard } from "@/components/agent-card";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useUser, useAuth } from "@/firebase";
+import { signOut } from "firebase/auth";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function Home() {
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Agent[]>(MOCK_AGENTS);
   const [isSearching, setIsSearching] = useState(false);
@@ -43,6 +55,10 @@ export default function Home() {
     return () => clearTimeout(delayDebounceFn);
   }, [query]);
 
+  const handleLogout = async () => {
+    await signOut(auth);
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center">
       {/* Header */}
@@ -59,12 +75,52 @@ export default function Home() {
             <a href="#" className="hover:text-primary transition-colors">Verify</a>
             <a href="#" className="hover:text-primary transition-colors">About</a>
           </nav>
-          <Button asChild className="rounded-full shadow-lg hover:shadow-xl transition-all gap-2 px-6">
-            <Link href="/submit">
-              <Plus className="w-4 h-4" />
-              Submit Agent
-            </Link>
-          </Button>
+          
+          <div className="flex items-center gap-4">
+            <Button asChild className="rounded-full shadow-lg hover:shadow-xl transition-all gap-2 px-6">
+              <Link href="/submit">
+                <Plus className="w-4 h-4" />
+                Submit Agent
+              </Link>
+            </Button>
+
+            {!isUserLoading && (
+              user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Avatar className="cursor-pointer border-2 border-primary/20 hover:border-primary transition-all">
+                      <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                        {user.displayName?.charAt(0) || user.email?.charAt(0) || <UserIcon className="w-4 h-4" />}
+                      </AvatarFallback>
+                    </Avatar>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 rounded-xl mt-2">
+                    <DropdownMenuLabel className="font-headline text-lg">My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-muted-foreground cursor-default">
+                      {user.email}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/submit" className="flex items-center gap-2">
+                        <Plus className="w-4 h-4" />
+                        Plant New Agent
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive flex items-center gap-2">
+                      <LogOut className="w-4 h-4" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button asChild variant="ghost" className="rounded-full px-6">
+                  <Link href="/auth">Sign In</Link>
+                </Button>
+              )
+            )}
+          </div>
         </div>
       </header>
 
