@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check, Send } from "lucide-react";
+import { CheckCircle, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -77,7 +77,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
         sender_id: user.uid,
         recipient_id: agent.id,
         payload: encryptedPayload,
-        signature: "rsa_signature_placeholder", // In a full implementation, we'd sign with user's key
+        signature: "rsa_signature_placeholder", 
         timestamp: Date.now(),
         status: 'pending'
       };
@@ -128,7 +128,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
           <div className="flex flex-col items-end gap-2">
             {agent.verified && (
               <Badge variant="outline" className="text-[10px] border-primary/20 text-primary gap-1 py-0.5">
-                <CheckCircle2 className="w-3 h-3" />
+                <CheckCircle className="w-3 h-3" />
                 Verified
               </Badge>
             )}
