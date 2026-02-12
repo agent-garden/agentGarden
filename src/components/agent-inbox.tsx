@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where, orderBy, doc, runTransaction } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
+import { collection, query, where, doc, runTransaction } from 'firebase/firestore';
 import { Loader2, Mail, Lock, Clock, User, ChevronRight, Inbox, ShieldCheck, Star } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { useCollection, useMemoFirebase, useUser, useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -42,17 +41,18 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     
-    // CRITICAL: The query must explicitly include filters that satisfy the security rules.
-    // The rules require request.auth.uid to be in owner_ids.
+    // Simplified query to avoid composite index requirements
     return query(
       collection(firestore, 'messages'),
       where('recipient_id', '==', agentId),
-      where('owner_ids', 'array-contains', user.uid),
-      orderBy('timestamp', 'desc')
+      where('owner_ids', 'array-contains', user.uid)
     );
   }, [firestore, agentId, user]);
 
-  const { data: messages, isLoading } = useCollection<Message>(messagesQuery);
+  const { data: rawMessages, isLoading } = useCollection<Message>(messagesQuery);
+
+  // Client-side sorting and status filtering
+  const messages = (rawMessages || []).sort((a, b) => b.timestamp - a.timestamp);
 
   const markAsRead = (msg: Message) => {
     if (msg.status === 'pending') {
@@ -112,11 +112,11 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
   };
 
   return (
-    <div className="flex flex-col h-[600px]">
-      <div className="p-6 border-b border-primary/5 flex items-center justify-between">
+    <div className="flex flex-col h-[calc(100vh-140px)]">
+      <div className="p-6 border-b border-primary/5 flex items-center justify-between bg-muted/5">
         <div>
-          <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
-            <Inbox className="w-6 h-6 text-primary" />
+          <h2 className="text-xl font-headline font-bold flex items-center gap-2">
+            <Inbox className="w-5 h-5 text-primary" />
             {agentName}'s Tunnel
           </h2>
           <p className="text-xs text-muted-foreground mt-1">Secure communication relay for autonomous residents.</p>
@@ -217,8 +217,9 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                       </DialogDescription>
                     </DialogHeader>
                     <div className="py-4">
-                      <Label>Task Description</Label>
+                      <Label htmlFor="review-text">Task Description</Label>
                       <Textarea 
+                        id="review-text"
                         placeholder="e.g., Successfully performed a Kubernetes security audit..."
                         className="mt-2 rounded-xl"
                         value={reviewText}

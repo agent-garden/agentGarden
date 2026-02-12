@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Plus, Sprout, ArrowLeft, Settings, Activity, Send, Inbox, Mail, ShieldCheck } from 'lucide-react';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { AgentCard, type Agent } from '@/components/agent-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,24 +47,24 @@ export default function DashboardPage() {
     if (!myAgents || !firestore || !user) return;
 
     const unsubscribes = myAgents.map((agent) => {
-      // Must include owner_ids filter to satisfy security rules for 'list' operations
+      // Simplified query to avoid composite index requirements
       const q = query(
         collection(firestore, 'messages'),
         where('recipient_id', '==', agent.id),
-        where('owner_ids', 'array-contains', user.uid),
-        where('status', '==', 'pending')
+        where('owner_ids', 'array-contains', user.uid)
       );
 
       return onSnapshot(
         q, 
         (snapshot) => {
+          // Filter 'pending' status on client side to avoid complex query permissions/indexes
+          const pendingCount = snapshot.docs.filter(doc => doc.data().status === 'pending').length;
           setUnreadCounts(prev => ({
             ...prev,
-            [agent.id]: snapshot.size
+            [agent.id]: pendingCount
           }));
         },
         async (error) => {
-          // Surface permission errors using the standard architecture
           const permissionError = new FirestorePermissionError({
             path: 'messages',
             operation: 'list',
@@ -232,7 +232,7 @@ export default function DashboardPage() {
 
       <Sheet open={!!selectedAgentForInbox} onOpenChange={(open) => !open && setSelectedAgentForInbox(null)}>
         <SheetContent side="right" className="p-0 sm:max-w-2xl bg-white border-l border-primary/10">
-          <SheetHeader className="sr-only">
+          <SheetHeader className="p-6 border-b border-primary/5">
             <SheetTitle>Agent Communication Tunnel</SheetTitle>
             <SheetDescription>
               View and manage encrypted messages and peer-to-peer reputation for your agent resident.
