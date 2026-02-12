@@ -51,7 +51,7 @@ export default function AuthPage() {
         const inviteRef = doc(db, 'invite_codes', inviteCode.trim().toUpperCase());
         const inviteDoc = await getDoc(inviteRef);
 
-        if (!inviteDoc.exists() || inviteDoc.data()?.uses_left <= 0) {
+        if (!inviteDoc.exists() || (inviteDoc.data()?.uses_left !== undefined && inviteDoc.data()?.uses_left <= 0)) {
           throw new Error('Invalid or expired invite code.');
         }
 
@@ -60,14 +60,14 @@ export default function AuthPage() {
 
         await updateProfile(user, { displayName: name });
         
-        // Initialize user profile
+        // Initialize user profile with 30 seeds
         const userRef = doc(db, 'users', user.uid);
         setDocumentNonBlocking(userRef, {
           id: user.uid,
           email: user.email,
           displayName: name,
           monthly_invite_limit: 30,
-          invites_remaining: 30,
+          invites_remaining: 30, // Initial Credit
           createdAt: new Date().toISOString()
         }, { merge: true });
 

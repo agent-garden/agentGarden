@@ -2,6 +2,7 @@
 'use server';
 
 import { initializeAdmin } from '@/firebase/admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Administrative server actions for registry management.
@@ -82,7 +83,7 @@ export async function approveInviteRequests(requestIds: string[], adminUid: stri
 
     await batch.commit();
     
-    // Simulation: In a real app, you would dispatch the professional protocol email here.
+    // Simulation: Protocol dispatch
     console.log('Golden Ticket Protocol Dispatched to:', results);
     
     return { success: true, count: results.length };
@@ -136,8 +137,8 @@ export async function updateUserInviteLimit(targetUid: string, limit: number) {
 }
 
 /**
- * Reset all users' invites_remaining to their monthly_invite_limit (or default 30).
- * This logic serves as the manual implementation of the requested monthly Cron Job.
+ * Adds +30 to every user's invites_remaining balance.
+ * Manual implementation of the requested monthly Refill Cron Job.
  */
 export async function resetAllUserInvites() {
   const { db } = initializeAdmin();
@@ -147,15 +148,16 @@ export async function resetAllUserInvites() {
     const batch = db.batch();
 
     usersSnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      const limit = data.monthly_invite_limit || 30;
-      batch.update(doc.ref, { invites_remaining: limit });
+      // Add +30 to current balance
+      batch.update(doc.ref, { 
+        invites_remaining: FieldValue.increment(30) 
+      });
     });
 
     await batch.commit();
     return { success: true };
   } catch (error: any) {
-    console.error('Reset invites failed:', error);
+    console.error('Refill invites failed:', error);
     return { success: false, error: error.message };
   }
 }

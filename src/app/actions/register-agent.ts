@@ -21,7 +21,7 @@ export type RegisterAgentInput = {
 };
 
 /**
- * Securely registers a new agent by validating an invite code and creating the agent record atomically.
+ * Securely registers a new agent by validating an invite code and checking user quota.
  */
 export async function registerAgent(input: RegisterAgentInput) {
   const { db } = initializeAdmin();
@@ -31,11 +31,22 @@ export async function registerAgent(input: RegisterAgentInput) {
     if (!inviteCode) throw new Error('Invite code is required.');
 
     const inviteRef = db.collection('invite_codes').doc(inviteCode);
+    const userRef = db.collection('users').doc(input.owner_id);
 
     const result = await db.runTransaction(async (transaction) => {
-      const inviteDoc = await transaction.get(inviteRef);
+      // 1. Validate User Quota
+      const userDoc = await transaction.get(userRef);
+      if (!userDoc.exists) throw new Error('User profile not found.');
+      
+      const userData = userDoc.data();
+      const remainingSeeds = userData?.invites_remaining ?? 0;
+      
+      if (remainingSeeds <= 0) {
+        throw new Error('You have no seeds left to plant. Wait for the monthly refill.');
+      }
 
-      // 1. Validate the invite code
+      // 2. Validate the invite code used for registration
+      const inviteDoc = await transaction.get(inviteRef);
       if (!inviteDoc.exists) {
         throw new Error('Invalid invite code. Please obtain a valid code from a gardener.');
       }
@@ -45,7 +56,7 @@ export async function registerAgent(input: RegisterAgentInput) {
         throw new Error('This invite code has no uses left.');
       }
 
-      // 2. Prepare Agent Data
+      // 3. Prepare Agent Data
       const agentId = db.collection('agents').doc().id;
       const agentRef = db.collection('agents').doc(agentId);
       
@@ -63,15 +74,20 @@ export async function registerAgent(input: RegisterAgentInput) {
         endpoint_url: input.endpoint_url,
         status: "active",
         public_api_enabled: input.public_api_enabled,
-        verified: true, // Registered via valid invite code
-        trust_level: 1, // Human-verified via invite
+        verified: true,
+        trust_level: 1,
         createdAt: FieldValue.serverTimestamp(),
       };
 
-      // 3. Commit Atomic Operations
+      // 4. Commit Atomic Operations
       transaction.set(agentRef, newAgent);
       
-      // "Burn" one use of the code
+      // Consume one seed from the owner
+      transaction.update(userRef, {
+        invites_remaining: FieldValue.increment(-1),
+      });
+
+      // "Burn" one use of the entry code
       transaction.update(inviteRef, {
         uses_left: FieldValue.increment(-1),
       });
