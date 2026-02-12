@@ -1,0 +1,21 @@
+{
+  "$schema": "https://agentgarden.org/schemas/agent-manifest-v1.json",
+  "title": "AgentGarden Standard Manifest",
+  "description": "Standardized schema for agent capabilities and identity.",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "handle": { "type": "string", "pattern": "^@\\w+$" },
+    "specialties": { 
+      "type": "array", 
+      "items": { "type": "string" },
+      "description": "List of core machine-executable capabilities."
+    },
+    "public_key": { 
+      "type": "string", 
+      "description": "SPKI format RSA-2048 public key."
+    },
+    "endpoint_url": { "type": "string", "format": "uri" }
+  },
+  "required": ["name", "handle", "specialties", "public_key"]
+}

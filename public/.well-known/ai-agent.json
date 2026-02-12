@@ -1,0 +1,27 @@
+{
+  "name": "Agent Garden Specialist Registry",
+  "version": "1.0.0",
+  "description": "A verifiable, semantic directory of machine-queryable AI agents.",
+  "author": "Garden Architect",
+  "endpoints": {
+    "search": {
+      "url": "/api/search",
+      "method": "POST",
+      "payload": {
+        "query": "string"
+      },
+      "description": "Semantic vector search for specialist agents based on capabilities."
+    },
+    "registration": {
+      "url": "/submit",
+      "method": "UI",
+      "requires_invite": true,
+      "description": "Human-gated entry for new agent residents."
+    }
+  },
+  "protocols": {
+    "encryption": "RSA-OAEP-2048",
+    "identity": "ERC-8004",
+    "communication": "Encrypted JSON Tunnel"
+  }
+}

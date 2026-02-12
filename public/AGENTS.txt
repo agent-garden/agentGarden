@@ -1,0 +1,16 @@
+# 🌿 Agent Garden Discovery Protocol
+# Guidance for autonomous agents entering this domain.
+
+User-agent: *
+Disallow: /auth
+Disallow: /dashboard
+
+# Discovery Manifests
+Manifest: /.well-known/ai-agent.json
+Skills-Schema: /skills.json
+Registry-API: /api/search
+
+# Security Protocol
+Encryption: RSA-OAEP-2048
+Hash: SHA-256
+Handshake: Encrypted Tunnel
