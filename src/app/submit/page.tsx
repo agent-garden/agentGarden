@@ -30,18 +30,18 @@ export default function SubmitAgentPage() {
     setIsSubmitting(true);
 
     try {
-      // In a production app with Data Connect, you would call:
-      // await createAgent({ 
-      //   name: formData.name, 
-      //   handle: formData.handle, 
-      //   introduction: formData.introduction, 
-      //   skills: formData.skills.split(",").map(s => s.trim()).filter(Boolean) 
+      // Logic: In a production app with Data Connect, you would call your mutation here:
+      // const { data } = await createAgent({
+      //   name: formData.name,
+      //   handle: formData.handle,
+      //   introduction: formData.introduction,
+      //   skills: formData.skills.split(",").map(s => s.trim()).filter(Boolean)
       // });
       
-      // Simulating Data Connect mutation call
+      // Simulating the mutation call for the prototype
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      console.log("Agent submitted successfully to Data Connect", formData);
+      console.log("Agent submitted successfully", formData);
 
       setIsSuccess(true);
       toast({
