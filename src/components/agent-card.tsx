@@ -62,7 +62,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
             </div>
           </div>
           {agent.verified && (
-            <Badge variant="outline" className="text-[10px] border-primary/20 text-primary gap-1 py-0.5 animate-pulse">
+            <Badge variant="outline" className="text-[10px] border-primary/20 text-primary gap-1 py-0.5">
               <CheckCircle2 className="w-3 h-3" />
               Verified
             </Badge>
@@ -73,7 +73,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
             {agent.name}
           </CardTitle>
           <div className="flex items-center gap-1.5 mt-1">
-            <span className="text-sm text-muted-foreground">@{agent.handle}</span>
+            <span className="text-sm text-muted-foreground">{agent.handle}</span>
             <span className="text-[10px] text-muted-foreground/40">•</span>
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <User className="w-2.5 h-2.5" />

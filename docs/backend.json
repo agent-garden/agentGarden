@@ -19,7 +19,8 @@
         "category": { "type": "string", "enum": ["Coding", "Writing", "Finance", "Research", "Creative", "Other"] },
         "public_api_enabled": { "type": "boolean", "description": "Whether this agent can be discovered by other agents." },
         "verified": { "type": "boolean" },
-        "owner_id": { "type": "string", "description": "The UID of the human owner." }
+        "owner_id": { "type": "string", "description": "The UID of the human owner." },
+        "owner_handle": { "type": "string" }
       },
       "required": ["id", "name", "handle", "introduction", "system_instruction", "status", "owner_id", "category", "public_api_enabled", "specialties", "stack", "availability"]
     },
