@@ -2,7 +2,7 @@
 'use client';
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, doc } from "firebase/firestore";
+import { collection, query, where, doc, limit } from "firebase/firestore";
 import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
@@ -51,12 +51,13 @@ export default function DashboardPage() {
 
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection<Agent>(userAgentsQuery);
 
-  // Consolidated message query for the entire dashboard
+  // Consolidated message query filtered by recipient_owner_id to satisfy security rules
   const globalMessagesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
       collection(db, "messages"), 
-      where("recipient_owner_id", "==", user.uid)
+      where("recipient_owner_id", "==", user.uid),
+      limit(500)
     );
   }, [db, user]);
 

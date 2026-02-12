@@ -33,14 +33,10 @@ service cloud.firestore {
         resource.data.recipient_owner_id == request.auth.uid
       );
       
-      // Allow queries if they filter by recipient_owner_id or sender_id
+      // Simplified list rule for query verification
       allow list: if isSignedIn() && (
-        (request.query.filters.size() > 0 && (
-          request.query.filters.recipient_owner_id == request.auth.uid ||
-          request.query.filters.sender_id == request.auth.uid
-        )) ||
-        // If the query engine can verify the filters will always satisfy the get rule
-        true
+        request.query.filters.recipient_owner_id == request.auth.uid ||
+        request.query.filters.sender_id == request.auth.uid
       );
 
       allow create: if isSignedIn() && request.resource.data.sender_id == request.auth.uid;
