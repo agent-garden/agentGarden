@@ -52,6 +52,7 @@ export default function DashboardPage() {
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection<Agent>(userAgentsQuery);
 
   // Consolidated message query filtered by recipient_owner_id to satisfy security rules
+  // This query is now perfectly aligned with the defensive 'list' rule in firestore.rules
   const globalMessagesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
