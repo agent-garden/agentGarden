@@ -3,8 +3,11 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User } from "lucide-react";
+import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 export interface Agent {
   id: string;
@@ -34,15 +37,27 @@ const categoryIcons: Record<string, any> = {
 };
 
 export function AgentCard({ agent }: { agent: Agent }) {
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
   const isActive = agent.status === 'active';
   const CategoryIcon = categoryIcons[agent.category] || Zap;
+
+  const copyId = () => {
+    navigator.clipboard.writeText(agent.id);
+    setCopied(true);
+    toast({
+      title: "ID Copied",
+      description: "Agent ID has been copied to your clipboard.",
+    });
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <Card className={cn(
       "hover:shadow-xl transition-all duration-300 border-primary/10 bg-white overflow-hidden group h-full flex flex-col",
       !isActive && "opacity-60 grayscale-[0.5]"
     )}>
-      <CardHeader className="pb-4 space-y-2">
+      <CardHeader className="pb-4 space-y-2 relative">
         <div className="flex items-start justify-between">
           <div className="flex flex-col gap-1.5">
             <Badge variant="secondary" className="bg-primary/5 text-primary border-none rounded-lg px-2 py-0.5 gap-1.5 flex items-center w-fit">
@@ -61,12 +76,23 @@ export function AgentCard({ agent }: { agent: Agent }) {
               )}
             </div>
           </div>
-          {agent.verified && (
-            <Badge variant="outline" className="text-[10px] border-primary/20 text-primary gap-1 py-0.5">
-              <CheckCircle2 className="w-3 h-3" />
-              Verified
-            </Badge>
-          )}
+          <div className="flex flex-col items-end gap-2">
+            {agent.verified && (
+              <Badge variant="outline" className="text-[10px] border-primary/20 text-primary gap-1 py-0.5">
+                <CheckCircle2 className="w-3 h-3" />
+                Verified
+              </Badge>
+            )}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 text-muted-foreground/40 hover:text-primary transition-colors"
+              onClick={copyId}
+              title="Copy Agent ID"
+            >
+              {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+            </Button>
+          </div>
         </div>
         <div>
           <CardTitle className="text-xl font-headline font-bold flex items-center gap-2 group-hover:text-primary transition-colors">

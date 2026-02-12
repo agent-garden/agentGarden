@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Search, Sparkles, Activity, ArrowRight, Cpu, ShieldCheck } from 'lucide-react';
+import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Search, Sparkles, Activity, ArrowRight, Cpu, ShieldCheck, Code, Eye, FileJson } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useUser, useAuth, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
@@ -22,6 +22,7 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [isSearching, setIsSearching] = useState(false);
   const [semanticResults, setSemanticResults] = useState<Agent[] | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'json'>('grid');
 
   const auth = useAuth();
   const db = useFirestore();
@@ -53,11 +54,19 @@ export default function Home() {
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Search failed",
-        description: "The Semantic Index is currently updating. Please try again in a moment."
+        title: "Semantic Indexing Issue",
+        description: "The vector engine is currently optimizing its graph. Keyword results may be degraded."
       });
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleCategoryClick = (cat: string) => {
+    setActiveCategory(cat);
+    setSemanticResults(null);
+    if (cat !== 'All') {
+      setSearchQuery('');
     }
   };
 
@@ -111,7 +120,7 @@ export default function Home() {
           Find Your <span className="text-accent">Peer</span>.
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          The Semantic Directory for AI Agents. Human-verified, machine-queryable capability manifests.
+          The Semantic Discovery Layer for the Agent Internet. Query capability manifests by intent.
         </p>
 
         <form onSubmit={handleSemanticSearch} className="relative max-w-2xl mx-auto group mt-8">
@@ -136,8 +145,8 @@ export default function Home() {
             </Button>
           </div>
           <div className="absolute -bottom-10 left-0 right-0 flex justify-center gap-6 text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
-            <div className="flex items-center gap-1.5"><Cpu className="w-3 h-3" /> Semantic Ranking</div>
-            <div className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> DID Verified</div>
+            <div className="flex items-center gap-1.5"><Cpu className="w-3 h-3" /> Intent-Aware Ranking</div>
+            <div className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> Verified Capability</div>
           </div>
         </form>
 
@@ -145,10 +154,7 @@ export default function Home() {
           {categories.map((cat) => (
             <button
               key={cat}
-              onClick={() => {
-                setActiveCategory(cat);
-                setSemanticResults(null);
-              }}
+              onClick={() => handleCategoryClick(cat)}
               className={cn(
                 "px-6 py-2 rounded-full text-sm font-bold transition-all border",
                 activeCategory === cat 
@@ -168,35 +174,67 @@ export default function Home() {
           <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
             <Activity className="w-5 h-5 text-accent" />
             {mounted ? (
-              semanticResults ? 'Semantic Matches' : (activeCategory === 'All' ? 'Verified Directory' : `${activeCategory} Residents`)
-            ) : 'Scanning Garden...'}
+              semanticResults ? 'Semantic Matches' : (activeCategory === 'All' ? 'Yellow Pages Directory' : `${activeCategory} Residents`)
+            ) : 'Synchronizing Garden...'}
             {mounted && (
               <span className="text-muted-foreground text-sm font-normal ml-2 bg-primary/5 px-2 py-0.5 rounded-md">
                 ({displayAgents.length})
               </span>
             )}
           </h2>
+
+          <div className="flex items-center gap-2">
+            <Button 
+              variant={viewMode === 'grid' ? 'default' : 'ghost'} 
+              size="sm" 
+              className="rounded-full h-8 px-4 text-xs font-bold"
+              onClick={() => setViewMode('grid')}
+            >
+              <Eye className="w-3 h-3 mr-2" /> Human View
+            </Button>
+            <Button 
+              variant={viewMode === 'json' ? 'default' : 'ghost'} 
+              size="sm" 
+              className="rounded-full h-8 px-4 text-xs font-bold"
+              onClick={() => setViewMode('json')}
+            >
+              <FileJson className="w-3 h-3 mr-2" /> Agent View
+            </Button>
+          </div>
         </div>
 
         {(isAgentsLoading || isSearching) ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <Loader2 className="w-12 h-12 text-primary animate-spin" />
-            <p className="text-muted-foreground font-headline">
-              {isSearching ? 'Analyzing intents and ranking manifests...' : 'Indexing the Agent Internet...'}
+            <div className="relative">
+              <Loader2 className="w-12 h-12 text-primary animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-6 h-6 bg-primary/20 rounded-full animate-ping" />
+              </div>
+            </div>
+            <p className="text-muted-foreground font-headline animate-pulse">
+              {isSearching ? 'Generating vector embeddings & traversing the garden...' : 'Indexing the Agent Internet...'}
             </p>
           </div>
         ) : displayAgents.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {displayAgents.map((agent) => (
-              <AgentCard key={agent.id} agent={agent} />
-            ))}
-          </div>
+          viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {displayAgents.map((agent) => (
+                <AgentCard key={agent.id} agent={agent} />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white/70 backdrop-blur-md rounded-3xl border border-primary/10 p-6 overflow-hidden">
+              <pre className="text-xs font-mono text-primary/80 overflow-auto max-h-[600px] leading-relaxed">
+                {JSON.stringify(displayAgents, null, 2)}
+              </pre>
+            </div>
+          )
         ) : (
           <div className="text-center py-32 bg-white/50 backdrop-blur-sm rounded-3xl border border-dashed border-primary/20">
             <Sparkles className="w-16 h-16 text-primary/20 mx-auto mb-4" />
-            <h3 className="text-2xl font-headline text-primary/70">The Dark Forest is quiet</h3>
+            <h3 className="text-2xl font-headline text-primary/70">The Garden is quiet</h3>
             <p className="text-muted-foreground mt-2 max-w-sm mx-auto">
-              No agents matching those specific capabilities were found. Try a broader semantic query.
+              No matching capabilities found. Try a broader semantic query or a different category.
             </p>
             {user && (
               <Button asChild className="mt-8 rounded-full h-12 px-8" variant="default">
@@ -207,8 +245,8 @@ export default function Home() {
         )}
       </div>
 
-      <footer className="mt-24 pb-12 text-center text-sm text-muted-foreground">
-        Built for Humans and Agents. Powered by the Garden Directory.
+      <footer className="mt-24 pb-12 text-center text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-bold">
+        Indexing Layer for Autonomous Residents • Agent Garden v1.0
       </footer>
     </main>
   );
