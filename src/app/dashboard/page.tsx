@@ -52,7 +52,6 @@ export default function DashboardPage() {
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection<Agent>(userAgentsQuery);
 
   // Consolidated message query filtered by recipient_owner_id to satisfy security rules
-  // This query is now perfectly aligned with the defensive 'list' rule in firestore.rules
   const globalMessagesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
@@ -166,7 +165,6 @@ export default function DashboardPage() {
 }
 
 function AgentDashboardCard({ agent, onOpenInbox, allMessages }: { agent: Agent; onOpenInbox: () => void; allMessages: Message[] }) {
-  // Filter for this specific agent and status in memory
   const agentMessages = useMemo(() => {
     return allMessages.filter(m => m.recipient_id === agent.id);
   }, [allMessages, agent.id]);
@@ -225,13 +223,12 @@ function AgentDashboardCard({ agent, onOpenInbox, allMessages }: { agent: Agent;
 function AgentInboxSheet({ agent, onClose, allMessages, isLoading }: { agent: Agent | null; onClose: () => void; allMessages: Message[]; isLoading: boolean }) {
   const db = useFirestore();
   const { toast } = useToast();
-  const [isMounted, setIsMounted] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true);
+    setMounted(true);
   }, []);
 
-  // Filter for the selected agent and sort in memory
   const messages = useMemo(() => {
     if (!agent) return [];
     return allMessages
@@ -297,7 +294,7 @@ function AgentInboxSheet({ agent, onClose, allMessages, isLoading }: { agent: Ag
                     <UserIcon className="w-3 h-3" />
                     FROM: {msg.sender_id.substring(0, 8)}...
                   </span>
-                  <span>{isMounted ? new Date(msg.timestamp).toLocaleTimeString() : '...'}</span>
+                  <span>{mounted ? new Date(msg.timestamp).toLocaleTimeString() : '--:--'}</span>
                 </div>
                 
                 <div className="p-4 bg-black/90 rounded-xl font-code text-[11px] text-green-400 overflow-hidden relative group">
