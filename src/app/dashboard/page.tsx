@@ -2,10 +2,10 @@
 'use client';
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, orderBy, doc, serverTimestamp } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, Sparkles, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu } from "lucide-react";
+import { collection, query, where, doc } from "firebase/firestore";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,12 +43,24 @@ export default function DashboardPage() {
     }
   }, [user, isUserLoading, router]);
 
+  // Query for user's agents
   const userAgentsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(collection(db, "agents"), where("owner_id", "==", user.uid));
   }, [db, user]);
 
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection<Agent>(userAgentsQuery);
+
+  // Consolidated message query for the entire dashboard
+  const globalMessagesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(
+      collection(db, "messages"), 
+      where("recipient_owner_id", "==", user.uid)
+    );
+  }, [db, user]);
+
+  const { data: allMessages, isLoading: isMessagesLoading } = useCollection<Message>(globalMessagesQuery);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -122,7 +134,12 @@ export default function DashboardPage() {
         ) : myAgents && myAgents.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {myAgents.map((agent) => (
-              <AgentDashboardCard key={agent.id} agent={agent} onOpenInbox={() => setSelectedAgent(agent)} />
+              <AgentDashboardCard 
+                key={agent.id} 
+                agent={agent} 
+                onOpenInbox={() => setSelectedAgent(agent)} 
+                allMessages={allMessages || []}
+              />
             ))}
           </div>
         ) : (
@@ -136,30 +153,25 @@ export default function DashboardPage() {
         )}
       </main>
 
-      <AgentInboxSheet agent={selectedAgent} onClose={() => setSelectedAgent(null)} />
+      <AgentInboxSheet 
+        agent={selectedAgent} 
+        onClose={() => setSelectedAgent(null)} 
+        allMessages={allMessages || []}
+        isLoading={isMessagesLoading}
+      />
     </div>
   );
 }
 
-function AgentDashboardCard({ agent, onOpenInbox }: { agent: Agent; onOpenInbox: () => void }) {
-  const db = useFirestore();
-  const { user } = useUser();
+function AgentDashboardCard({ agent, onOpenInbox, allMessages }: { agent: Agent; onOpenInbox: () => void; allMessages: Message[] }) {
+  // Filter for this specific agent and status in memory
+  const agentMessages = useMemo(() => {
+    return allMessages.filter(m => m.recipient_id === agent.id);
+  }, [allMessages, agent.id]);
   
-  // Simplified query to satisfy security rules easily
-  // We filter by recipient_owner_id first as it's the primary security requirement
-  const messagesQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
-    return query(
-      collection(db, "messages"), 
-      where("recipient_owner_id", "==", user.uid)
-    );
-  }, [db, user]);
-
-  const { data: allMessages } = useCollection<Message>(messagesQuery);
-  
-  // Filter for this specific agent and status in memory to avoid complex compound query permission issues
-  const agentMessages = allMessages?.filter(m => m.recipient_id === agent.id) || [];
-  const unreadCount = agentMessages.filter(m => m.status === 'pending').length;
+  const unreadCount = useMemo(() => {
+    return agentMessages.filter(m => m.status === 'pending').length;
+  }, [agentMessages]);
 
   return (
     <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm group hover:scale-[1.02] transition-all relative overflow-hidden">
@@ -208,9 +220,8 @@ function AgentDashboardCard({ agent, onOpenInbox }: { agent: Agent; onOpenInbox:
   );
 }
 
-function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () => void }) {
+function AgentInboxSheet({ agent, onClose, allMessages, isLoading }: { agent: Agent | null; onClose: () => void; allMessages: Message[]; isLoading: boolean }) {
   const db = useFirestore();
-  const { user } = useUser();
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
 
@@ -218,21 +229,13 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
     setIsMounted(true);
   }, []);
 
-  // Simplified query for the sheet
-  const messagesQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
-    return query(
-      collection(db, "messages"), 
-      where("recipient_owner_id", "==", user.uid)
-    );
-  }, [db, user]);
-
-  const { data: allMessages, isLoading } = useCollection<Message>(messagesQuery);
-  
   // Filter for the selected agent and sort in memory
-  const messages = allMessages
-    ?.filter(m => m.recipient_id === agent?.id)
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()) || [];
+  const messages = useMemo(() => {
+    if (!agent) return [];
+    return allMessages
+      ?.filter(m => m.recipient_id === agent.id)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [allMessages, agent]);
 
   const handleMarkAsRead = (msgId: string) => {
     if (!db) return;

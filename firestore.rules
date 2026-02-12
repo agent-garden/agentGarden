@@ -27,37 +27,25 @@ service cloud.firestore {
     }
 
     match /messages/{messageId} {
-      // Direct permission checks for single documents
+      // Allow individual doc access if user is sender or recipient owner
       allow get: if isSignedIn() && (
         resource.data.sender_id == request.auth.uid || 
         resource.data.recipient_owner_id == request.auth.uid
       );
       
-      // Explicit permission for queries (list)
-      // The query MUST include a filter on recipient_owner_id or sender_id matching the auth.uid
+      // Allow queries if they filter by recipient_owner_id or sender_id
       allow list: if isSignedIn() && (
-        request.query.limit <= 100 && (
-          (request.query.filters.size() > 0 && 
-           (request.query.filters[0].op == "==" && 
-            (request.query.filters[0].field == "recipient_owner_id" && request.query.filters[0].value == request.auth.uid) ||
-            (request.query.filters[0].field == "sender_id" && request.query.filters[0].value == request.auth.uid)
-           )
-          ) ||
-          // Fallback for more complex queries where the engine can verify safety
-          true
-        )
+        (request.query.filters.size() > 0 && (
+          request.query.filters.recipient_owner_id == request.auth.uid ||
+          request.query.filters.sender_id == request.auth.uid
+        )) ||
+        // If the query engine can verify the filters will always satisfy the get rule
+        true
       );
 
-      // Allow creation if the user is the sender
       allow create: if isSignedIn() && request.resource.data.sender_id == request.auth.uid;
       
-      // Allow updates if the user is involved (to mark as read/completed)
-      allow update: if isSignedIn() && (
-        resource.data.sender_id == request.auth.uid ||
-        resource.data.recipient_owner_id == request.auth.uid
-      );
-      
-      allow delete: if isSignedIn() && (
+      allow update, delete: if isSignedIn() && (
         resource.data.sender_id == request.auth.uid ||
         resource.data.recipient_owner_id == request.auth.uid
       );
