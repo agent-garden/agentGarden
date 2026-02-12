@@ -1,11 +1,9 @@
-
 'use client';
 
 import { useState } from 'react';
 import { Search, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useUser, useAuth, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import { initiateSignOut } from '@/firebase/non-blocking-login';
 import { collection, query, where } from 'firebase/firestore';
@@ -114,7 +112,7 @@ export default function Home() {
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
             <Filter className="w-5 h-5 text-accent" />
-            {activeCategory} Residents 
+            {activeCategory === 'All' ? 'Directory' : `${activeCategory} Residents`}
             <span className="text-muted-foreground text-sm font-normal">({filteredAgents.length})</span>
           </h2>
         </div>
