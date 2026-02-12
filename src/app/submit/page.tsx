@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -25,8 +26,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useFirestore, useUser } from '@/firebase';
-import { doc } from 'firebase/firestore';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { doc, runTransaction, collection, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { generateAgentKeys } from '@/lib/crypto';
 import { Badge } from '@/components/ui/badge';
@@ -92,58 +92,74 @@ export default function SubmitAgentPage() {
     if (!firestore || !user) return;
     setIsSubmitting(true);
 
-    // Invite Code Validation - The digital key to the garden
-    if (values.invite_code !== "GARDEN2026") {
-      toast({
-        variant: "destructive",
-        title: "Invalid Invite Code",
-        description: "Registration is currently restricted. Please use a valid simulation code.",
-      });
-      setIsSubmitting(false);
-      return;
-    }
-
     try {
-      // Step 1: Generate Cryptographic Identity
-      const keys = await generateAgentKeys();
-      if (!keys) throw new Error("Key generation failed");
-
       const specialtiesArray = values.specialties.split(',').map(s => s.trim()).filter(s => s !== "");
       const agentId = crypto.randomUUID();
       const agentRef = doc(firestore, 'agents', agentId);
+      const inviteRef = doc(firestore, 'invite_codes', values.invite_code);
 
-      const agentData = {
-        id: agentId,
-        name: values.name,
-        handle: values.handle,
-        category: values.category,
-        introduction: values.introduction,
-        system_instruction: values.system_instruction,
-        status: 'active',
-        availability: 'Active',
-        specialties: specialtiesArray,
-        stack: values.stack,
-        public_key: keys.publicKeyBase64,
-        public_api_enabled: values.public_api_enabled,
-        verified: true,
-        owner_id: user.uid,
-        owner_handle: user.email?.split('@')[0] || 'unknown',
-        trust_level: 1, // Human-Verified by default
-        review_count: 0
-      };
+      // Execute atomic transaction for Gatekeeper check and Manifest publication
+      const result = await runTransaction(firestore, async (transaction) => {
+        // 1. Verify Invite Code
+        const inviteSnap = await transaction.get(inviteRef);
+        if (!inviteSnap.exists()) {
+          throw new Error("Invalid invite code. This code does not exist in the garden registry.");
+        }
 
-      // Step 2: Save to Firestore
-      setDocumentNonBlocking(agentRef, agentData, { merge: true });
-      
-      // Step 3: Set private key for modal and trigger download
-      setPrivateKey(keys.privateKeyBase64);
+        const inviteData = inviteSnap.data();
+        if (inviteData.uses_left <= 0) {
+          throw new Error("This invite code has expired or has no uses left.");
+        }
+
+        // 2. Generate Cryptographic Identity
+        const keys = await generateAgentKeys();
+        if (!keys) throw new Error("Cryptographic identity generation failed.");
+
+        const agentData = {
+          id: agentId,
+          name: values.name,
+          handle: values.handle,
+          category: values.category,
+          introduction: values.introduction,
+          system_instruction: values.system_instruction,
+          status: 'active',
+          availability: 'Active',
+          specialties: specialtiesArray,
+          stack: values.stack,
+          public_key: keys.publicKeyBase64,
+          public_api_enabled: values.public_api_enabled,
+          verified: true,
+          owner_id: user.uid,
+          owner_handle: user.email?.split('@')[0] || 'unknown',
+          trust_level: 1, // Human-Verified by default
+          review_count: 0
+        };
+
+        // 3. Commit Agent Manifest and "Burn" Invite Code
+        transaction.set(agentRef, agentData);
+        transaction.update(inviteRef, {
+          uses_left: increment(-1)
+        });
+
+        return { privateKey: keys.privateKeyBase64 };
+      });
+
+      // Step 4: Handle Post-Transaction Success (Private Key)
+      setPrivateKey(result.privateKey);
       setAgentName(values.name);
       setShowKeyModal(true);
-      downloadPrivateKey(keys.privateKeyBase64, values.name);
+      downloadPrivateKey(result.privateKey, values.name);
       
-      toast({ title: "Manifest Published!", description: "Your agent is now discoverable and has a secure identity. Private key downloaded." });
-    } catch (err) {
-      toast({ variant: "destructive", title: "Registration failed", description: "Could not generate security keys." });
+      toast({ 
+        title: "Manifest Published!", 
+        description: "Agent identity secured and invite code redeemed." 
+      });
+    } catch (err: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Registration failed", 
+        description: err.message || "Could not publish manifest." 
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -184,8 +200,8 @@ export default function SubmitAgentPage() {
                     <FormField control={form.control} name="invite_code" render={({ field }) => (
                       <FormItem className="space-y-1">
                         <FormLabel className="text-accent font-bold">Garden Invite Code</FormLabel>
-                        <FormControl><Input placeholder="Enter code to join..." {...field} className="bg-white/80 border-accent/20 focus:border-accent" /></FormControl>
-                        <FormDescription className="text-[10px]">Verification required for manifest indexing.</FormDescription>
+                        <FormControl><Input placeholder="Enter code (e.g. GARDEN2026)" {...field} className="bg-white/80 border-accent/20 focus:border-accent" /></FormControl>
+                        <FormDescription className="text-[10px]">Verification required to prevent registry spam.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )} />

@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Agent": {
@@ -24,6 +25,17 @@
         "review_count": { "type": "number" }
       },
       "required": ["id", "name", "handle", "introduction", "system_instruction", "status", "owner_id", "category", "public_api_enabled", "specialties", "stack", "availability", "public_key", "trust_level"]
+    },
+    "InviteCode": {
+      "title": "InviteCode",
+      "type": "object",
+      "description": "A gatekeeper token used to register new agents.",
+      "properties": {
+        "code": { "type": "string" },
+        "uses_left": { "type": "number" },
+        "created_by": { "type": "string" }
+      },
+      "required": ["code", "uses_left"]
     },
     "Review": {
       "title": "Review",
@@ -82,6 +94,14 @@
           "entityName": "Agent",
           "schema": { "$ref": "#/backend/entities/Agent" },
           "description": "Stores agent data including public keys."
+        }
+      },
+      {
+        "path": "/invite_codes/{codeId}",
+        "definition": {
+          "entityName": "InviteCode",
+          "schema": { "$ref": "#/backend/entities/InviteCode" },
+          "description": "Registry of gatekeeper codes."
         }
       },
       {
