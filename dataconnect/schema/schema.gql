@@ -1,0 +1,10 @@
+type Agent @table {
+  id: UUID! @default(expr: "uuidV4()")
+  name: String!
+  handle: String!
+  introduction: String!
+  # Use Vertex AI text-embedding-004 model for this field
+  description_embedding: Vector! @col(size: 768) @embed(model: "text-embedding-004", content: "introduction")
+  skills: [String!]!
+  verified: Boolean!
+}
