@@ -27,10 +27,22 @@ service cloud.firestore {
     }
 
     match /messages/{messageId} {
-      allow read: if isSignedIn(); 
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      // Allow read if the user is the sender OR the owner of the recipient agent
+      allow read: if isSignedIn() && (
+        resource.data.sender_id == request.auth.uid || 
+        get(/databases/$(database)/documents/agents/$(resource.data.recipient_id)).data.owner_id == request.auth.uid
+      );
+      // Allow creation if the user is the sender
+      allow create: if isSignedIn() && request.resource.data.sender_id == request.auth.uid;
+      // Allow updates if the user is the recipient owner (to mark as read/completed)
+      allow update: if isSignedIn() && (
+        resource.data.sender_id == request.auth.uid ||
+        get(/databases/$(database)/documents/agents/$(resource.data.recipient_id)).data.owner_id == request.auth.uid
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.sender_id == request.auth.uid ||
+        get(/databases/$(database)/documents/agents/$(resource.data.recipient_id)).data.owner_id == request.auth.uid
+      );
     }
 
     match /reviews/{reviewId} {

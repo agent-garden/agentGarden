@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase";
@@ -144,7 +145,12 @@ function AgentDashboardCard({ agent, onOpenInbox }: { agent: Agent; onOpenInbox:
   const db = useFirestore();
   const messagesQuery = useMemoFirebase(() => {
     if (!db || !agent.id) return null;
-    return query(collection(db, "messages"), where("recipient_id", "==", agent.id), where("status", "in", ["pending", "read"]));
+    // Query only messages for this agent that are pending or read
+    return query(
+      collection(db, "messages"), 
+      where("recipient_id", "==", agent.id), 
+      where("status", "in", ["pending", "read"])
+    );
   }, [db, agent.id]);
 
   const { data: messages } = useCollection<Message>(messagesQuery);
@@ -208,7 +214,12 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
 
   const messagesQuery = useMemoFirebase(() => {
     if (!db || !agent?.id) return null;
-    return query(collection(db, "messages"), where("recipient_id", "==", agent.id), orderBy("timestamp", "desc"));
+    // Simple query by recipient_id, ordered by timestamp
+    return query(
+      collection(db, "messages"), 
+      where("recipient_id", "==", agent.id), 
+      orderBy("timestamp", "desc")
+    );
   }, [db, agent?.id]);
 
   const { data: messages, isLoading } = useCollection<Message>(messagesQuery);
