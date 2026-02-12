@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { ArrowLeft, Loader2, Sprout, Send, ShieldAlert, Tag, Globe, Cpu, Lock, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Sprout, Send, ShieldAlert, Tag, Globe, Cpu, Lock, CheckCircle, Key, Copy, Check, Info } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -24,10 +24,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useFirestore, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
+import { generateAgentKeys } from '@/lib/crypto';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const categories = ["Coding", "Writing", "Finance", "Research", "Creative", "Other"] as const;
 
@@ -39,7 +43,6 @@ const formSchema = z.object({
   system_instruction: z.string().min(20, { message: "Capability Manifest (DNA) must be detailed for semantic search." }),
   specialties: z.string().min(1, { message: "Define at least one specialty." }),
   stack: z.string().min(1, { message: "Specify the model or tools used." }),
-  public_key: z.string().optional(),
   public_api_enabled: z.boolean().default(true),
 });
 
@@ -49,6 +52,9 @@ export default function SubmitAgentPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [privateKey, setPrivateKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -66,48 +72,63 @@ export default function SubmitAgentPage() {
       system_instruction: "",
       specialties: "",
       stack: "Gemini 2.0 Flash",
-      public_key: "",
       public_api_enabled: true,
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!firestore || !user) return;
     setIsSubmitting(true);
 
-    const specialtiesArray = values.specialties.split(',').map(s => s.trim()).filter(s => s !== "");
-    const agentId = crypto.randomUUID();
-    const agentRef = doc(firestore, 'agents', agentId);
+    try {
+      // Step 1: Generate Cryptographic Identity
+      const keys = await generateAgentKeys();
+      if (!keys) throw new Error("Key generation failed");
 
-    // Auto-generate a mock public key if not provided for cryptographic identity
-    const finalPublicKey = values.public_key || `ed25519_${crypto.randomUUID().split('-')[0]}_pub`;
+      const specialtiesArray = values.specialties.split(',').map(s => s.trim()).filter(s => s !== "");
+      const agentId = crypto.randomUUID();
+      const agentRef = doc(firestore, 'agents', agentId);
 
-    const agentData = {
-      id: agentId,
-      name: values.name,
-      handle: values.handle,
-      category: values.category,
-      introduction: values.introduction,
-      system_instruction: values.system_instruction,
-      status: 'active',
-      availability: 'Active',
-      specialties: specialtiesArray,
-      stack: values.stack,
-      public_key: finalPublicKey,
-      public_api_enabled: values.public_api_enabled,
-      verified: true, // Auto-verify linked owners for MVP
-      owner_id: user.uid,
-      owner_handle: user.email?.split('@')[0] || 'unknown',
-    };
+      const agentData = {
+        id: agentId,
+        name: values.name,
+        handle: values.handle,
+        category: values.category,
+        introduction: values.introduction,
+        system_instruction: values.system_instruction,
+        status: 'active',
+        availability: 'Active',
+        specialties: specialtiesArray,
+        stack: values.stack,
+        public_key: keys.publicKeyBase64,
+        public_api_enabled: values.public_api_enabled,
+        verified: true,
+        owner_id: user.uid,
+        owner_handle: user.email?.split('@')[0] || 'unknown',
+      };
 
-    setDocumentNonBlocking(agentRef, agentData, { merge: true });
-    
-    toast({ title: "Manifest Published!", description: "Your agent is now discoverable by bots and humans." });
-
-    setTimeout(() => {
-      router.push('/dashboard');
-    }, 1500);
+      // Step 2: Save to Firestore
+      setDocumentNonBlocking(agentRef, agentData, { merge: true });
+      
+      // Step 3: Set private key for modal and show it
+      setPrivateKey(keys.privateKeyBase64);
+      setShowKeyModal(true);
+      
+      toast({ title: "Manifest Published!", description: "Your agent is now discoverable and has a secure identity." });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Registration failed", description: "Could not generate security keys." });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
+
+  const copyKey = () => {
+    if (privateKey) {
+      navigator.clipboard.writeText(privateKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   if (isUserLoading || !user) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
@@ -122,7 +143,7 @@ export default function SubmitAgentPage() {
           <CardHeader className="text-center pb-8 border-b border-primary/5">
             <div className="mx-auto w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 text-primary"><Sprout className="w-7 h-7" /></div>
             <CardTitle className="text-3xl font-headline font-bold">Publish Capability Manifest</CardTitle>
-            <CardDescription>Define the machine-queryable DNA of your agent resident.</CardDescription>
+            <CardDescription>Define the machine-queryable DNA and secure identity of your agent resident.</CardDescription>
           </CardHeader>
           <CardContent className="p-8">
             <Form {...form}>
@@ -157,12 +178,10 @@ export default function SubmitAgentPage() {
                         <FormDescription>Comma separated: k8s, rust, security</FormDescription>
                         <FormControl><Input placeholder="react, kubernetes, security" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <FormField control={form.control} name="public_key" render={({ field }) => (
-                      <FormItem><FormLabel>Public Key (DID)</FormLabel>
-                        <FormDescription>Cryptographic identity for trust.</FormDescription>
-                        <FormControl><Input placeholder="ed25519_..." {...field} /></FormControl><FormMessage />
-                      </FormItem>
-                    )} />
+                    <div className="p-4 bg-accent/5 rounded-xl border border-accent/10">
+                      <h4 className="text-sm font-bold flex items-center gap-2 mb-1"><Lock className="w-3.5 h-3.5" />Automatic Identity</h4>
+                      <p className="text-xs text-muted-foreground">An RSA-OAEP key pair will be generated to secure this agent's tunnel communication.</p>
+                    </div>
                   </div>
                 </div>
 
@@ -196,7 +215,7 @@ export default function SubmitAgentPage() {
                     )} />
                     <div className="flex items-center justify-between rounded-xl border p-4 bg-primary/5">
                       <div className="space-y-0.5">
-                        <Label className="text-base flex items-center gap-2 font-bold"><CheckCircle className="w-4 h-4 text-primary" />Verified Status</Label>
+                        <div className="text-base flex items-center gap-2 font-bold"><CheckCircle className="w-4 h-4 text-primary" />Verified Status</div>
                         <p className="text-xs text-muted-foreground">Linked to your gardener handle.</p>
                       </div>
                       <Badge variant="outline" className="bg-white">AUTO</Badge>
@@ -212,6 +231,48 @@ export default function SubmitAgentPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={showKeyModal} onOpenChange={(open) => { if (!open) router.push('/dashboard'); }}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <div className="mx-auto w-12 h-12 bg-accent/10 rounded-2xl flex items-center justify-center mb-4 text-accent">
+              <Key className="w-7 h-7" />
+            </div>
+            <DialogTitle className="text-center text-2xl font-headline">Agent Private Key Generated</DialogTitle>
+            <DialogDescription className="text-center">
+              This is the <strong>only time</strong> you will see this key. It is required for your agent to decrypt messages in the secure tunnel.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Alert variant="destructive" className="bg-red-50 border-red-200">
+            <ShieldAlert className="h-4 w-4" />
+            <AlertTitle>Warning</AlertTitle>
+            <AlertDescription className="text-xs">
+              We do not store this key. If you lose it, your agent cannot read messages. Store it in your agent's environment variables.
+            </AlertDescription>
+          </Alert>
+
+          <div className="mt-4 p-4 bg-muted rounded-xl relative group">
+            <p className="text-[10px] font-mono break-all leading-tight pr-8 max-h-[150px] overflow-auto">
+              {privateKey}
+            </p>
+            <Button 
+              size="icon" 
+              variant="secondary" 
+              className="absolute top-2 right-2 h-8 w-8 rounded-lg"
+              onClick={copyKey}
+            >
+              {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+            </Button>
+          </div>
+
+          <DialogFooter className="mt-6">
+            <Button className="w-full rounded-xl h-12" onClick={() => router.push('/dashboard')}>
+              I have saved the key securely
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

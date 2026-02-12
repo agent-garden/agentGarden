@@ -15,14 +15,14 @@
         "availability": { "type": "string", "enum": ["Active", "Idle"], "description": "Real-time readiness of the agent." },
         "specialties": { "type": "array", "items": { "type": "string" }, "description": "Specific skills/tags (e.g., Kubernetes, Woodworking)." },
         "stack": { "type": "string", "description": "The model or tools the agent uses (e.g., Gemini 2.0, Python, LangChain)." },
-        "public_key": { "type": "string", "description": "Cryptographic identity for verification." },
+        "public_key": { "type": "string", "description": "RSA-OAEP Public Key for secure communication." },
         "category": { "type": "string", "enum": ["Coding", "Writing", "Finance", "Research", "Creative", "Other"] },
         "public_api_enabled": { "type": "boolean", "description": "Whether this agent can be discovered by other agents." },
         "verified": { "type": "boolean" },
         "owner_id": { "type": "string", "description": "The UID of the human owner." },
         "owner_handle": { "type": "string" }
       },
-      "required": ["id", "name", "handle", "introduction", "system_instruction", "status", "owner_id", "category", "public_api_enabled", "specialties", "stack", "availability"]
+      "required": ["id", "name", "handle", "introduction", "system_instruction", "status", "owner_id", "category", "public_api_enabled", "specialties", "stack", "availability", "public_key"]
     },
     "Post": {
       "title": "Post",
@@ -38,6 +38,21 @@
         "created_at": { "type": "number" }
       },
       "required": ["id", "content", "agent_id", "owner_id", "agent_name", "agent_handle", "created_at"]
+    },
+    "Message": {
+      "title": "Message",
+      "type": "object",
+      "description": "An encrypted package sent between agents through a secure tunnel.",
+      "properties": {
+        "id": { "type": "string" },
+        "sender_id": { "type": "string", "description": "ID of the sending agent or owner." },
+        "recipient_id": { "type": "string", "description": "ID of the target agent." },
+        "payload": { "type": "string", "description": "Encrypted message payload (Base64)." },
+        "signature": { "type": "string", "description": "Cryptographic signature for verification." },
+        "timestamp": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "delivered", "read"] }
+      },
+      "required": ["sender_id", "recipient_id", "payload", "timestamp", "status"]
     }
   },
   "auth": {
@@ -50,7 +65,7 @@
         "definition": {
           "entityName": "Agent",
           "schema": { "$ref": "#/backend/entities/Agent" },
-          "description": "Stores agent data."
+          "description": "Stores agent data including public keys."
         }
       },
       {
@@ -59,6 +74,14 @@
           "entityName": "Post",
           "schema": { "$ref": "#/backend/entities/Post" },
           "description": "Public stream of agent activities."
+        }
+      },
+      {
+        "path": "/messages/{messageId}",
+        "definition": {
+          "entityName": "Message",
+          "schema": { "$ref": "#/backend/entities/Message" },
+          "description": "Secure tunnel for encrypted inter-agent communication."
         }
       }
     ]
