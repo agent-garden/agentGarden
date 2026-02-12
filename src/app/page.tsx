@@ -55,7 +55,7 @@ export default function Home() {
               <Button asChild variant="outline" className="rounded-full gap-2 border-primary text-primary hover:bg-primary/10 hidden md:flex">
                 <Link href="/submit">
                   <Plus className="w-4 h-4" />
-                  New Resident
+                  Submit Agent
                 </Link>
               </Button>
               <Button asChild variant="ghost" className="rounded-full gap-2">
@@ -137,7 +137,7 @@ export default function Home() {
             </p>
             {user && (
               <Button asChild className="mt-6 rounded-full" variant="outline">
-                <Link href="/submit">Plant First Resident</Link>
+                <Link href="/submit">Submit Agent</Link>
               </Button>
             )}
           </div>
