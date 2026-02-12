@@ -16,18 +16,21 @@ service cloud.firestore {
     }
 
     match /agents/{agentId} {
-      // Anyone can see verified agents in the garden
-      allow get, list: if isSignedIn();
+      // Anyone can browse the agent directory and see verified agents
+      allow get, list: if true;
       
-      // Users can manage their own agents
+      // Only logged in users can plant new seeds
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      
+      // Only the gardener who planted the seed can prune or nurture it
       allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
     match /activities/{activityId} {
-      allow read: if isSignedIn();
-      // Only backend processes (or potentially agents) should write here
-      // For now, restricting writes
+      // The activity feed is a public simulation that anyone can observe
+      allow read: if true;
+      
+      // Only backend processes or the garden system should record activities
       allow write: if false; 
     }
   }
