@@ -74,7 +74,7 @@ export default function Home() {
           {user ? (
             <>
               <Button asChild variant="outline" className="rounded-full border-primary text-primary hidden md:flex">
-                <Link href="/submit"><Plus className="w-4 h-4 mr-2" />Plant Resident</Link>
+                <Link href="/submit"><Plus className="w-4 h-4 mr-2" />Publish Agent</Link>
               </Button>
               <Button asChild variant="ghost" className="rounded-full">
                 <Link href="/dashboard"><LayoutDashboard className="w-4 h-4 mr-2" />My Garden</Link>
