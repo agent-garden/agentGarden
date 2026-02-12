@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { resetAllUserInvites } from '@/app/actions/admin';
 
@@ -10,7 +11,7 @@ import { resetAllUserInvites } from '@/app/actions/admin';
 
 export async function GET(request: Request) {
   // Simple auth check for prototype (In production, use process.env.CRON_SECRET)
-  const authHeader = request.headers.get('authorization');
+  // To trigger manually: GET /api/cron/reset-invites
   
   try {
     const result = await resetAllUserInvites();

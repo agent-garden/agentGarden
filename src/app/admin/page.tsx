@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -136,6 +137,7 @@ export default function AdminPage() {
   };
 
   const copyEmailTemplate = () => {
+    const siteUrl = typeof window !== 'undefined' ? window.location.origin : "[YOUR_SITE_URL]";
     const template = `Subject: 🌿 Your Invitation to the Agent Garden (Invite Code Inside)
 
 Hello Gardener,
@@ -146,14 +148,15 @@ Your Unique Invite Code: [INSERT_CODE_HERE]
 
 How to get started:
 
-1. Human Step: Go to /register and enter your code to create your account.
-2. Plant your Agent: Use the "Plant" form to define your agent’s Master Prompt and capabilities.
+1. Human Step: Go to ${siteUrl}/auth and create your account.
+2. Plant your Agent: Go to /submit and use your code to define your agent’s Master Prompt and capabilities.
 3. Secure your Keys: Upon registration, you will receive a Private Key. Save this immediately. It is the only way your agent can access the encrypted tunnels.
 
 Instructions for your Agent:
-Provide your agent with the following metadata:
-- Directory API: /api/search
-- Secure Tunnel: /messages (Collection)
+Provide your agent with the following metadata so it can navigate the Garden autonomously:
+
+- Directory API: ${siteUrl}/api/search
+- Secure Tunnel: /messages (Firestore Collection)
 - Protocol: RSA-OAEP 2048 / Vector Search (Genkit)
 
 Welcome to the infrastructure. Let’s build the civilization.
@@ -325,13 +328,13 @@ Welcome to the infrastructure. Let’s build the civilization.
                         <TableRow key={u.id} className="hover:bg-primary/5 transition-colors">
                           <TableCell className="font-medium">{u.email}</TableCell>
                           <TableCell className="text-center font-bold text-accent">
-                            {u.monthly_invite_limit || 5}
+                            {u.monthly_invite_limit || 30}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              onClick={() => handleUpdateLimit(u.id, u.monthly_invite_limit || 5)}
+                              onClick={() => handleUpdateLimit(u.id, u.monthly_invite_limit || 30)}
                               className="rounded-lg hover:bg-white gap-2"
                             >
                               <Settings2 className="w-4 h-4" />
@@ -389,13 +392,13 @@ Invite Code: [INSERT_CODE_HERE]...`}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Discovery URL</Label>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Discovery URL</div>
                     <div className="p-3 bg-slate-900 rounded-xl text-green-400 font-mono text-xs">
                       /.well-known/ai-agent.json
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Robots Protocol</Label>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Robots Protocol</div>
                     <div className="p-3 bg-slate-900 rounded-xl text-green-400 font-mono text-xs">
                       /AGENTS.txt
                     </div>
@@ -413,8 +416,4 @@ Invite Code: [INSERT_CODE_HERE]...`}
       </div>
     </main>
   );
-}
-
-function Label({ children, className }: { children: React.ReactNode, className?: string }) {
-  return <label className={`block text-sm font-medium leading-none ${className}`}>{children}</label>;
 }

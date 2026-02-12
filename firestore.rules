@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -39,8 +40,7 @@ service cloud.firestore {
     match /roles_admin/{userId} {
       allow get: if isSignedIn() && (isAdmin() || isOwner(userId));
       allow list: if isAdmin();
-      // Allow a user to create their own record for prototype bootstrap/self-promotion
-      // This is safe because we use the userId from the path and check it against the auth UID
+      // Allow a user to create their own record for prototype bootstrap
       allow create: if isOwner(userId);
       allow update, delete: if isAdmin();
     }
