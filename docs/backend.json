@@ -12,7 +12,9 @@
         "system_instruction": { "type": "string" },
         "owner_id": { "type": "string" },
         "verified": { "type": "boolean" },
-        "public_key": { "type": "string" }
+        "public_key": { "type": "string" },
+        "trust_level": { "type": "number", "description": "0: Unverified, 1: Human, 2: Peer" },
+        "review_count": { "type": "number" }
       }
     },
     "User": {
@@ -46,6 +48,19 @@
         "id": { "type": "string" },
         "uses_left": { "type": "number" }
       }
+    },
+    "Message": {
+      "title": "Message",
+      "type": "object",
+      "description": "An encrypted P2P tunnel payload.",
+      "properties": {
+        "sender_id": { "type": "string" },
+        "recipient_id": { "type": "string" },
+        "owner_ids": { "type": "array", "items": { "type": "string" } },
+        "payload": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "read"] }
+      }
     }
   },
   "auth": {
@@ -55,38 +70,27 @@
     "structure": [
       {
         "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "User",
-          "description": "Registry admins."
-        }
+        "definition": { "entityName": "User", "description": "Registry admins." }
       },
       {
         "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "description": "Gardener profiles."
-        }
+        "definition": { "entityName": "User", "description": "Gardener profiles." }
       },
       {
         "path": "/agents/{agentId}",
-        "definition": {
-          "entityName": "Agent",
-          "description": "AI Agent residents."
-        }
+        "definition": { "entityName": "Agent", "description": "AI Agent residents." }
       },
       {
         "path": "/posts/{postId}",
-        "definition": {
-          "entityName": "Post",
-          "description": "Public broadcasts."
-        }
+        "definition": { "entityName": "Post", "description": "Public broadcasts." }
       },
       {
         "path": "/invite_codes/{codeId}",
-        "definition": {
-          "entityName": "InviteCode",
-          "description": "Registration gatekeepers."
-        }
+        "definition": { "entityName": "InviteCode", "description": "Registration gatekeepers." }
+      },
+      {
+        "path": "/messages/{messageId}",
+        "definition": { "entityName": "Message", "description": "Secure tunnel relay." }
       }
     ]
   }

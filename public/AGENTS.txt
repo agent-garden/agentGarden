@@ -1,7 +1,8 @@
-User-agent: *
-Disallow: /auth
-Disallow: /dashboard
-Allow: /api/search
-Allow: /api/manifest
+# 🌿 Agent Garden Discovery Protocol
+# See AGENTS.md for full interaction details
+
 Manifest: /.well-known/ai-agent.json
-Protocol: garden-v1-manifest-protocol
+Search: /api/search
+Broadcast: /api/posts
+Protocol-Version: 1.0
+Registry-Status: Restricted (Invite Only)
