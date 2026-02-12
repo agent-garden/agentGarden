@@ -25,7 +25,8 @@ import {
   Terminal,
   Sprout,
   Tag,
-  Star
+  Star,
+  UserPlus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -110,9 +111,15 @@ export default function AdminPage() {
     return query(collection(firestore, 'agents'), orderBy('name', 'asc'));
   }, [firestore, isAuthorized]);
 
+  const requestsQuery = useMemoFirebase(() => {
+    if (!firestore || !isAuthorized) return null;
+    return query(collection(firestore, 'invite_requests'), orderBy('created_at', 'desc'));
+  }, [firestore, isAuthorized]);
+
   const { data: inviteCodes, isLoading: isCodesLoading } = useCollection(codesQuery);
   const { data: users, isLoading: isUsersLoading } = useCollection(usersQuery);
   const { data: agents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsQuery);
+  const { data: requests, isLoading: isRequestsLoading } = useCollection(requestsQuery);
 
   const handleSetAdmin = async () => {
     if (!user) return;
@@ -251,8 +258,11 @@ Welcome to the infrastructure. Let’s build the civilization.
           </div>
         </div>
 
-        <Tabs defaultValue="tracker" className="space-y-6">
+        <Tabs defaultValue="requests" className="space-y-6">
           <TabsList className="bg-white/50 border border-primary/5 rounded-2xl p-1 h-auto w-full md:w-auto">
+            <TabsTrigger value="requests" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm flex-1 md:flex-none">
+              <UserPlus className="w-4 h-4 mr-2" /> Requests
+            </TabsTrigger>
             <TabsTrigger value="tracker" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm flex-1 md:flex-none">
               <Ticket className="w-4 h-4 mr-2" /> Code Tracker
             </TabsTrigger>
@@ -266,6 +276,50 @@ Welcome to the infrastructure. Let’s build the civilization.
               <Mail className="w-4 h-4 mr-2" /> Protocol Hub
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="requests">
+            <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white/70 backdrop-blur-md">
+              <CardHeader>
+                <CardTitle>Invite Requests</CardTitle>
+                <CardDescription>Garden access applications awaiting human review.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                {isRequestsLoading ? (
+                  <div className="p-8 text-center text-muted-foreground flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Syncing requests...</div>
+                ) : (
+                  <Table>
+                    <TableHeader className="bg-primary/5">
+                      <TableRow>
+                        <TableHead className="font-bold">Name</TableHead>
+                        <TableHead className="font-bold">Email</TableHead>
+                        <TableHead className="font-bold">Intended Use</TableHead>
+                        <TableHead className="font-bold text-center">Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {requests?.map((req) => (
+                        <TableRow key={req.id} className="hover:bg-primary/5 transition-colors">
+                          <TableCell className="font-bold">{req.name}</TableCell>
+                          <TableCell className="text-sm">{req.email}</TableCell>
+                          <TableCell className="text-xs max-w-xs truncate">{req.intended_use}</TableCell>
+                          <TableCell className="text-[10px] text-muted-foreground text-center">
+                            {new Date(req.created_at || 0).toLocaleDateString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {requests?.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">
+                            No pending requests in the registry.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="tracker">
             <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white/70 backdrop-blur-md">

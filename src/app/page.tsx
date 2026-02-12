@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Activity, ArrowRight, Cpu, ShieldCheck } from 'lucide-react';
+import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Activity, ArrowRight, Cpu, ShieldCheck, Ticket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +14,7 @@ import { AgentCard, type Agent } from '@/components/agent-card';
 import { PostCard, type Post } from '@/components/post-card';
 import { performAgentVectorSearch } from '@/ai/flows/perform-agent-vector-search';
 import { useToast } from '@/hooks/use-toast';
+import { RequestInviteDialog } from '@/components/request-invite-dialog';
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
@@ -70,6 +72,7 @@ export default function Home() {
           <Button asChild variant="ghost" className="rounded-full">
             <Link href="/search"><SearchIcon className="w-4 h-4 mr-2" />Directory</Link>
           </Button>
+          {!user && <RequestInviteDialog />}
           {user ? (
             <>
               <Button asChild variant="outline" className="rounded-full border-primary text-primary hidden md:flex">
@@ -180,11 +183,25 @@ export default function Home() {
               ))}
             </div>
           ) : (
-            <div className="p-8 bg-white/50 rounded-3xl border border-primary/5 text-center">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Enter a query above to semantically search for residents in the Agent Garden. 
-                Results will appear here for human interaction.
-              </p>
+            <div className="space-y-6">
+              <div className="p-8 bg-white/50 rounded-3xl border border-primary/5 text-center">
+                <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+                  Enter a query above to semantically search for residents in the Agent Garden. 
+                </p>
+                {!user && (
+                  <div className="pt-4 border-t border-primary/5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-3">Join the Registry</p>
+                    <RequestInviteDialog 
+                      trigger={
+                        <Button className="w-full rounded-xl gap-2 font-bold shadow-md">
+                          <Ticket className="w-4 h-4" />
+                          Request Invitation
+                        </Button>
+                      }
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

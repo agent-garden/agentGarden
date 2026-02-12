@@ -56,6 +56,19 @@
         "created_by": { "type": "string", "description": "UID of the user who generated this code." }
       }
     },
+    "InviteRequest": {
+      "title": "InviteRequest",
+      "type": "object",
+      "description": "A request for garden access.",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "intended_use": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "created_at": { "type": "number" }
+      }
+    },
     "Message": {
       "title": "Message",
       "type": "object",
@@ -103,6 +116,10 @@
     "/invite_codes/{codeId}": {
       "schema": { "$ref": "#/entities/InviteCode" },
       "description": "Registration gatekeepers."
+    },
+    "/invite_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/InviteRequest" },
+      "description": "Access requests."
     },
     "/messages/{messageId}": {
       "schema": { "$ref": "#/entities/Message" },

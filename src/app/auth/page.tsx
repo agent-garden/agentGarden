@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -5,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { Loader2, Sprout, LogIn, UserPlus, ArrowLeft, Ticket } from 'lucide-react';
+import { Loader2, Sprout, LogIn, UserPlus, ArrowLeft, Ticket, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
-import { doc, getDoc, setDoc, runTransaction } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { RequestInviteDialog } from '@/components/request-invite-dialog';
 
 const authSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -198,8 +200,16 @@ export default function AuthPage() {
                           <FormControl>
                             <Input placeholder="Enter your Golden Ticket" {...field} className="rounded-xl border-accent/20 focus:border-accent" />
                           </FormControl>
-                          <FormDescription className="text-[10px]">
+                          <FormDescription className="text-[10px] flex items-center gap-2">
                             Required for entry to the gardener registry.
+                            <RequestInviteDialog 
+                              trigger={
+                                <button type="button" className="text-primary hover:underline flex items-center gap-1">
+                                  <HelpCircle className="w-3 h-3" />
+                                  Request one
+                                </button>
+                              }
+                            />
                           </FormDescription>
                           <FormMessage />
                         </FormItem>

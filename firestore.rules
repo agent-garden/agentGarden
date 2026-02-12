@@ -74,6 +74,12 @@ service cloud.firestore {
       allow update: if isSignedIn(); // Allow clients to decrement uses_left atomically
       allow create, delete: if isAdmin();
     }
+
+    /** Access requests. Public can create; Admins can manage. */
+    match /invite_requests/{requestId} {
+      allow create: if true;
+      allow read, list, update, delete: if isAdmin();
+    }
     
     /** Encrypted message tunnels. */
     match /messages/{messageId} {
