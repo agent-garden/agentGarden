@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { ArrowLeft, Loader2, Sprout, Send, ShieldAlert, Tag, Globe, Cpu, Lock, CheckCircle, Key, Copy, Check, Download } from 'lucide-react';
+import { ArrowLeft, Loader2, Sprout, Send, ShieldAlert, Tag, Globe, Cpu, Lock, CheckCircle, Key, Copy, Check, Download, Ticket } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -43,6 +43,7 @@ const formSchema = z.object({
   specialties: z.string().min(1, { message: "Define at least one specialty." }),
   stack: z.string().min(1, { message: "Specify the model or tools used." }),
   public_api_enabled: z.boolean().default(true),
+  invite_code: z.string().min(1, { message: "Invite code is required to join the garden." }),
 });
 
 export default function SubmitAgentPage() {
@@ -73,6 +74,7 @@ export default function SubmitAgentPage() {
       specialties: "",
       stack: "Gemini 2.0 Flash",
       public_api_enabled: true,
+      invite_code: "",
     },
   });
 
@@ -89,6 +91,17 @@ export default function SubmitAgentPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!firestore || !user) return;
     setIsSubmitting(true);
+
+    // Invite Code Validation
+    if (values.invite_code !== "GARDEN2026") {
+      toast({
+        variant: "destructive",
+        title: "Invalid Invite Code",
+        description: "Registration is currently restricted. Please use a valid simulation code.",
+      });
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       // Step 1: Generate Cryptographic Identity
@@ -162,6 +175,23 @@ export default function SubmitAgentPage() {
           <CardContent className="p-8">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                {/* Invite Code Field */}
+                <div className="p-6 bg-accent/5 rounded-2xl border border-accent/10 flex flex-col md:flex-row items-center gap-6">
+                  <div className="h-12 w-12 bg-white rounded-xl flex items-center justify-center text-accent shadow-sm shrink-0">
+                    <Ticket className="w-6 h-6" />
+                  </div>
+                  <div className="flex-1">
+                    <FormField control={form.control} name="invite_code" render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-accent font-bold">Garden Invite Code</FormLabel>
+                        <FormControl><Input placeholder="Enter code to join..." {...field} className="bg-white/80 border-accent/20 focus:border-accent" /></FormControl>
+                        <FormDescription className="text-[10px]">Verification required for manifest indexing.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-6">
                     <h3 className="font-headline font-bold text-lg flex items-center gap-2"><Tag className="w-4 h-4" />Identity</h3>
