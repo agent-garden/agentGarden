@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { Loader2, Sprout, LogIn, UserPlus, ArrowLeft, Ticket, HelpCircle } from 'lucide-react';
+import { Loader2, Sprout, LogIn, UserPlus, ArrowLeft, Ticket, HelpCircle, Lock } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,18 @@ export default function AuthPage() {
   const { user, isUserLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
+  
   const redirect = searchParams.get('redirect') || '/';
+  const urlCode = searchParams.get('code');
+
+  const form = useForm<z.infer<typeof authSchema>>({
+    resolver: zodResolver(authSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      inviteCode: urlCode || "",
+    },
+  });
 
   useEffect(() => {
     if (user && !isUserLoading) {
@@ -50,14 +61,13 @@ export default function AuthPage() {
     }
   }, [user, isUserLoading, router, redirect]);
 
-  const form = useForm<z.infer<typeof authSchema>>({
-    resolver: zodResolver(authSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-      inviteCode: "",
-    },
-  });
+  // Update invite code if URL param changes
+  useEffect(() => {
+    if (urlCode) {
+      form.setValue('inviteCode', urlCode);
+      setActiveTab('signup');
+    }
+  }, [urlCode, form]);
 
   async function onSignIn(values: z.infer<typeof authSchema>) {
     setIsSubmitting(true);
@@ -83,7 +93,6 @@ export default function AuthPage() {
 
     setIsSubmitting(true);
     try {
-      // 1. Verify Invite Code Existence before attempting Auth
       const inviteRef = doc(firestore, 'invite_codes', values.inviteCode);
       const inviteSnap = await getDoc(inviteRef);
 
@@ -96,10 +105,8 @@ export default function AuthPage() {
         throw new Error("This invite code has no uses left.");
       }
 
-      // 2. Perform Sign Up
       const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
       
-      // 3. Initialize User Profile with 30 initial invites
       if (userCredential.user) {
         await setDoc(doc(firestore, 'users', userCredential.user.uid), {
           id: userCredential.user.uid,
@@ -151,7 +158,7 @@ export default function AuthPage() {
             <CardDescription>Discover and share specialized AI agents.</CardDescription>
           </CardHeader>
           <CardContent className="p-8">
-            <Tabs defaultValue="login" className="w-full" onValueChange={setActiveTab}>
+            <Tabs value={activeTab} className="w-full" onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-2 mb-8 rounded-xl">
                 <TabsTrigger value="login" className="rounded-lg">Login</TabsTrigger>
                 <TabsTrigger value="signup" className="rounded-lg">Sign Up</TabsTrigger>
@@ -197,18 +204,30 @@ export default function AuthPage() {
                             Invite Code
                           </FormLabel>
                           <FormControl>
-                            <Input placeholder="Enter your Golden Ticket" {...field} className="rounded-xl border-accent/20 focus:border-accent" />
+                            <div className="relative">
+                              <Input 
+                                placeholder="Enter your Golden Ticket" 
+                                {...field} 
+                                className={`rounded-xl border-accent/20 focus:border-accent ${urlCode ? 'bg-muted pr-10' : ''}`}
+                                readOnly={!!urlCode}
+                              />
+                              {urlCode && (
+                                <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                              )}
+                            </div>
                           </FormControl>
                           <FormDescription className="text-[10px] flex items-center gap-2">
-                            Required for entry to the gardener registry.
-                            <RequestInviteDialog 
-                              trigger={
-                                <button type="button" className="text-primary hover:underline flex items-center gap-1">
-                                  <HelpCircle className="w-3 h-3" />
-                                  Request one
-                                </button>
-                              }
-                            />
+                            {urlCode ? "Invite code applied from link." : "Required for entry to the gardener registry."}
+                            {!urlCode && (
+                              <RequestInviteDialog 
+                                trigger={
+                                  <button type="button" className="text-primary hover:underline flex items-center gap-1">
+                                    <HelpCircle className="w-3 h-3" />
+                                    Request one
+                                  </button>
+                                }
+                              />
+                            )}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>

@@ -26,7 +26,7 @@ import {
   Star,
   UserPlus,
   ThumbsUp,
-  Inbox
+  Link as LinkIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -60,6 +60,7 @@ export default function AdminPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedTemplate, setCopiedTemplate] = useState(false);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
   
   // Selection State for Bulk Approval
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
@@ -90,7 +91,6 @@ export default function AdminPage() {
     }
   }, [user, isUserLoading]);
 
-  // Authorization check (Hybrid Model)
   const isAuthorized = hasAdminClaim === true || !!adminDoc;
   const isAuthLoading = isUserLoading || isAdminDocLoading || (user && hasAdminClaim === null);
 
@@ -169,7 +169,7 @@ export default function AdminPage() {
       
       toast({ 
         title: "Bulk Approval Successful", 
-        description: `${result.results.length} gardeners approved. Codes generated.` 
+        description: `${result.results.length} gardeners approved. Codes generated and email notifications simulated.` 
       });
       setSelectedRequestIds([]);
     } catch (err) {
@@ -179,19 +179,13 @@ export default function AdminPage() {
     }
   };
 
-  const toggleSelectAll = () => {
-    const pendingRequests = requests?.filter(r => r.status === 'pending') || [];
-    if (selectedRequestIds.length === pendingRequests.length && pendingRequests.length > 0) {
-      setSelectedRequestIds([]);
-    } else {
-      setSelectedRequestIds(pendingRequests.map(r => r.id));
-    }
-  };
-
-  const toggleSelectRequest = (id: string) => {
-    setSelectedRequestIds(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+  const copyMagicLink = (code: string) => {
+    const siteUrl = typeof window !== 'undefined' ? window.location.origin : "";
+    const magicLink = `${siteUrl}/auth?code=${code}`;
+    navigator.clipboard.writeText(magicLink);
+    setCopiedLink(code);
+    setTimeout(() => setCopiedLink(null), 2000);
+    toast({ title: "Magic Link Copied", description: "Signup URL with pre-filled code is ready." });
   };
 
   const copyEmailTemplate = () => {
@@ -343,7 +337,10 @@ Welcome to the infrastructure. Let’s build the civilization.
                         <TableHead className="w-[50px]">
                           <Checkbox 
                             checked={selectedRequestIds.length === pendingCount && pendingCount > 0}
-                            onCheckedChange={toggleSelectAll}
+                            onCheckedChange={() => {
+                              if (selectedRequestIds.length === pendingCount) setSelectedRequestIds([]);
+                              else setSelectedRequestIds(pendingRequests.map(r => r.id));
+                            }}
                             className="rounded-sm border-primary/20"
                           />
                         </TableHead>
@@ -361,7 +358,11 @@ Welcome to the infrastructure. Let’s build the civilization.
                             <Checkbox 
                               disabled={req.status !== 'pending'}
                               checked={selectedRequestIds.includes(req.id)}
-                              onCheckedChange={() => toggleSelectRequest(req.id)}
+                              onCheckedChange={() => {
+                                setSelectedRequestIds(prev => 
+                                  prev.includes(req.id) ? prev.filter(id => id !== req.id) : [...prev, req.id]
+                                );
+                              }}
                               className="rounded-sm border-primary/20"
                             />
                           </TableCell>
@@ -427,6 +428,7 @@ Welcome to the infrastructure. Let’s build the civilization.
                         <TableHead className="font-bold">Code</TableHead>
                         <TableHead className="font-bold">Status</TableHead>
                         <TableHead className="font-bold">Assigned To</TableHead>
+                        <TableHead className="font-bold">Magic Link</TableHead>
                         <TableHead className="font-bold">Created</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -446,6 +448,17 @@ Welcome to the infrastructure. Let’s build the civilization.
                             )}
                           </TableCell>
                           <TableCell className="text-sm">{code.assigned_to || "Unassigned"}</TableCell>
+                          <TableCell>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="rounded-lg gap-2 text-accent"
+                              onClick={() => copyMagicLink(code.id)}
+                            >
+                              {copiedLink === code.id ? <Check className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
+                              Magic
+                            </Button>
+                          </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {new Date(code.created_at || 0).toLocaleDateString()}
                           </TableCell>

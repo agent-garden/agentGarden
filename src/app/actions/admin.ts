@@ -53,7 +53,7 @@ export async function batchGenerateInviteCodes() {
 }
 
 /**
- * Approves multiple invite requests, generates codes, and updates status.
+ * Approves multiple invite requests, generates codes, updates status, and simulates email trigger.
  */
 export async function approveInviteRequests(requests: { id: string, email: string }[]) {
   const { firestore } = initializeFirebase();
@@ -73,18 +73,28 @@ export async function approveInviteRequests(requests: { id: string, email: strin
       status: 'active'
     });
 
-    // 2. Update the request status
+    // 2. Update the request status and simulate email trigger
     batch.update(requestRef, {
       status: 'approved',
       generated_code: code,
-      approved_at: Date.now()
+      approved_at: Date.now(),
+      email_notified: true, // Simulation of "Trigger Email" extension
     });
+
+    // Note: In a real production app with the "Trigger Email" extension,
+    // we would write to a 'mail' collection here.
+    // batch.set(doc(collection(firestore, 'mail')), {
+    //   to: req.email,
+    //   template: { name: 'golden-ticket', data: { code } }
+    // });
 
     results.push({ email: req.email, code });
   }
 
   try {
     await batch.commit();
+    // Simulate logging for the prototype
+    console.log(`[Prototype Simulation] Golden Tickets sent to: ${results.map(r => r.email).join(', ')}`);
     return { success: true, results };
   } catch (error) {
     console.error("Bulk approval failed:", error);
