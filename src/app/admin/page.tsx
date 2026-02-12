@@ -33,9 +33,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { makeAdmin, batchGenerateInviteCodes, updateMonthlyLimit } from '@/app/actions/admin';
+import { batchGenerateInviteCodes, updateMonthlyLimit } from '@/app/actions/admin';
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, setDoc } from 'firebase/firestore';
 
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
@@ -47,7 +47,7 @@ export default function AdminPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Check for the DB-backed role as a fallback for the token claim
+  // Check for the DB-backed role
   const adminDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'roles_admin', user.uid);
@@ -72,7 +72,7 @@ export default function AdminPage() {
   const isAuthorized = hasAdminClaim || !!adminDoc;
   const isAuthLoading = isUserLoading || isAdminDocLoading;
 
-  // Queries only run if the user is confirmed as an admin to prevent permission errors
+  // Queries only run if the user is confirmed as an admin
   const codesQuery = useMemoFirebase(() => {
     if (!firestore || !isAuthorized) return null;
     return query(collection(firestore, 'invite_codes'), orderBy('created_at', 'desc'));
@@ -87,20 +87,35 @@ export default function AdminPage() {
   const { data: users, isLoading: isUsersLoading } = useCollection(usersQuery);
 
   const handlePromoteSelf = async () => {
-    if (!user) return;
+    if (!user || !firestore) return;
     setIsProcessing(true);
-    try {
-      await makeAdmin(user.uid);
+    
+    // We perform the promotion on the CLIENT so Firestore sees the user's auth token
+    const adminRef = doc(firestore, 'roles_admin', user.uid);
+    
+    setDoc(adminRef, {
+      role: 'admin',
+      granted_at: Date.now(),
+      method: 'prototype_bootstrap'
+    })
+    .then(() => {
       toast({ 
-        title: "Role Registry Updated", 
-        description: "Administrative record created. The UI will unlock momentarily." 
+        title: "Registry Entry Created", 
+        description: "Your gardener UID is now verified as an administrator." 
       });
-      // The useDoc hook will automatically pick up the new record
-    } catch (err) {
-      toast({ variant: "destructive", title: "Promotion Failed", description: "Check console for details." });
-    } finally {
+      // The useDoc hook will automatically re-fetch and unlock the UI
+    })
+    .catch((err) => {
+      console.error("Promotion Error:", err);
+      toast({ 
+        variant: "destructive", 
+        title: "Promotion Failed", 
+        description: "Check your console. Ensure you are signed in." 
+      });
+    })
+    .finally(() => {
       setIsProcessing(false);
-    }
+    });
   };
 
   const handleBatchGenerate = async () => {
@@ -130,7 +145,11 @@ export default function AdminPage() {
   };
 
   if (isAuthLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (!user) {
@@ -138,7 +157,6 @@ export default function AdminPage() {
     return null;
   }
 
-  // If both claim and DB record are missing, show the "Access Restricted" bootstrap UI
   if (!isAuthorized) {
     return (
       <main className="min-h-screen bg-background flex items-center justify-center p-6">
