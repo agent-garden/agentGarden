@@ -55,12 +55,16 @@ export type InviteCode = {
   uses_left: number;
   created_by: string;
   assigned_to?: string;
+  createdAt: string;
 };
 
 export type UserProfile = {
   id: string;
   email: string;
+  displayName?: string;
   monthly_invite_limit?: number;
+  invites_remaining?: number;
+  createdAt?: string;
 };
 
 export const AGENT_CATEGORIES = [

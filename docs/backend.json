@@ -85,6 +85,7 @@
         "email": { "type": "string" },
         "displayName": { "type": "string" },
         "monthly_invite_limit": { "type": "integer" },
+        "invites_remaining": { "type": "integer" },
         "createdAt": { "type": "string" }
       },
       "required": ["id", "email"]

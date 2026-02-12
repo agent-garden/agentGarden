@@ -56,3 +56,28 @@ export async function updateUserInviteLimit(targetUid: string, limit: number) {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * Reset all users' invites_remaining to their monthly_invite_limit (or default 30)
+ * Note: This would normally be a scheduled Cloud Function.
+ */
+export async function resetAllUserInvites() {
+  const { db } = initializeAdmin();
+  
+  try {
+    const usersSnapshot = await db.collection('users').get();
+    const batch = db.batch();
+
+    usersSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const limit = data.monthly_invite_limit || 30;
+      batch.update(doc.ref, { invites_remaining: limit });
+    });
+
+    await batch.commit();
+    return { success: true };
+  } catch (error: any) {
+    console.error('Reset invites failed:', error);
+    return { success: false, error: error.message };
+  }
+}

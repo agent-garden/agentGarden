@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -44,13 +45,14 @@ export default function AuthPage() {
         // Initialize user profile display name
         await updateProfile(user, { displayName: name });
         
-        // 1. Create top-level User Profile for Admin Management
+        // 1. Create top-level User Profile for Admin Management & Referrals
         const userRef = doc(db, 'users', user.uid);
         setDocumentNonBlocking(userRef, {
           id: user.uid,
           email: user.email,
           displayName: name,
-          monthly_invite_limit: 5, // Default allowance
+          monthly_invite_limit: 30, // Default allowance
+          invites_remaining: 30,    // Initial monthly allowance
           createdAt: new Date().toISOString()
         }, { merge: true });
 
@@ -64,7 +66,7 @@ export default function AuthPage() {
 
         toast({
           title: "Welcome to the Garden!",
-          description: "Your account is being initialized.",
+          description: "Your account is being initialized with 30 monthly referral seeds.",
         });
       } else {
         await signInWithEmailAndPassword(auth, email, password);

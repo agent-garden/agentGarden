@@ -13,7 +13,8 @@ import {
   Database, 
   Ticket, 
   Plus, 
-  Edit3
+  Edit3,
+  RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { collection, query, limit } from 'firebase/firestore';
 import type { Agent, InviteCode, UserProfile } from '@/app/lib/agents';
-import { batchGenerateInviteCodes, updateUserInviteLimit } from '@/app/actions/admin-actions';
+import { batchGenerateInviteCodes, updateUserInviteLimit, resetAllUserInvites } from '@/app/actions/admin-actions';
 import { useToast } from '@/hooks/use-toast';
 
 /**
@@ -34,6 +35,7 @@ export default function AdminPage() {
   const { user, isUserLoading } = useUser();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
@@ -107,6 +109,20 @@ export default function AdminPage() {
     }
   };
 
+  const handleResetAllInvites = async () => {
+    if (!confirm("Are you sure you want to reset all user invites? This is normally automated.")) return;
+    
+    setIsResetting(true);
+    const result = await resetAllUserInvites();
+    setIsResetting(false);
+
+    if (result.success) {
+      toast({ title: "Monthly Reset Complete", description: "All gardeners have received their new invite allowance." });
+    } else {
+      toast({ variant: "destructive", title: "Reset Failed", description: result.error });
+    }
+  };
+
   if (isUserLoading || isAdmin === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -145,9 +161,20 @@ export default function AdminPage() {
               Master Gardener Console
             </h1>
           </div>
-          <Button variant="outline" className="rounded-full" asChild>
-            <Link href="/">Public View</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              className="rounded-full gap-2 border-accent text-accent hover:bg-accent hover:text-white"
+              onClick={handleResetAllInvites}
+              disabled={isResetting}
+            >
+              {isResetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Manual Monthly Reset
+            </Button>
+            <Button variant="outline" className="rounded-full" asChild>
+              <Link href="/">Public View</Link>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -249,29 +276,36 @@ export default function AdminPage() {
             <table className="w-full text-left border-collapse">
               <thead className="bg-muted/50 border-b">
                 <tr>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">User UID</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">User Name / Email</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Invite Limit</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Remaining</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
                 {isProfilesLoading ? (
-                  <tr><td colSpan={3} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></td></tr>
+                  <tr><td colSpan={4} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></td></tr>
                 ) : profiles && profiles.length > 0 ? (
                   profiles.map((profile) => (
                     <tr key={profile.id} className="hover:bg-primary/5 transition-colors">
-                      <td className="px-6 py-4 font-code text-sm text-primary">{profile.id}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-primary">{profile.displayName || 'Anonymous'}</span>
+                          <span className="text-[10px] text-muted-foreground">{profile.email}</span>
+                        </div>
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <Input 
                             type="number" 
-                            defaultValue={profile.monthly_invite_limit || 0} 
+                            defaultValue={profile.monthly_invite_limit || 30} 
                             className="w-20 h-8 rounded-lg text-xs" 
                             id={`limit-${profile.id}`}
                           />
-                          <span className="text-xs text-muted-foreground font-bold">INVITES / MO</span>
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase">MAX</span>
                         </div>
                       </td>
+                      <td className="px-6 py-4 font-headline text-xl">{profile.invites_remaining ?? 0}</td>
                       <td className="px-6 py-4">
                         <Button 
                           variant="ghost" 
@@ -283,13 +317,13 @@ export default function AdminPage() {
                           }}
                         >
                           <Edit3 className="w-3 h-3" />
-                          Update Limit
+                          Update
                         </Button>
                       </td>
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan={3} className="px-6 py-12 text-center text-muted-foreground">No resident profiles found.</td></tr>
+                  <tr><td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">No resident profiles found.</td></tr>
                 )}
               </tbody>
             </table>

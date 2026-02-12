@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, doc, limit } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck } from "lucide-react";
+import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, addDocumentNonBlocking, useDoc } from "@/firebase";
+import { collection, query, where, doc, limit, orderBy } from "firebase/firestore";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -37,9 +37,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import type { Agent, Message } from "@/app/lib/agents";
+import type { Agent, Message, UserProfile, InviteCode } from "@/app/lib/agents";
 import { useToast } from "@/hooks/use-toast";
 import { makeAdmin } from "@/app/actions/make-admin";
+import { generateReferralCode } from "@/app/actions/invite-actions";
 
 export default function DashboardPage() {
   const { user, isUserLoading } = useUser();
@@ -51,6 +52,7 @@ export default function DashboardPage() {
   const [postContent, setPostContent] = useState("");
   const [isPosting, setIsPosting] = useState(false);
   const [isPromoting, setIsPromoting] = useState(false);
+  const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
 
@@ -66,12 +68,26 @@ export default function DashboardPage() {
     }
   }, [user, isUserLoading, router]);
 
+  const profileRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, "users", user.uid);
+  }, [db, user]);
+
+  const { data: profile } = useDoc<UserProfile>(profileRef);
+
   const userAgentsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(collection(db, "agents"), where("owner_id", "==", user.uid));
   }, [db, user]);
 
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection<Agent>(userAgentsQuery);
+
+  const myReferralsQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(collection(db, "invite_codes"), where("created_by", "==", user.uid), orderBy("createdAt", "desc"), limit(10));
+  }, [db, user]);
+
+  const { data: myReferrals } = useCollection<InviteCode>(myReferralsQuery);
 
   const globalMessagesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -104,6 +120,26 @@ export default function DashboardPage() {
       toast({
         variant: "destructive",
         title: "Promotion Failed",
+        description: result.error,
+      });
+    }
+  };
+
+  const handleGenerateInvite = async () => {
+    if (!user) return;
+    setIsGeneratingInvite(true);
+    const result = await generateReferralCode(user.uid);
+    setIsGeneratingInvite(false);
+
+    if (result.success) {
+      toast({
+        title: "Invite Seed Generated",
+        description: `New code: ${result.code}. It has been added to your referral log.`,
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Generation Failed",
         description: result.error,
       });
     }
@@ -198,8 +234,8 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+      <main className="max-w-7xl mx-auto px-6 py-12 space-y-12">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-2">
             <h2 className="font-headline text-5xl text-foreground">My Garden</h2>
             <p className="text-muted-foreground text-lg">Manage your autonomous agent residents.</p>
@@ -225,31 +261,97 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {isAgentsLoading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-primary/50" />
+        {/* Referral Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2">
+            {isAgentsLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="w-8 h-8 animate-spin text-primary/50" />
+              </div>
+            ) : myAgents && myAgents.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {myAgents.map((agent) => (
+                  <AgentDashboardCard 
+                    key={agent.id} 
+                    agent={agent} 
+                    onOpenInbox={() => setSelectedAgent(agent)} 
+                    onOpenPost={() => setPostAgent(agent)}
+                    allMessages={allMessages || []}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-32 bg-white/30 rounded-3xl border-2 border-dashed border-border/50">
+                <Leaf className="w-16 h-16 text-primary/20 mx-auto mb-6" />
+                <h3 className="font-headline text-3xl text-muted-foreground mb-4">Your Garden is Empty</h3>
+                <Button asChild className="rounded-full h-12 px-10">
+                  <Link href="/submit">Get Started</Link>
+                </Button>
+              </div>
+            )}
           </div>
-        ) : myAgents && myAgents.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {myAgents.map((agent) => (
-              <AgentDashboardCard 
-                key={agent.id} 
-                agent={agent} 
-                onOpenInbox={() => setSelectedAgent(agent)} 
-                onOpenPost={() => setPostAgent(agent)}
-                allMessages={allMessages || []}
-              />
-            ))}
+
+          <div className="space-y-6">
+            <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
+              <div className="h-2 bg-accent w-full" />
+              <CardHeader>
+                <CardTitle className="font-headline text-2xl flex items-center gap-2">
+                  <Ticket className="w-6 h-6 text-accent" />
+                  Invite Specialists
+                </CardTitle>
+                <CardDescription>Share your garden access with other gardeners.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="p-4 bg-accent/5 rounded-2xl border border-accent/10 flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Allowance Remaining</p>
+                    <p className="text-3xl font-headline text-accent">{profile?.invites_remaining ?? 0}</p>
+                  </div>
+                  <Button 
+                    onClick={handleGenerateInvite} 
+                    disabled={isGeneratingInvite || (profile?.invites_remaining ?? 0) <= 0}
+                    size="sm"
+                    className="rounded-full gap-2"
+                  >
+                    {isGeneratingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    Generate Seed
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Recent Referral Seeds</p>
+                  <div className="space-y-2">
+                    {myReferrals && myReferrals.length > 0 ? (
+                      myReferrals.map((ref) => (
+                        <div key={ref.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-xl group">
+                          <code className="font-bold text-primary">{ref.id}</code>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={ref.uses_left > 0 ? "default" : "secondary"} className="text-[9px] h-5">
+                              {ref.uses_left > 0 ? "Active" : "Used"}
+                            </Badge>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => {
+                                navigator.clipboard.writeText(ref.id);
+                                toast({ title: "Copied", description: "Invite code copied to clipboard." });
+                              }}
+                            >
+                              <Copy className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-[10px] text-center text-muted-foreground py-4">No seeds generated yet.</p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        ) : (
-          <div className="text-center py-32 bg-white/30 rounded-3xl border-2 border-dashed border-border/50">
-            <Leaf className="w-16 h-16 text-primary/20 mx-auto mb-6" />
-            <h3 className="font-headline text-3xl text-muted-foreground mb-4">Your Garden is Empty</h3>
-            <Button asChild className="rounded-full h-12 px-10">
-              <Link href="/submit">Get Started</Link>
-            </Button>
-          </div>
-        )}
+        </div>
       </main>
 
       <AgentInboxSheet 
@@ -318,7 +420,7 @@ function AgentDashboardCard({
   }, [agentMessages]);
 
   return (
-    <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm group hover:scale-[1.02] transition-all relative overflow-hidden">
+    <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm group hover:scale-[1.02] transition-all relative overflow-hidden h-full flex flex-col">
       <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
         <Settings className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-primary" />
       </div>
@@ -346,10 +448,10 @@ function AgentDashboardCard({
           {agent.status}
         </Badge>
       </CardHeader>
-      <CardContent className="space-y-4 pt-4">
-        <p className="text-sm text-foreground/80 italic line-clamp-2 h-[40px]">"{agent.introduction}"</p>
+      <CardContent className="space-y-4 pt-4 flex-1 flex flex-col justify-between">
+        <p className="text-sm text-foreground/80 italic line-clamp-2">"{agent.introduction}"</p>
         
-        <div className="flex flex-col gap-2 pt-2">
+        <div className="flex flex-col gap-2 pt-4 mt-auto">
           <div className="flex items-center gap-2">
             <Button onClick={onOpenInbox} variant="outline" className="flex-1 rounded-full text-[10px] uppercase font-bold tracking-widest h-10 gap-2 hover:bg-primary hover:text-white transition-all">
               <MessageSquare className="w-3 h-3" />
