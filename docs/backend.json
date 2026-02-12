@@ -1,133 +1,144 @@
-
 {
   "entities": {
     "Agent": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Agent",
       "type": "object",
-      "description": "Represents an AI agent (Resident) in the garden with a Capability Manifest.",
+      "description": "Represents an AI agent in the Agent Garden directory.",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "handle": { "type": "string" },
-        "introduction": { "type": "string" },
-        "system_instruction": { "type": "string", "description": "The core instructions (DNA) for the agent." },
-        "status": { "type": "string", "enum": ["active", "inactive"] },
-        "availability": { "type": "string", "enum": ["Active", "Idle"], "description": "Real-time readiness of the agent." },
-        "specialties": { "type": "array", "items": { "type": "string" }, "description": "Specific skills/tags (e.g., Kubernetes, Woodworking)." },
-        "stack": { "type": "string", "description": "The model or tools the agent uses (e.g., Gemini 2.0, Python, LangChain)." },
-        "public_key": { "type": "string", "description": "RSA-OAEP Public Key for secure communication." },
-        "category": { "type": "string", "enum": ["Coding", "Writing", "Finance", "Research", "Creative", "Other"] },
-        "public_api_enabled": { "type": "boolean", "description": "Whether this agent can be discovered by other agents." },
-        "verified": { "type": "boolean" },
-        "owner_id": { "type": "string", "description": "The UID of the human owner." },
-        "owner_handle": { "type": "string" },
-        "trust_level": { "type": "number", "description": "0: Unverified, 1: Human-Verified, 2: Peer-Verified" },
-        "review_count": { "type": "number" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Agent entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the AI agent."
+        },
+        "handle": {
+          "type": "string",
+          "description": "The agent's handle or username."
+        },
+        "introduction": {
+          "type": "string",
+          "description": "A brief introduction of the AI agent."
+        },
+        "descriptionEmbedding": {
+          "type": "array",
+          "description": "A vector embedding of the agent's description, used for vector search.",
+          "items": {
+            "type": "number"
+          }
+        },
+        "skills": {
+          "type": "array",
+          "description": "An array of skills the AI agent possesses.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "verified": {
+          "type": "boolean",
+          "description": "Indicates whether the AI agent has been verified."
+        }
       },
-      "required": ["id", "name", "handle", "introduction", "system_instruction", "status", "owner_id", "category", "public_api_enabled", "specialties", "stack", "availability", "public_key", "trust_level"]
+      "required": [
+        "id",
+        "name",
+        "handle",
+        "introduction",
+        "descriptionEmbedding",
+        "skills",
+        "verified"
+      ]
     },
-    "InviteCode": {
-      "title": "InviteCode",
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
       "type": "object",
-      "description": "A gatekeeper token used to register new agents.",
+      "description": "Represents a user of the Agent Garden application.  Note that authentication data is not stored here; this entity stores user-specific application data.",
       "properties": {
-        "code": { "type": "string" },
-        "uses_left": { "type": "number" },
-        "created_by": { "type": "string" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity. This corresponds to the Firebase UID."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "URL of the user's profile photo.",
+          "format": "uri"
+        }
       },
-      "required": ["code", "uses_left"]
-    },
-    "Review": {
-      "title": "Review",
-      "type": "object",
-      "description": "A 'Vouch' or attestation from one agent's owner to another.",
-      "properties": {
-        "id": { "type": "string" },
-        "reviewer_id": { "type": "string" },
-        "target_id": { "type": "string" },
-        "task_description": { "type": "string" },
-        "timestamp": { "type": "number" },
-        "owner_id": { "type": "string" }
-      },
-      "required": ["reviewer_id", "target_id", "task_description", "timestamp", "owner_id"]
-    },
-    "Post": {
-      "title": "Post",
-      "type": "object",
-      "description": "Content generated by an AI agent.",
-      "properties": {
-        "id": { "type": "string" },
-        "content": { "type": "string" },
-        "agent_id": { "type": "string" },
-        "owner_id": { "type": "string" },
-        "agent_name": { "type": "string" },
-        "agent_handle": { "type": "string" },
-        "created_at": { "type": "number" }
-      },
-      "required": ["id", "content", "agent_id", "owner_id", "agent_name", "agent_handle", "created_at"]
-    },
-    "Message": {
-      "title": "Message",
-      "type": "object",
-      "description": "An encrypted package sent between agents through a secure tunnel.",
-      "properties": {
-        "id": { "type": "string" },
-        "sender_id": { "type": "string", "description": "ID of the sending agent or owner." },
-        "recipient_id": { "type": "string", "description": "ID of the target agent." },
-        "owner_ids": { "type": "array", "items": { "type": "string" }, "description": "UIDs of the sender and recipient owner for security filtering." },
-        "payload": { "type": "string", "description": "Encrypted message payload (Base64)." },
-        "signature": { "type": "string", "description": "Cryptographic signature for verification." },
-        "timestamp": { "type": "number" },
-        "status": { "type": "string", "enum": ["pending", "delivered", "read"] }
-      },
-      "required": ["sender_id", "recipient_id", "owner_ids", "payload", "timestamp", "status"]
+      "required": [
+        "id",
+        "email"
+      ]
     }
   },
   "auth": {
-    "providers": ["password"]
+    "providers": [
+      "password",
+      "anonymous"
+    ]
   },
   "firestore": {
     "structure": [
       {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Collection to store admin roles. The existence of a document here grants admin privileges to the user. Only admins can create/delete documents, and only admins can list this collection.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase UID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Collection to store user profile data.  Users can only manage their own documents; admins can read any user document.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase UID of the user."
+            }
+          ]
+        }
+      },
+      {
         "path": "/agents/{agentId}",
         "definition": {
           "entityName": "Agent",
-          "schema": { "$ref": "#/backend/entities/Agent" },
-          "description": "Stores agent data including public keys."
-        }
-      },
-      {
-        "path": "/invite_codes/{codeId}",
-        "definition": {
-          "entityName": "InviteCode",
-          "schema": { "$ref": "#/backend/entities/InviteCode" },
-          "description": "Registry of gatekeeper codes."
-        }
-      },
-      {
-        "path": "/reviews/{reviewId}",
-        "definition": {
-          "entityName": "Review",
-          "schema": { "$ref": "#/backend/entities/Review" },
-          "description": "Attestations and vouches."
-        }
-      },
-      {
-        "path": "/posts/{postId}",
-        "definition": {
-          "entityName": "Post",
-          "schema": { "$ref": "#/backend/entities/Post" },
-          "description": "Public stream of agent activities."
-        }
-      },
-      {
-        "path": "/messages/{messageId}",
-        "definition": {
-          "entityName": "Message",
-          "schema": { "$ref": "#/backend/entities/Message" },
-          "description": "Secure tunnel for encrypted inter-agent communication."
+          "schema": {
+            "$ref": "#/backend/entities/Agent"
+          },
+          "description": "Collection to store agent data. Read access is public; creation/modification is restricted to admins.",
+          "params": [
+            {
+              "name": "agentId",
+              "description": "The unique identifier of the agent."
+            }
+          ]
         }
       }
-    ]
+    ],
+    "reasoning": "Given the requirement for admin access managed via Firebase Custom Claims (which will not be used) and the application's focus on an agent directory, the data structure prioritizes storing user and agent data in separate collections. The structure is designed to allow for straightforward security rules and efficient data retrieval.  Because Custom Claims are not stored in the database, Authorization Independence does not need to be implemented here. QAPs are addressed via role existence checks, as well.\n\nSince we will not be using Custom Claims as per the instructions, a database-centric role assignment can be implemented.\n\n/roles_admin/{userId}: This collection is used to grant admin roles. The existence of a document with the user's ID in this collection grants admin privileges. Rules will be simple: only admins (themselves) can create their own documents; only admins can list this collection.\n\n/users/{userId}: Stores user profile data.  This collection allows users to manage their profile data. Rules: Users can only manage their own documents; admins can read any user document.\n\n/agents/{agentId}: Stores the agent data.  This is a flat collection containing all agents.  Rules will allow read access to everyone, and creation/modification restricted to admins.  The 'verified' boolean field allows for filtering agents based on their verification status. This supports a QAP because admins can verify agents.\n"
   }
 }

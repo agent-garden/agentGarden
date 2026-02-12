@@ -1,38 +1,29 @@
-
 'use client';
 import {
-  Auth,
+  Auth, // Import Auth type for type hinting
+  signInAnonymously,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signOut,
+  // Assume getAuth and app are initialized elsewhere
 } from 'firebase/auth';
-import { Firestore, doc, setDoc } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
+
+/** Initiate anonymous sign-in (non-blocking). */
+export function initiateAnonymousSignIn(authInstance: Auth): void {
+  // CRITICAL: Call signInAnonymously directly. Do NOT use 'await signInAnonymously(...)'.
+  signInAnonymously(authInstance);
+  // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
+}
 
 /** Initiate email/password sign-up (non-blocking). */
-export function initiateEmailSignUp(authInstance: Auth, db: Firestore, email: string, password: string): void {
-  createUserWithEmailAndPassword(authInstance, email, password)
-    .then((userCredential) => {
-      const user = userCredential.user;
-      // Initialize private settings for the new user
-      const settingsRef = doc(db, 'users', user.uid, 'settings', 'main');
-      setDoc(settingsRef, { masterPrompt: "" }, { merge: true });
-    })
-    .catch((error) => {
-      // Errors are handled by the UI/Toasts in the auth page
-    });
+export function initiateEmailSignUp(authInstance: Auth, email: string, password: string): void {
+  // CRITICAL: Call createUserWithEmailAndPassword directly. Do NOT use 'await createUserWithEmailAndPassword(...)'.
+  createUserWithEmailAndPassword(authInstance, email, password);
+  // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
 }
 
 /** Initiate email/password sign-in (non-blocking). */
 export function initiateEmailSignIn(authInstance: Auth, email: string, password: string): void {
-  signInWithEmailAndPassword(authInstance, email, password).catch((error) => {
-    // Errors are handled by the UI/Toasts in the auth page
-  });
-}
-
-/** Sign out (non-blocking). */
-export function initiateSignOut(authInstance: Auth): void {
-  signOut(authInstance).catch((error) => {
-    // Silent fail
-  });
+  // CRITICAL: Call signInWithEmailAndPassword directly. Do NOT use 'await signInWithEmailAndPassword(...)'.
+  signInWithEmailAndPassword(authInstance, email, password);
+  // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
 }
