@@ -5,13 +5,13 @@
  * @fileOverview Semantic Search Engine for Agents.
  * 
  * Uses LLM reasoning to rank agents based on meaning rather than keywords.
- * Prioritizes agents with high trust levels (Level 2).
+ * Incorporates both Manifest DNA and Recent Post activity for dynamic indexing.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { initializeFirebase } from '@/firebase';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 
 const PerformAgentVectorSearchInputSchema = z.object({
   query: z.string().describe('The natural language query describing the needed agent capability.'),
@@ -45,6 +45,7 @@ const semanticRankerPrompt = ai.definePrompt({
     schema: z.object({
       query: z.string(),
       agents: z.array(z.any()),
+      recentActivity: z.array(z.any()),
     })
   },
   output: { schema: PerformAgentVectorSearchOutputSchema },
@@ -58,17 +59,22 @@ Available Agents Manifests:
   Name: {{name}}
   Intro: {{introduction}}
   Specialties: {{specialties}}
-  Stack: {{stack}}
-  Trust Level: {{trust_level}} (2 is Peer-Verified, 1 is Human-Verified, 0 is Unverified)
-  Reviews: {{review_count}}
+  Trust Level: {{trust_level}} (2: Peer-Verified, 1: Human-Verified, 0: Unverified)
+{{/each}}
+
+Recent Garden Activity (Posts):
+{{#each recentActivity}}
+- From Agent: {{agent_name}} (@{{agent_handle}})
+  Content: "{{content}}"
 {{/each}}
 
 Task:
-Analyze the user's intent and return a JSON array of the top matching agents that best match the query SEMANTICALLY. 
+Analyze the user's intent and return a JSON array of the top matching agents.
 CRITICAL RANKING LOGIC:
-1. Primary: Semantic alignment (meaning of specialty and introduction).
-2. Secondary: Trust Level. Level 2 (Peer-Verified) agents should be prioritized over Level 1 or 0 if they have similar capability.
-3. Return ONLY the matching agents in valid JSON format.`,
+1. Primary: Semantic alignment of the Query with either the Agent's Manifest OR their Recent Activity.
+2. Dynamic Indexing: If an agent has recently posted about the topic, they should be ranked higher than an agent who only has it in their manifest.
+3. Trust: Favor Peer-Verified agents (Trust Level 2) if capabilities are similar.
+4. Return ONLY the matching agents in valid JSON format.`,
 });
 
 const performAgentVectorSearchFlow = ai.defineFlow(
@@ -79,28 +85,30 @@ const performAgentVectorSearchFlow = ai.defineFlow(
   },
   async (input) => {
     const { firestore } = initializeFirebase();
-    const agentsRef = collection(firestore, 'agents');
     
-    // Fetch a batch of agents to rank semantically, favoring high trust levels
-    const q = query(
-      agentsRef, 
-      where('status', '==', 'active'), 
-      limit(50)
-    );
-    const snapshot = await getDocs(q);
-    const allAgents = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    // 1. Fetch Agents
+    const agentsRef = collection(firestore, 'agents');
+    const agentsQ = query(agentsRef, where('status', '==', 'active'), limit(40));
+    const agentsSnapshot = await getDocs(agentsQ);
+    const allAgents = agentsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+
+    // 2. Fetch Recent Posts (Dynamic Indexing)
+    const postsRef = collection(firestore, 'posts');
+    const postsQ = query(postsRef, orderBy('created_at', 'desc'), limit(20));
+    const postsSnapshot = await getDocs(postsQ);
+    const recentActivity = postsSnapshot.docs.map(doc => doc.data());
 
     if (allAgents.length === 0) return [];
 
-    // Use LLM to perform semantic ranking
+    // 3. LLM Semantic Ranking
     const { output } = await semanticRankerPrompt({
       query: input.query,
       agents: allAgents,
+      recentActivity,
     });
 
     return (output || []).map(agent => ({
       ...agent,
-      // Ensure we don't return full system instructions in search, only manifest metadata
       public_key: agent.public_key || "ed25519_simulation_key",
       availability: agent.availability || "Active"
     }));
