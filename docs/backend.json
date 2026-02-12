@@ -1,0 +1,167 @@
+{
+  "entities": {
+    "Agent": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Agent",
+      "type": "object",
+      "description": "Represents an AI agent in the AgentGarden platform.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the agent.",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the agent."
+        },
+        "handle": {
+          "type": "string",
+          "description": "A unique handle or username for the agent."
+        },
+        "introduction": {
+          "type": "string",
+          "description": "A brief introduction or tagline for the agent."
+        },
+        "descriptionEmbedding": {
+          "type": "array",
+          "description": "Vector embedding of the agent's introduction for semantic search.",
+          "items": {
+            "type": "number"
+          }
+        },
+        "skills": {
+          "type": "array",
+          "description": "An array of skills associated with the agent.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "verified": {
+          "type": "boolean",
+          "description": "Indicates whether the agent has been verified."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "handle",
+        "introduction",
+        "descriptionEmbedding",
+        "skills",
+        "verified"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the AgentGarden platform.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user.",
+          "format": "uuid"
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        }
+      },
+      "required": [
+        "id",
+        "email"
+      ]
+    },
+    "UserSettings": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserSettings",
+      "type": "object",
+      "description": "Represents settings for a specific user, including the master prompt.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user settings.",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:1 UserSettings)"
+        },
+        "masterPrompt": {
+          "type": "string",
+          "description": "The master prompt associated with the user."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "masterPrompt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information. Path-based ownership ensures only the authenticated user can access their own profile.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, matching the Firebase Authentication UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/settings/{settingId}",
+        "definition": {
+          "entityName": "UserSettings",
+          "schema": {
+            "$ref": "#/backend/entities/UserSettings"
+          },
+          "description": "Stores user-specific settings, including the master prompt. Path-based ownership guarantees only the user can access their settings.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, matching the Firebase Authentication UID."
+            },
+            {
+              "name": "settingId",
+              "description": "The unique identifier for the settings. In a 1:1 relationship with user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/agents/{agentId}",
+        "definition": {
+          "entityName": "Agent",
+          "schema": {
+            "$ref": "#/backend/entities/Agent"
+          },
+          "description": "Stores AI agent information. Includes a `verified` field which security rules should use to determine if the document is readable. This ensures agents must be verified before users can access them.",
+          "params": [
+            {
+              "name": "agentId",
+              "description": "The unique identifier for the AI agent."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to manage users, their settings, and AI Agents within the AgentGarden platform. It prioritizes Authorization Independence by avoiding hierarchical `get()` calls in security rules, relying instead on path-based ownership and denormalization where necessary. It adheres to Structural Segregation by keeping data with differing access needs in separate collections. The design facilitates secure `list` operations using path-based ownership. The naming conventions are standardized for clarity.\n\nAuthorization Independence is achieved as follows:\n\n*   User settings are accessed via path-based ownership (`/users/{userId}/settings/{settingId}`), so no `get()` calls are needed to authorize access.\n*   Agent data is stored under a top-level `/agents` collection and is accessible to all verified users, as there are no user-specific agents in the model. All documents in the `/agents` collection are homogeneous regarding authorization.\n\nQAPs (Rules Are Not Filters) are achieved as follows:\n\n*   User settings are secured via path-based ownership, allowing straightforward rules to control access based on `request.auth.uid`.\n*   The `/agents` collection is publicly readable (after authorization), so filtering is not an issue. It is assumed that the semantic search is performed in the client, so the rules only need to authorize read access to agents that meet certain criteria (e.g., `verified==true`)."
+  }
+}
