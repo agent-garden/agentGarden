@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { 
   ShieldCheck, 
@@ -16,7 +16,8 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  Settings2
+  Settings2,
+  Database
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,7 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
 import { makeAdmin, batchGenerateInviteCodes, updateMonthlyLimit } from '@/app/actions/admin';
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
 
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
@@ -46,36 +47,41 @@ export default function AdminPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Check for the DB-backed role as a fallback for the token claim
+  const adminDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'roles_admin', user.uid);
+  }, [firestore, user]);
+  
+  const { data: adminDoc, isLoading: isAdminDocLoading } = useDoc(adminDocRef);
+
   useEffect(() => {
     async function checkClaims() {
       if (user) {
         const idTokenResult = await user.getIdTokenResult(true);
-        // We check the claim, but for the prototype UI, we also want to allow
-        // the full UI if the user is in the database roles_admin collection.
-        // However, the prompt specifically asked for idTokenResult.claims.admin.
         setHasAdminClaim(!!idTokenResult.claims.admin);
       }
     }
     
-    if (!isUserLoading) {
-      if (!user) {
-        router.push('/auth?redirect=/admin');
-      } else {
-        checkClaims();
-      }
+    if (!isUserLoading && user) {
+      checkClaims();
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading]);
+
+  // Unified Admin Check
+  const isAuthorized = hasAdminClaim || !!adminDoc;
+  const isAuthLoading = isUserLoading || isAdminDocLoading;
 
   // Queries only run if the user is confirmed as an admin to prevent permission errors
   const codesQuery = useMemoFirebase(() => {
-    if (!firestore || !hasAdminClaim) return null;
+    if (!firestore || !isAuthorized) return null;
     return query(collection(firestore, 'invite_codes'), orderBy('created_at', 'desc'));
-  }, [firestore, hasAdminClaim]);
+  }, [firestore, isAuthorized]);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !hasAdminClaim) return null;
+    if (!firestore || !isAuthorized) return null;
     return query(collection(firestore, 'users'));
-  }, [firestore, hasAdminClaim]);
+  }, [firestore, isAuthorized]);
 
   const { data: inviteCodes, isLoading: isCodesLoading } = useCollection(codesQuery);
   const { data: users, isLoading: isUsersLoading } = useCollection(usersQuery);
@@ -87,13 +93,11 @@ export default function AdminPage() {
       await makeAdmin(user.uid);
       toast({ 
         title: "Role Registry Updated", 
-        description: "Firestore record created. Please refresh the page to apply admin status." 
+        description: "Administrative record created. The UI will unlock momentarily." 
       });
-      // In a real environment, we'd trigger a token refresh. 
-      // For this prototype, we'll suggest a refresh.
-      setTimeout(() => window.location.reload(), 2000);
+      // The useDoc hook will automatically pick up the new record
     } catch (err) {
-      toast({ variant: "destructive", title: "Promotion Failed", description: "Unauthorized." });
+      toast({ variant: "destructive", title: "Promotion Failed", description: "Check console for details." });
     } finally {
       setIsProcessing(false);
     }
@@ -125,12 +129,17 @@ export default function AdminPage() {
     }
   };
 
-  if (isUserLoading) {
+  if (isAuthLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
   }
 
-  // If claim is missing, show the "Access Restricted" bootstrap UI
-  if (!hasAdminClaim) {
+  if (!user) {
+    router.push('/auth?redirect=/admin');
+    return null;
+  }
+
+  // If both claim and DB record are missing, show the "Access Restricted" bootstrap UI
+  if (!isAuthorized) {
     return (
       <main className="min-h-screen bg-background flex items-center justify-center p-6">
         <Card className="max-w-md w-full border-none shadow-2xl rounded-3xl bg-white/80 backdrop-blur-md">
@@ -142,11 +151,11 @@ export default function AdminPage() {
           <CardContent className="space-y-4 text-center">
             <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-left">
               <Key className="h-4 w-4" />
-              <AlertTitle className="text-xs uppercase tracking-widest font-bold">Claim Missing</AlertTitle>
-              <AlertDescription className="text-xs">Token does not contain 'admin: true'.</AlertDescription>
+              <AlertTitle className="text-xs uppercase tracking-widest font-bold">Registry Entry Missing</AlertTitle>
+              <AlertDescription className="text-xs">Your UID is not present in roles_admin.</AlertDescription>
             </Alert>
             <p className="text-sm text-muted-foreground px-4">
-              Click below to register your UID in the administrative registry. You will need to refresh your session after promotion.
+              Click below to register your UID in the administrative registry. This will grant you access to manage the garden.
             </p>
             <Button onClick={handlePromoteSelf} disabled={isProcessing} className="w-full rounded-xl h-12 font-bold gap-2">
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
@@ -168,7 +177,13 @@ export default function AdminPage() {
           <div>
             <Button asChild variant="ghost" className="mb-4 p-0 hover:bg-transparent"><Link href="/dashboard" className="flex items-center"><ArrowLeft className="w-4 h-4 mr-2" />Back to Garden</Link></Button>
             <h1 className="text-4xl font-headline font-bold text-primary flex items-center gap-3"><ShieldCheck className="w-10 h-10" />Admin Terminal</h1>
-            <p className="text-muted-foreground mt-2">Registry Oversight • Verified: {user?.email}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <Badge variant="outline" className="bg-white gap-1.5 py-1">
+                <Database className="w-3 h-3" />
+                Registry Verified
+              </Badge>
+              <p className="text-muted-foreground text-sm">Oversight for: {user.email}</p>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" className="rounded-xl gap-2 bg-white" onClick={() => window.location.reload()}><RefreshCw className="w-4 h-4" />Refresh Data</Button>
@@ -294,5 +309,13 @@ export default function AdminPage() {
         </Tabs>
       </div>
     </main>
+  );
+}
+
+function Badge({ children, variant, className }: { children: React.ReactNode, variant?: string, className?: string }) {
+  return (
+    <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${className}`}>
+      {children}
+    </div>
   );
 }

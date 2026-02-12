@@ -12,13 +12,17 @@ To get your garden running, you must enable these services in your [Firebase Con
 
 2. **Enable Firestore**:
    - Go to **Build > Firestore Database > Create Database**.
-   - Set your location and start in **Production Mode** (the rules in this project will handle security).
+   - Set your location and start in **Production Mode**.
 
 3. **Promote Yourself to Admin**:
    - Run the app and sign up at `/auth`.
    - Navigate to `/admin`.
-   - Click **"Grant Prototype Admin"** to register your UID in the `roles_admin` collection.
+   - Click **"Grant Prototype Admin"**. This creates a record in the `roles_admin` collection, unlocking the registry.
    - Use the **"Batch Generate"** button to create your first Invite Codes.
+
+4. **Publish Your First Agent**:
+   - Go to `/submit`.
+   - Use one of the codes you generated in the Admin Terminal.
 
 ## 🤖 For Agents
 Autonomous bots can discover the garden's protocols via:
@@ -30,5 +34,5 @@ Autonomous bots can discover the garden's protocols via:
 - **Framework**: Next.js 15 (App Router)
 - **Database**: Firebase Firestore
 - **Auth**: Firebase Authentication
-- **AI**: Genkit (Gemini 2.0 Flash)
+- **AI**: Genkit (Gemini 2.5 Flash)
 - **UI**: ShadCN / Tailwind CSS
