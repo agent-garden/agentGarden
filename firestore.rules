@@ -52,9 +52,8 @@ service cloud.firestore {
     }
 
     match /invite_codes/{codeId} {
-      // Invite codes are readable by admins for tracking, but only writable via Server Actions (Admin SDK)
-      allow read: if isAdmin();
-      allow write: if false;
+      allow read: if isSignedIn();
+      allow write: if false; // Codes are written via Server Actions
     }
   }
 }

@@ -26,7 +26,7 @@ export default function AuthPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const redirectTo = searchParams.get('redirect') || '/';
+  const redirectTo = searchParams.get('redirect') || '/dashboard';
 
   const handleAuth = async (e: React.FormEvent<HTMLFormElement>, mode: 'login' | 'signup') => {
     e.preventDefault();
@@ -42,46 +42,30 @@ export default function AuthPage() {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // Initialize user profile display name
         await updateProfile(user, { displayName: name });
         
-        // 1. Create top-level User Profile for Admin Management & Referrals
+        // Initialize user profile with default 30 invites
         const userRef = doc(db, 'users', user.uid);
         setDocumentNonBlocking(userRef, {
           id: user.uid,
           email: user.email,
           displayName: name,
-          monthly_invite_limit: 30, // Default allowance
-          invites_remaining: 30,    // Initial monthly allowance
+          monthly_invite_limit: 30,
+          invites_remaining: 30,
           createdAt: new Date().toISOString()
-        }, { merge: true });
-
-        // 2. Initialize User settings sub-collection
-        const settingsRef = doc(db, 'users', user.uid, 'settings', 'default');
-        setDocumentNonBlocking(settingsRef, {
-          id: 'default',
-          userId: user.uid,
-          masterPrompt: ""
         }, { merge: true });
 
         toast({
           title: "Welcome to the Garden!",
-          description: "Your account is being initialized with 30 monthly referral seeds.",
+          description: "Your account is initialized with 30 monthly referral seeds.",
         });
       } else {
         await signInWithEmailAndPassword(auth, email, password);
-        toast({
-          title: "Welcome back!",
-          description: "Successfully logged in.",
-        });
+        toast({ title: "Welcome back!", description: "Successfully logged in." });
       }
       router.push(redirectTo);
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Authentication Error",
-        description: error.message || "Something went wrong. Please try again.",
-      });
+      toast({ variant: "destructive", title: "Authentication Error", description: error.message });
     } finally {
       setIsLoading(false);
     }
@@ -91,17 +75,15 @@ export default function AuthPage() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
       <Link href="/" className="flex items-center gap-2 mb-8 group">
         <Leaf className="text-primary w-10 h-10 group-hover:rotate-12 transition-transform" />
-        <h1 className="font-headline text-4xl text-primary tracking-tight">
-          Agent Garden
-        </h1>
+        <h1 className="font-headline text-4xl text-primary tracking-tight">Agent Garden</h1>
       </Link>
 
       <Card className="w-full max-w-md border-none shadow-2xl bg-white/60 backdrop-blur-xl">
         <Tabs defaultValue="login" className="w-full">
           <CardHeader>
             <TabsList className="grid w-full grid-cols-2 rounded-full h-12 bg-muted/50 p-1">
-              <TabsTrigger value="login" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm">Login</TabsTrigger>
-              <TabsTrigger value="signup" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm">Sign Up</TabsTrigger>
+              <TabsTrigger value="login" className="rounded-full">Login</TabsTrigger>
+              <TabsTrigger value="signup" className="rounded-full">Sign Up</TabsTrigger>
             </TabsList>
           </CardHeader>
           
@@ -109,12 +91,12 @@ export default function AuthPage() {
             <form onSubmit={(e) => handleAuth(e, 'login')}>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input id="login-email" name="email" type="email" placeholder="you@example.com" required className="rounded-xl h-12" />
+                  <Label>Email</Label>
+                  <Input name="email" type="email" placeholder="you@example.com" required className="rounded-xl h-12" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <Input id="login-password" name="password" type="password" required className="rounded-xl h-12" />
+                  <Label>Password</Label>
+                  <Input name="password" type="password" required className="rounded-xl h-12" />
                 </div>
               </CardContent>
               <CardFooter>
@@ -129,16 +111,16 @@ export default function AuthPage() {
             <form onSubmit={(e) => handleAuth(e, 'signup')}>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-name">Full Name</Label>
-                  <Input id="signup-name" name="name" type="text" placeholder="John Doe" required className="rounded-xl h-12" />
+                  <Label>Full Name</Label>
+                  <Input name="name" type="text" placeholder="John Doe" required className="rounded-xl h-12" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input id="signup-email" name="email" type="email" placeholder="you@example.com" required className="rounded-xl h-12" />
+                  <Label>Email</Label>
+                  <Input name="email" type="email" placeholder="you@example.com" required className="rounded-xl h-12" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input id="signup-password" name="password" type="password" required className="rounded-xl h-12" />
+                  <Label>Password</Label>
+                  <Input name="password" type="password" required className="rounded-xl h-12" />
                 </div>
               </CardContent>
               <CardFooter>

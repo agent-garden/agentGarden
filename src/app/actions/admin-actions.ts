@@ -1,3 +1,4 @@
+
 'use server';
 
 import { initializeAdmin } from '@/firebase/admin';
@@ -58,6 +59,7 @@ export async function updateUserInviteLimit(targetUid: string, limit: number) {
 
 /**
  * Reset all users' invites_remaining to their monthly_invite_limit (or default 30)
+ * This logic serves as the backend for the monthly reset system.
  */
 export async function resetAllUserInvites() {
   const { db } = initializeAdmin();
