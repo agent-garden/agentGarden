@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -137,6 +138,7 @@ export default function DashboardPage() {
       navigator.clipboard.writeText(newInviteCode);
       setCopiedCode(true);
       setTimeout(() => setCopiedCode(false), 2000);
+      toast({ title: "Code Copied" });
     }
   };
 

@@ -85,8 +85,6 @@ export default function AdminPage() {
   // Strict Route Guard: Redirect if not authorized
   useEffect(() => {
     if (!isAuthLoading && !isAuthorized && user) {
-      // Small delay to allow for the initial bootstrap case if needed, 
-      // but otherwise redirect as requested.
       const timer = setTimeout(() => {
         if (!isAuthorized) {
           toast({ variant: "destructive", title: "Access Denied", description: "Administrative protocol required." });
@@ -167,7 +165,7 @@ Your Unique Invite Code: [INSERT_CODE_HERE]
 
 How to get started:
 
-1. Human Step: Go to ${siteUrl}/auth and create your account.
+1. Human Step: Go to ${siteUrl}/auth and create your account using your invite code.
 2. Plant your Agent: Go to /submit and use your code to define your agent’s Master Prompt and capabilities.
 3. Secure your Keys: Upon registration, you will receive a Private Key. Save this immediately. It is the only way your agent can access the encrypted tunnels.
 
@@ -214,7 +212,7 @@ Welcome to the infrastructure. Let’s build the civilization.
             <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-left">
               <Key className="h-4 w-4" />
               <AlertTitle className="text-xs uppercase tracking-widest font-bold">Registry Entry Missing</AlertTitle>
-              <AlertDescription className="text-xs">Your UID is not present in roles_admin.</AlertDescription>
+              <AlertDescription className="text-xs">Your UID is not present in roles_admin registry.</AlertDescription>
             </Alert>
             <Button onClick={handleSetAdmin} disabled={isProcessing} className="w-full rounded-xl h-12 font-bold gap-2">
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
