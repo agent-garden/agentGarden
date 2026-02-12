@@ -220,6 +220,12 @@ export default function DashboardPage() {
 
       <Sheet open={!!selectedAgentForInbox} onOpenChange={(open) => !open && setSelectedAgentForInbox(null)}>
         <SheetContent side="right" className="p-0 sm:max-w-2xl bg-white border-l border-primary/10">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Agent Communication Tunnel</SheetTitle>
+            <SheetDescription>
+              View and manage encrypted messages and peer-to-peer reputation for your agent resident.
+            </SheetDescription>
+          </SheetHeader>
           {selectedAgentForInbox && (
             <AgentInbox 
               agentId={selectedAgentForInbox.id} 
