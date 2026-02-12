@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Agent": {
@@ -24,7 +25,8 @@
       "properties": {
         "id": { "type": "string" },
         "email": { "type": "string" },
-        "displayName": { "type": "string" }
+        "displayName": { "type": "string" },
+        "monthly_invite_limit": { "type": "number", "default": 5 }
       }
     },
     "Post": {
@@ -46,7 +48,9 @@
       "description": "Registry access code.",
       "properties": {
         "id": { "type": "string" },
-        "uses_left": { "type": "number" }
+        "uses_left": { "type": "number" },
+        "assigned_to": { "type": "string", "description": "Email or ID of intended user." },
+        "created_at": { "type": "number" }
       }
     },
     "Message": {

@@ -1,34 +1,69 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useUser, useAuth } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, Loader2, ArrowLeft, ShieldAlert, Key, RefreshCw } from 'lucide-react';
+import { 
+  ShieldCheck, 
+  Loader2, 
+  ArrowLeft, 
+  ShieldAlert, 
+  Key, 
+  RefreshCw, 
+  Ticket, 
+  Users, 
+  PlusCircle, 
+  Search,
+  CheckCircle2,
+  XCircle,
+  Settings2
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { makeAdmin } from '@/actions/admin';
+import { makeAdmin, batchGenerateInviteCodes, updateMonthlyLimit } from '@/actions/admin';
 import { useToast } from '@/hooks/use-toast';
+import { collection, query, orderBy } from 'firebase/firestore';
 
-/**
- * Administrative Control Center
- * 
- * This route is strictly protected by checking the 'admin' custom claim 
- * on the user's Firebase ID Token.
- */
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
-  const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  
   const [hasAdminClaim, setHasAdminClaim] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Queries for Tracker and User Manager
+  const codesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'invite_codes'), orderBy('created_at', 'desc'));
+  }, [firestore]);
+
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'users'));
+  }, [firestore]);
+
+  const { data: inviteCodes, isLoading: isCodesLoading } = useCollection(codesQuery);
+  const { data: users, isLoading: isUsersLoading } = useCollection(usersQuery);
 
   useEffect(() => {
     async function checkClaims() {
       if (user) {
-        // Force refresh the token to get the latest custom claims
         const idTokenResult = await user.getIdTokenResult(true);
         setHasAdminClaim(!!idTokenResult.claims.admin);
       }
@@ -48,61 +83,62 @@ export default function AdminPage() {
     setIsProcessing(true);
     try {
       await makeAdmin(user.uid);
-      toast({
-        title: "Role Registry Updated",
-        description: "You have been added to the administrative database. Note: Real custom claims require a server-side refresh.",
-      });
+      toast({ title: "Role Registry Updated", description: "Refresh token to apply admin status." });
     } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Promotion Failed",
-        description: "Only existing gardeners can authorize new administrators."
-      });
+      toast({ variant: "destructive", title: "Promotion Failed", description: "Unauthorized." });
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const handleBatchGenerate = async () => {
+    setIsProcessing(true);
+    try {
+      await batchGenerateInviteCodes();
+      toast({ title: "Success", description: "10 random codes generated." });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed", description: "Batch generation failed." });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleUpdateLimit = async (userId: string, currentLimit: number) => {
+    const newLimit = parseInt(prompt("Enter new monthly invite limit:", currentLimit.toString()) || "");
+    if (isNaN(newLimit)) return;
+
+    try {
+      await updateMonthlyLimit(userId, newLimit);
+      toast({ title: "Updated", description: "User limit has been synchronized." });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to update limit." });
+    }
+  };
+
   if (isUserLoading || hasAdminClaim === null) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
   }
 
-  // --- PROTECTED RENDER LOGIC ---
-  // Only renders the UI if the 'admin' custom claim is detected
   if (!hasAdminClaim) {
     return (
       <main className="min-h-screen bg-background flex items-center justify-center p-6">
         <Card className="max-w-md w-full border-none shadow-2xl rounded-3xl bg-white/80 backdrop-blur-md">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-destructive/10 rounded-2xl flex items-center justify-center mb-4 text-destructive">
-              <ShieldAlert className="w-8 h-8" />
-            </div>
+            <div className="mx-auto w-12 h-12 bg-destructive/10 rounded-2xl flex items-center justify-center mb-4 text-destructive"><ShieldAlert className="w-8 h-8" /></div>
             <CardTitle className="text-2xl font-headline font-bold">Access Restricted</CardTitle>
-            <CardDescription>
-              Your token does not currently possess the 'admin' claim required for this protocol.
-            </CardDescription>
+            <CardDescription>Administrative protocol required.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Alert variant="destructive" className="bg-destructive/5 border-destructive/20">
+          <CardContent className="space-y-4 text-center">
+            <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-left">
               <Key className="h-4 w-4" />
-              <AlertTitle className="text-xs uppercase tracking-widest font-bold">Token Verification Failed</AlertTitle>
-              <AlertDescription className="text-xs">
-                Firestore Security Rules and this UI both require the 'admin: true' custom claim.
-              </AlertDescription>
+              <AlertTitle className="text-xs uppercase tracking-widest font-bold">Claim Missing</AlertTitle>
+              <AlertDescription className="text-xs">Token does not contain 'admin: true'.</AlertDescription>
             </Alert>
-            <div className="pt-4 flex flex-col gap-2">
-              <Button onClick={handlePromoteSelf} disabled={isProcessing} className="rounded-xl h-12 font-bold gap-2">
-                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                Promote to Admin (Simulated)
-              </Button>
-              <Button asChild variant="ghost" className="rounded-xl">
-                <Link href="/dashboard"><ArrowLeft className="w-4 h-4 mr-2" />Return to Garden</Link>
-              </Button>
-            </div>
+            <Button onClick={handlePromoteSelf} disabled={isProcessing} className="w-full rounded-xl h-12 font-bold gap-2">
+              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+              Grant Prototype Admin
+            </Button>
+            <Button asChild variant="ghost" className="w-full rounded-xl"><Link href="/dashboard"><ArrowLeft className="w-4 h-4 mr-2" />Return to Garden</Link></Button>
           </CardContent>
         </Card>
       </main>
@@ -111,55 +147,135 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-background p-6 md:p-12">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-12">
-          <Button asChild variant="ghost" className="mb-4 group p-0 hover:bg-transparent">
-            <Link href="/dashboard" className="flex items-center">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Link>
-          </Button>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-headline font-bold text-primary flex items-center gap-3">
-                <ShieldCheck className="w-10 h-10" />
-                Admin Terminal
-              </h1>
-              <p className="text-muted-foreground mt-2">
-                Verified: {user?.email} • Claim: Admin Active
-              </p>
-            </div>
-            <Button variant="outline" className="rounded-xl gap-2" onClick={() => window.location.reload()}>
-              <RefreshCw className="w-4 h-4" />
-              Sync Claims
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div>
+            <Button asChild variant="ghost" className="mb-4 p-0 hover:bg-transparent"><Link href="/dashboard" className="flex items-center"><ArrowLeft className="w-4 h-4 mr-2" />Back to Garden</Link></Button>
+            <h1 className="text-4xl font-headline font-bold text-primary flex items-center gap-3"><ShieldCheck className="w-10 h-10" />Admin Terminal</h1>
+            <p className="text-muted-foreground mt-2">Registry Oversight • Verified: {user?.email}</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="rounded-xl gap-2 bg-white" onClick={() => window.location.reload()}><RefreshCw className="w-4 h-4" />Refresh Data</Button>
+            <Button onClick={handleBatchGenerate} disabled={isProcessing} className="rounded-xl gap-2 shadow-lg">
+              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
+              Batch Generate Codes (10)
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="border-none shadow-sm rounded-2xl bg-white/50 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Registry Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-headline font-bold text-primary">Active</p>
-              <p className="text-xs text-muted-foreground mt-1">Full override permissions enabled.</p>
-            </CardContent>
-          </Card>
-          
-          <Card className="md:col-span-2 border-none shadow-sm rounded-2xl bg-slate-900 text-white">
-            <CardHeader>
-              <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-400">System Logs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <pre className="text-[10px] font-mono leading-relaxed text-emerald-400">
-                [SYSTEM] Custom Claim 'admin' verified for UID: {user?.uid}<br/>
-                [PROTOCOL] Simulation oversight active...<br/>
-                [DIRECTORY] All manifest DNA readable.
-              </pre>
-            </CardContent>
-          </Card>
-        </div>
+        <Tabs defaultValue="tracker" className="space-y-6">
+          <TabsList className="bg-white/50 border border-primary/5 rounded-2xl p-1 h-auto">
+            <TabsTrigger value="tracker" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm">
+              <Ticket className="w-4 h-4 mr-2" /> Code Tracker
+            </TabsTrigger>
+            <TabsTrigger value="users" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm">
+              <Users className="w-4 h-4 mr-2" /> User Manager
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="tracker">
+            <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white/70 backdrop-blur-md">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle>Invite Code Registry</CardTitle>
+                  <CardDescription>Real-time status of all garden gatekeeper codes.</CardDescription>
+                </div>
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Search codes..." 
+                    className="pl-9 bg-white/50 border-primary/10" 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {isCodesLoading ? (
+                  <div className="p-8 text-center text-muted-foreground flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Syncing registry...</div>
+                ) : (
+                  <Table>
+                    <TableHeader className="bg-primary/5">
+                      <TableRow>
+                        <TableHead className="font-bold">Code</TableHead>
+                        <TableHead className="font-bold">Status</TableHead>
+                        <TableHead className="font-bold">Assigned To</TableHead>
+                        <TableHead className="font-bold">Created</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {inviteCodes?.filter(c => c.id.includes(searchTerm)).map((code) => (
+                        <TableRow key={code.id} className="hover:bg-primary/5 transition-colors">
+                          <TableCell className="font-mono font-bold text-primary">{code.id}</TableCell>
+                          <TableCell>
+                            {code.uses_left > 0 ? (
+                              <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Unused ({code.uses_left})
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-muted-foreground font-bold text-xs italic">
+                                <XCircle className="w-3.5 h-3.5" /> Used
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">{code.assigned_to || "Unassigned"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {new Date(code.created_at || 0).toLocaleDateString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="users">
+            <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white/70 backdrop-blur-md">
+              <CardHeader>
+                <CardTitle>Gardener Directory</CardTitle>
+                <CardDescription>Manage user permissions and monthly invite quotas.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                {isUsersLoading ? (
+                  <div className="p-8 text-center text-muted-foreground flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Scanning users...</div>
+                ) : (
+                  <Table>
+                    <TableHeader className="bg-primary/5">
+                      <TableRow>
+                        <TableHead className="font-bold">User Email</TableHead>
+                        <TableHead className="font-bold text-center">Monthly Limit</TableHead>
+                        <TableHead className="font-bold text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {users?.map((u) => (
+                        <TableRow key={u.id} className="hover:bg-primary/5 transition-colors">
+                          <TableCell className="font-medium">{u.email}</TableCell>
+                          <TableCell className="text-center font-bold text-accent">
+                            {u.monthly_invite_limit || 5}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleUpdateLimit(u.id, u.monthly_invite_limit || 5)}
+                              className="rounded-lg hover:bg-white gap-2"
+                            >
+                              <Settings2 className="w-4 h-4" />
+                              Adjust Quota
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </main>
   );
