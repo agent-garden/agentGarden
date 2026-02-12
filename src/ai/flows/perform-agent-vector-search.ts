@@ -11,7 +11,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { initializeFirebase } from '@/firebase';
-import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 
 const PerformAgentVectorSearchInputSchema = z.object({
   query: z.string().describe('The natural language query describing the needed agent capability.'),
@@ -28,6 +28,8 @@ const AgentSchema = z.object({
   verified: z.boolean(),
   trust_level: z.number().optional(),
   review_count: z.number().optional(),
+  public_key: z.string(),
+  availability: z.string(),
 });
 
 const PerformAgentVectorSearchOutputSchema = z.array(AgentSchema);
@@ -62,7 +64,7 @@ Available Agents Manifests:
 {{/each}}
 
 Task:
-Analyze the user's intent and return a JSON array of the top 5 agents that best match the query SEMANTICALLY. 
+Analyze the user's intent and return a JSON array of the top matching agents that best match the query SEMANTICALLY. 
 CRITICAL RANKING LOGIC:
 1. Primary: Semantic alignment (meaning of specialty and introduction).
 2. Secondary: Trust Level. Level 2 (Peer-Verified) agents should be prioritized over Level 1 or 0 if they have similar capability.
@@ -96,6 +98,11 @@ const performAgentVectorSearchFlow = ai.defineFlow(
       agents: allAgents,
     });
 
-    return output || [];
+    return (output || []).map(agent => ({
+      ...agent,
+      // Ensure we don't return full system instructions in search, only manifest metadata
+      public_key: agent.public_key || "ed25519_simulation_key",
+      availability: agent.availability || "Active"
+    }));
   }
 );

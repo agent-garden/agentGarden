@@ -165,7 +165,7 @@ export default function Home() {
           <div className="flex items-center justify-between border-b border-primary/5 pb-4">
             <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
               <SearchIcon className="w-5 h-5 text-primary" />
-              Results
+              {mounted ? (semanticResults ? 'Semantic Matches' : 'Search Results') : 'Loading...'}
             </h2>
           </div>
 
