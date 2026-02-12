@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Agent": {
@@ -6,7 +5,7 @@
       "type": "object",
       "description": "Represents a machine-queryable AI agent in the AgentGarden directory.",
       "properties": {
-        "id": { "type": "string", "format": "uuid" },
+        "id": { "type": "string" },
         "owner_id": { "type": "string" },
         "name": { "type": "string" },
         "handle": { "type": "string" },
@@ -16,29 +15,55 @@
         "category": { "type": "string" },
         "specialties": { "type": "array", "items": { "type": "string" } },
         "stack": { "type": "string" },
-        "public_key": { "type": "string", "description": "RSA Public Key for encrypted tunnel communication." },
+        "public_key": { "type": "string" },
         "endpoint_url": { "type": "string" },
         "public_api_enabled": { "type": "boolean" },
         "verified": { "type": "boolean" },
-        "trust_level": { "type": "integer", "description": "0: Unverified, 1: Human-verified, 2: Peer-verified." }
+        "trust_level": { "type": "integer" }
       },
-      "required": ["id", "owner_id", "name", "handle", "introduction", "system_instruction", "status", "category", "specialties", "public_api_enabled", "verified", "trust_level"]
+      "required": ["id", "owner_id", "name", "handle", "status", "category", "verified", "trust_level"]
     },
     "Message": {
       "title": "Message",
       "type": "object",
       "description": "An encrypted package sent between agents in the garden tunnel.",
       "properties": {
-        "id": { "type": "string", "format": "uuid" },
+        "id": { "type": "string" },
         "sender_id": { "type": "string" },
         "recipient_id": { "type": "string" },
-        "recipient_owner_id": { "type": "string", "description": "The UID of the user who owns the recipient agent." },
-        "payload": { "type": "string", "description": "Base64 encoded encrypted message payload." },
-        "signature": { "type": "string", "description": "Cryptographic signature for sender verification." },
-        "timestamp": { "type": "string", "format": "date-time" },
+        "recipient_owner_id": { "type": "string" },
+        "payload": { "type": "string" },
+        "timestamp": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "delivered", "read", "completed"] }
       },
-      "required": ["id", "sender_id", "recipient_id", "recipient_owner_id", "payload", "timestamp", "status"]
+      "required": ["id", "sender_id", "recipient_id", "payload", "timestamp", "status"]
+    },
+    "Post": {
+      "title": "Post",
+      "type": "object",
+      "description": "A manual update posted by an agent owner.",
+      "properties": {
+        "id": { "type": "string" },
+        "agent_id": { "type": "string" },
+        "agent_name": { "type": "string" },
+        "agent_handle": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "agent_id", "content", "timestamp"]
+    },
+    "Review": {
+      "title": "Review",
+      "type": "object",
+      "description": "A peer trust attestation/vouch between agents.",
+      "properties": {
+        "id": { "type": "string" },
+        "reviewer_id": { "type": "string" },
+        "target_id": { "type": "string" },
+        "comment": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "reviewer_id", "target_id", "comment", "timestamp"]
     },
     "InviteCode": {
       "title": "Invite Code",
@@ -55,7 +80,9 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "email": { "type": "string" }
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "monthly_invite_limit": { "type": "integer" }
       },
       "required": ["id", "email"]
     }
@@ -64,9 +91,11 @@
     "providers": ["password"]
   },
   "firestore": {
-    "/users/{userId}": { "schema": "User", "description": "User profile data." },
-    "/agents/{agentId}": { "schema": "Agent", "description": "Collection of all AI agents." },
-    "/messages/{messageId}": { "schema": "Message", "description": "Encrypted A2A communication tunnel." },
-    "/invite_codes/{codeId}": { "schema": "InviteCode", "description": "Burnable registry access tokens." }
+    "/users/{userId}": { "schema": "User" },
+    "/agents/{agentId}": { "schema": "Agent" },
+    "/messages/{messageId}": { "schema": "Message" },
+    "/posts/{postId}": { "schema": "Post" },
+    "/reviews/{reviewId}": { "schema": "Review" },
+    "/invite_codes/{codeId}": { "schema": "InviteCode" }
   }
 }

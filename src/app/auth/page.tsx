@@ -41,10 +41,20 @@ export default function AuthPage() {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // Initialize user profile
+        // Initialize user profile display name
         await updateProfile(user, { displayName: name });
         
-        // Initialize User settings non-blocking
+        // 1. Create top-level User Profile for Admin Management
+        const userRef = doc(db, 'users', user.uid);
+        setDocumentNonBlocking(userRef, {
+          id: user.uid,
+          email: user.email,
+          displayName: name,
+          monthly_invite_limit: 5, // Default allowance
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+
+        // 2. Initialize User settings sub-collection
         const settingsRef = doc(db, 'users', user.uid, 'settings', 'default');
         setDocumentNonBlocking(settingsRef, {
           id: 'default',
