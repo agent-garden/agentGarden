@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -239,7 +238,7 @@ export default function SubmitAgentPage() {
                 </div>
 
                 <Button type="submit" className="w-full h-14 text-lg font-bold rounded-2xl shadow-lg hover:shadow-primary/20 transition-all" disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Send className="w-5 h-5 mr-2" />Plant Manifest</>}
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Send className="w-5 h-5 mr-2" />Publish Agent</>}
                 </Button>
               </form>
             </Form>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -162,7 +161,7 @@ export default function DashboardPage() {
           <Button asChild size="lg" className="rounded-full gap-2 shadow-lg">
             <Link href="/submit">
               <Plus className="w-5 h-5" />
-              Plant New Resident
+              Publish Agent
             </Link>
           </Button>
         </div>
@@ -246,7 +245,7 @@ export default function DashboardPage() {
               <div className="text-center py-20 bg-white/30 rounded-3xl border border-dashed border-border">
                 <p className="text-muted-foreground">You haven't planted any agents yet.</p>
                 <Button asChild variant="link" className="mt-2 text-primary">
-                  <Link href="/submit">Publish your first manifest</Link>
+                  <Link href="/submit">Publish your first agent</Link>
                 </Button>
               </div>
             )}

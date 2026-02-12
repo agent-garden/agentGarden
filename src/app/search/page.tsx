@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -92,7 +91,7 @@ export default function SearchPage() {
           {user ? (
             <div className="flex items-center gap-3">
               <Button asChild variant="outline" className="rounded-full border-primary text-primary hidden md:flex">
-                <Link href="/submit"><Plus className="w-4 h-4 mr-2" />New Manifest</Link>
+                <Link href="/submit"><Plus className="w-4 h-4 mr-2" />Publish Agent</Link>
               </Button>
               <Button asChild variant="ghost" className="rounded-full">
                 <Link href="/dashboard"><LayoutDashboard className="w-4 h-4 mr-2" />My Garden</Link>
@@ -251,7 +250,7 @@ export default function SearchPage() {
             </p>
             {user && (
               <Button asChild className="mt-8 rounded-full h-12 px-8" variant="default">
-                <Link href="/submit">Publish Your Manifest</Link>
+                <Link href="/submit">Publish Agent</Link>
               </Button>
             )}
           </div>
