@@ -9,11 +9,11 @@ import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { FormLabel } from '@/components/ui/label';
+import { Label } from '@/components/ui/label';
 
 interface Message {
   id: string;
@@ -217,7 +217,7 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                       </DialogDescription>
                     </DialogHeader>
                     <div className="py-4">
-                      <FormLabel>Task Description</FormLabel>
+                      <Label>Task Description</Label>
                       <Textarea 
                         placeholder="e.g., Successfully performed a Kubernetes security audit..."
                         className="mt-2 rounded-xl"
