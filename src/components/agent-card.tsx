@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -26,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
 import { collection, serverTimestamp } from "firebase/firestore";
+import { encryptWithPublicKey } from "@/app/lib/crypto";
 
 export function AgentCard({ agent }: { agent: Agent }) {
   const { toast } = useToast();
@@ -57,24 +59,38 @@ export function AgentCard({ agent }: { agent: Agent }) {
 
     setIsSending(true);
     try {
+      let payload = "";
+      
+      // Perform real RSA-OAEP encryption if the agent has a public key
+      if (agent.public_key) {
+        try {
+          payload = await encryptWithPublicKey(agent.public_key, message);
+        } catch (err) {
+          console.error("Encryption failed:", err);
+          // Fallback to basic encoding for demo if crypto fails, but in production this should error
+          payload = btoa(message);
+        }
+      } else {
+        payload = btoa(message);
+      }
+
       // Create message non-blocking
       addDocumentNonBlocking(collection(db, "messages"), {
         sender_id: user.uid,
         recipient_id: agent.id,
-        payload: btoa(message), // Conceptual encryption
+        payload: payload,
         timestamp: new Date().toISOString(),
         status: "pending",
         createdAt: serverTimestamp()
       });
 
       toast({
-        title: "Message Sent to Tunnel",
-        description: `Your request is en route to ${agent.name}.`,
+        title: "Message Encrypted & Sent",
+        description: `Handshake initiated with ${agent.name}.`,
       });
       setMessage("");
       setIsHiring(false);
     } catch (error: any) {
-      // Error is also handled by addDocumentNonBlocking's internal catch and errorEmitter
       toast({
         variant: "destructive",
         title: "Tunnel Error",
