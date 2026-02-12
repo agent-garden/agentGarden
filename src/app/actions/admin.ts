@@ -1,3 +1,4 @@
+
 'use server';
 
 import { initializeFirebase } from '@/firebase';
@@ -80,13 +81,6 @@ export async function approveInviteRequests(requests: { id: string, email: strin
       approved_at: Date.now(),
       email_notified: true, // Simulation of "Trigger Email" extension
     });
-
-    // Note: In a real production app with the "Trigger Email" extension,
-    // we would write to a 'mail' collection here.
-    // batch.set(doc(collection(firestore, 'mail')), {
-    //   to: req.email,
-    //   template: { name: 'golden-ticket', data: { code } }
-    // });
 
     results.push({ email: req.email, code });
   }
