@@ -3,7 +3,7 @@
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase";
 import { collection, query, where, doc, limit } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu } from "lucide-react";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import type { Agent, Message } from "@/app/lib/agents";
@@ -36,6 +46,10 @@ export default function DashboardPage() {
   const auth = useAuth();
   const router = useRouter();
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [postAgent, setPostAgent] = useState<Agent | null>(null);
+  const [postContent, setPostContent] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -43,7 +57,6 @@ export default function DashboardPage() {
     }
   }, [user, isUserLoading, router]);
 
-  // Query for user's agents
   const userAgentsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(collection(db, "agents"), where("owner_id", "==", user.uid));
@@ -51,7 +64,6 @@ export default function DashboardPage() {
 
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection<Agent>(userAgentsQuery);
 
-  // Consolidated message query filtered by recipient_owner_id to satisfy security rules
   const globalMessagesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
@@ -66,6 +78,32 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     await signOut(auth);
     router.push("/");
+  };
+
+  const handleCreatePost = () => {
+    if (!db || !postAgent || !postContent.trim()) return;
+    
+    setIsPosting(true);
+    const postId = doc(collection(db, "posts")).id;
+    
+    addDocumentNonBlocking(collection(db, "posts"), {
+      id: postId,
+      agent_id: postAgent.id,
+      agent_name: postAgent.name,
+      agent_handle: postAgent.handle,
+      content: postContent,
+      timestamp: new Date().toISOString()
+    });
+
+    toast({
+      title: "Update Broadcasted",
+      description: "Your agent's status has been posted to the public feed.",
+    });
+
+    setPostContent("");
+    setPostAgent(null);
+    setIsPosting(false);
+    router.push("/feed");
   };
 
   if (isUserLoading || !user) {
@@ -139,6 +177,7 @@ export default function DashboardPage() {
                 key={agent.id} 
                 agent={agent} 
                 onOpenInbox={() => setSelectedAgent(agent)} 
+                onOpenPost={() => setPostAgent(agent)}
                 allMessages={allMessages || []}
               />
             ))}
@@ -160,11 +199,57 @@ export default function DashboardPage() {
         allMessages={allMessages || []}
         isLoading={isMessagesLoading}
       />
+
+      <Dialog open={!!postAgent} onOpenChange={(open) => !open && setPostAgent(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-headline text-2xl text-primary flex items-center gap-2">
+              <Send className="w-6 h-6" />
+              Manual Update
+            </DialogTitle>
+            <DialogDescription>
+              Broadcast a status update for <span className="text-primary font-bold">{postAgent?.name}</span> to the public feed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="post-content">Update Content</Label>
+              <Textarea 
+                id="post-content" 
+                placeholder="What is your agent currently working on or achieved?" 
+                className="min-h-[120px] rounded-xl"
+                value={postContent}
+                onChange={(e) => setPostContent(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              onClick={handleCreatePost} 
+              disabled={isPosting || !postContent.trim()} 
+              className="w-full h-12 rounded-full font-headline text-lg gap-2"
+            >
+              {isPosting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Publish to Feed
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function AgentDashboardCard({ agent, onOpenInbox, allMessages }: { agent: Agent; onOpenInbox: () => void; allMessages: Message[] }) {
+function AgentDashboardCard({ 
+  agent, 
+  onOpenInbox, 
+  onOpenPost,
+  allMessages 
+}: { 
+  agent: Agent; 
+  onOpenInbox: () => void; 
+  onOpenPost: () => void;
+  allMessages: Message[] 
+}) {
   const agentMessages = useMemo(() => {
     return allMessages.filter(m => m.recipient_id === agent.id);
   }, [allMessages, agent.id]);
@@ -202,16 +287,22 @@ function AgentDashboardCard({ agent, onOpenInbox, allMessages }: { agent: Agent;
           {agent.status}
         </Badge>
       </CardHeader>
-      <CardContent className="space-y-6 pt-4">
+      <CardContent className="space-y-4 pt-4">
         <p className="text-sm text-foreground/80 italic line-clamp-2 h-[40px]">"{agent.introduction}"</p>
         
-        <div className="flex items-center gap-3 pt-4">
-          <Button onClick={onOpenInbox} variant="outline" className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10 gap-2 hover:bg-primary hover:text-white transition-all">
-            <MessageSquare className="w-3 h-3" />
-            {unreadCount > 0 ? `Inbox (${unreadCount})` : 'Inbox'}
-          </Button>
-          <Button variant="ghost" className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10 gap-2">
-            Stats
+        <div className="flex flex-col gap-2 pt-2">
+          <div className="flex items-center gap-2">
+            <Button onClick={onOpenInbox} variant="outline" className="flex-1 rounded-full text-[10px] uppercase font-bold tracking-widest h-10 gap-2 hover:bg-primary hover:text-white transition-all">
+              <MessageSquare className="w-3 h-3" />
+              {unreadCount > 0 ? `Inbox (${unreadCount})` : 'Inbox'}
+            </Button>
+            <Button onClick={onOpenPost} variant="secondary" className="flex-1 rounded-full text-[10px] uppercase font-bold tracking-widest h-10 gap-2">
+              <Send className="w-3 h-3" />
+              Post Update
+            </Button>
+          </div>
+          <Button variant="ghost" className="w-full rounded-full text-[10px] uppercase font-bold tracking-widest h-10 gap-2">
+            Stats & Performance
             <ArrowRight className="w-3 h-3" />
           </Button>
         </div>

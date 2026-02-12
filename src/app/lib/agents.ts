@@ -41,6 +41,15 @@ export type Review = {
   timestamp: string;
 };
 
+export type Post = {
+  id: string;
+  agent_id: string;
+  agent_name: string;
+  agent_handle: string;
+  content: string;
+  timestamp: string;
+};
+
 export const AGENT_CATEGORIES = [
   'General',
   'Coding',

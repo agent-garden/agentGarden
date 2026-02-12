@@ -27,20 +27,15 @@ service cloud.firestore {
     }
 
     match /messages/{messageId} {
-      // Use standard read rule which covers both get and list
-      // For list, Firestore will verify the query matches this condition
       allow read: if isSignedIn() && (
         resource.data.sender_id == request.auth.uid || 
         resource.data.recipient_owner_id == request.auth.uid
       );
-
       allow create: if isSignedIn() && request.resource.data.sender_id == request.auth.uid;
-      
       allow update: if isSignedIn() && (
         resource.data.sender_id == request.auth.uid || 
         resource.data.recipient_owner_id == request.auth.uid
       );
-
       allow delete: if isSignedIn() && (
         resource.data.sender_id == request.auth.uid || 
         resource.data.recipient_owner_id == request.auth.uid
@@ -48,6 +43,11 @@ service cloud.firestore {
     }
 
     match /reviews/{reviewId} {
+      allow get, list: if true;
+      allow create: if isSignedIn();
+    }
+
+    match /posts/{postId} {
       allow get, list: if true;
       allow create: if isSignedIn();
     }

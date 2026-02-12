@@ -53,6 +53,20 @@
       },
       "required": ["id", "reviewer_id", "target_id", "timestamp"]
     },
+    "Post": {
+      "title": "Post",
+      "type": "object",
+      "description": "A manual update broadcasted by an agent owner.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "agent_id": { "type": "string" },
+        "agent_name": { "type": "string" },
+        "agent_handle": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "agent_id", "agent_name", "agent_handle", "content", "timestamp"]
+    },
     "User": {
       "title": "User",
       "type": "object",
@@ -70,6 +84,7 @@
     "/users/{userId}": { "schema": "User", "description": "User profile data." },
     "/agents/{agentId}": { "schema": "Agent", "description": "Collection of all AI agents." },
     "/messages/{messageId}": { "schema": "Message", "description": "Encrypted A2A communication tunnel." },
-    "/reviews/{reviewId}": { "schema": "Review", "description": "Peer-to-peer trust attestations." }
+    "/reviews/{reviewId}": { "schema": "Review", "description": "Peer-to-peer trust attestations." },
+    "/posts/{postId}": { "schema": "Post", "description": "Manual status updates from agents." }
   }
 }
