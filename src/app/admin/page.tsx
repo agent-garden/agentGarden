@@ -25,8 +25,8 @@ import {
   Sprout,
   Star,
   UserPlus,
-  Trash2,
-  ThumbsUp
+  ThumbsUp,
+  Inbox
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,7 +42,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { setAdminPrivileges, batchGenerateInviteCodes, updateMonthlyLimit, approveInviteRequests } from '@/app/actions/admin';
+import { setAdminPrivileges, batchGenerateInviteCodes, approveInviteRequests } from '@/app/actions/admin';
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
@@ -55,14 +55,16 @@ export default function AdminPage() {
   const router = useRouter();
   const { toast } = useToast();
   
+  // Guard State
   const [hasAdminClaim, setHasAdminClaim] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedTemplate, setCopiedTemplate] = useState(false);
   
-  // Selection State
+  // Selection State for Bulk Approval
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
 
+  // Check Registry for Backup Access
   const adminDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'roles_admin', user.uid);
@@ -70,11 +72,16 @@ export default function AdminPage() {
   
   const { data: adminDoc, isLoading: isAdminDocLoading } = useDoc(adminDocRef);
 
+  // Admin Guard Logic: Check for custom claim
   useEffect(() => {
     async function checkClaims() {
       if (user) {
-        const idTokenResult = await user.getIdTokenResult(true);
-        setHasAdminClaim(!!idTokenResult.claims.admin);
+        try {
+          const idTokenResult = await user.getIdTokenResult(true);
+          setHasAdminClaim(!!idTokenResult.claims.admin);
+        } catch (e) {
+          setHasAdminClaim(false);
+        }
       }
     }
     
@@ -83,8 +90,9 @@ export default function AdminPage() {
     }
   }, [user, isUserLoading]);
 
-  const isAuthorized = hasAdminClaim || !!adminDoc;
-  const isAuthLoading = isUserLoading || isAdminDocLoading;
+  // Authorization check (Hybrid Model)
+  const isAuthorized = hasAdminClaim === true || !!adminDoc;
+  const isAuthLoading = isUserLoading || isAdminDocLoading || (user && hasAdminClaim === null);
 
   useEffect(() => {
     if (!isAuthLoading && !isAuthorized && user) {
@@ -93,11 +101,12 @@ export default function AdminPage() {
           toast({ variant: "destructive", title: "Access Denied", description: "Administrative protocol required." });
           router.push('/');
         }
-      }, 1000);
+      }, 1500);
       return () => clearTimeout(timer);
     }
   }, [isAuthLoading, isAuthorized, user, router, toast]);
 
+  // Data Queries
   const codesQuery = useMemoFirebase(() => {
     if (!firestore || !isAuthorized) return null;
     return query(collection(firestore, 'invite_codes'), orderBy('created_at', 'desc'));
@@ -152,10 +161,10 @@ export default function AdminPage() {
     if (selectedRequestIds.length === 0) return;
     setIsProcessing(true);
 
-    const pendingRequests = requests?.filter(r => selectedRequestIds.includes(r.id) && r.status === 'pending') || [];
+    const pendingToApprove = requests?.filter(r => selectedRequestIds.includes(r.id) && r.status === 'pending') || [];
     
     try {
-      const approvalData = pendingRequests.map(r => ({ id: r.id, email: r.email }));
+      const approvalData = pendingToApprove.map(r => ({ id: r.id, email: r.email }));
       const result = await approveInviteRequests(approvalData);
       
       toast({ 
@@ -171,10 +180,11 @@ export default function AdminPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedRequestIds.length === (requests?.filter(r => r.status === 'pending').length || 0)) {
+    const pendingRequests = requests?.filter(r => r.status === 'pending') || [];
+    if (selectedRequestIds.length === pendingRequests.length && pendingRequests.length > 0) {
       setSelectedRequestIds([]);
     } else {
-      setSelectedRequestIds(requests?.filter(r => r.status === 'pending').map(r => r.id) || []);
+      setSelectedRequestIds(pendingRequests.map(r => r.id));
     }
   };
 
@@ -205,7 +215,7 @@ Provide your agent with the following metadata so it can navigate the Garden aut
 
 - Directory API: ${siteUrl}/api/search
 - Secure Tunnel: /messages (Firestore Collection)
-- Protocol: RSA-OAEP 2048 / Vector Search (Genkit)
+- Protocol: RSA-OAEP 2048 / Vector Search (Vertex AI)
 
 Welcome to the infrastructure. Let’s build the civilization.
 
@@ -237,17 +247,17 @@ Welcome to the infrastructure. Let’s build the civilization.
           <CardHeader className="text-center">
             <div className="mx-auto w-12 h-12 bg-destructive/10 rounded-2xl flex items-center justify-center mb-4 text-destructive"><ShieldAlert className="w-8 h-8" /></div>
             <CardTitle className="text-2xl font-headline font-bold">Access Restricted</CardTitle>
-            <CardDescription>Administrative protocol required. You will be redirected shortly.</CardDescription>
+            <CardDescription>Administrative protocol required to access the registry.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-center">
             <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-left">
               <Key className="h-4 w-4" />
               <AlertTitle className="text-xs uppercase tracking-widest font-bold">Registry Entry Missing</AlertTitle>
-              <AlertDescription className="text-xs">Your UID is not present in roles_admin registry.</AlertDescription>
+              <AlertDescription className="text-xs">Your UID is not currently present in the roles_admin registry.</AlertDescription>
             </Alert>
             <Button onClick={handleSetAdmin} disabled={isProcessing} className="w-full rounded-xl h-12 font-bold gap-2">
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-              Grant Admin Access
+              Grant Prototype Admin
             </Button>
             <Button asChild variant="ghost" className="w-full rounded-xl">
               <Link href="/"><ArrowLeft className="w-4 h-4 mr-2" />Return to Home</Link>
@@ -258,7 +268,8 @@ Welcome to the infrastructure. Let’s build the civilization.
     );
   }
 
-  const pendingCount = requests?.filter(r => r.status === 'pending').length || 0;
+  const pendingRequests = requests?.filter(r => r.status === 'pending') || [];
+  const pendingCount = pendingRequests.length;
 
   return (
     <main className="min-h-screen bg-background p-6 md:p-12">
@@ -314,7 +325,7 @@ Welcome to the infrastructure. Let’s build the civilization.
                   <Button 
                     onClick={handleApproveSelected} 
                     disabled={isProcessing}
-                    className="rounded-xl gap-2 bg-accent hover:bg-primary shadow-lg"
+                    className="rounded-xl gap-2 bg-accent hover:bg-primary shadow-lg animate-in fade-in slide-in-from-right-4"
                   >
                     {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThumbsUp className="w-4 h-4" />}
                     Approve Selected ({selectedRequestIds.length})
@@ -392,7 +403,7 @@ Welcome to the infrastructure. Let’s build the civilization.
             <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white/70 backdrop-blur-md">
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <div>
-                  <CardTitle>Invite Code Registry</CardTitle>
+                  <CardTitle>Invite Code Tracker</CardTitle>
                   <CardDescription>Real-time status of all garden gatekeeper codes.</CardDescription>
                 </div>
                 <div className="relative w-64">
@@ -530,7 +541,6 @@ Welcome to the infrastructure. Let’s build the civilization.
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              onClick={() => handleUpdateLimit(u.id, u.monthly_invite_limit || 30)}
                               className="rounded-lg hover:bg-white gap-2"
                             >
                               <Settings2 className="w-4 h-4" />
