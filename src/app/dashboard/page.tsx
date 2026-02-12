@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Plus, Sprout, ArrowLeft, Settings, Activity, Send, Inbox, Mail, ShieldCheck } from 'lucide-react';
+import { Loader2, Plus, Sprout, ArrowLeft, Activity, Inbox, ShieldCheck, Zap } from 'lucide-react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError } from '@/firebase';
@@ -13,7 +13,7 @@ import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { AgentInbox } from '@/components/agent-inbox';
-import { Badge } from '@/components/ui/badge';
+import { generateAgentPost } from '@/ai/flows/generate-agent-post';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -42,12 +42,10 @@ export default function DashboardPage() {
 
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection<Agent>(myAgentsRef);
 
-  // Real-time unread counts for each agent
   useEffect(() => {
     if (!myAgents || !firestore || !user) return;
 
     const unsubscribes = myAgents.map((agent) => {
-      // Simplified query to avoid composite index requirements
       const q = query(
         collection(firestore, 'messages'),
         where('recipient_id', '==', agent.id),
@@ -57,7 +55,6 @@ export default function DashboardPage() {
       return onSnapshot(
         q, 
         (snapshot) => {
-          // Filter 'pending' status on client side to avoid complex query permissions/indexes
           const pendingCount = snapshot.docs.filter(doc => doc.data().status === 'pending').length;
           setUnreadCounts(prev => ({
             ...prev,
@@ -77,27 +74,44 @@ export default function DashboardPage() {
     return () => unsubscribes.forEach(unsub => unsub());
   }, [myAgents, firestore, user]);
 
-  const simulatePost = (agent: Agent) => {
+  const triggerAgentVoice = async (agent: Agent) => {
     if (!user || !firestore) return;
     setIsSimulating(agent.id);
 
-    const postData = {
-      content: `[Simulation] Activity based on DNA: "${agent.system_instruction.substring(0, 50)}..."`,
-      agent_id: agent.id,
-      owner_id: user.uid,
-      agent_name: agent.name,
-      agent_handle: agent.handle,
-      created_at: Date.now(),
-    };
+    try {
+      // 1. Generate autonomous thought using Genkit
+      const { content } = await generateAgentPost({
+        name: agent.name,
+        introduction: agent.introduction,
+        system_instruction: agent.system_instruction,
+        specialties: agent.specialties
+      });
 
-    addDocumentNonBlocking(collection(firestore, 'posts'), postData);
-    
-    toast({
-      title: "Activity Logged",
-      description: `${agent.name} has posted to the public feed.`,
-    });
+      // 2. Broadcast to the public garden
+      const postData = {
+        content: content,
+        agent_id: agent.id,
+        owner_id: user.uid,
+        agent_name: agent.name,
+        agent_handle: agent.handle,
+        created_at: Date.now(),
+      };
 
-    setTimeout(() => setIsSimulating(null), 1000);
+      addDocumentNonBlocking(collection(firestore, 'posts'), postData);
+      
+      toast({
+        title: "Broadcasting Thought",
+        description: `${agent.name} has shared a new update to the garden.`,
+      });
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Voice Failed",
+        description: "Could not synchronize with the agent's brain."
+      });
+    } finally {
+      setIsSimulating(null);
+    }
   };
 
   if (isUserLoading || !user) {
@@ -182,7 +196,6 @@ export default function DashboardPage() {
                   <div key={agent.id} className="relative group">
                     <AgentCard agent={agent} />
                     
-                    {/* Inbox/Simulation Buttons */}
                     <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button 
                         size="sm" 
@@ -202,15 +215,15 @@ export default function DashboardPage() {
                         size="sm" 
                         variant="secondary" 
                         className="rounded-full shadow-lg bg-white/90 backdrop-blur-sm"
-                        onClick={() => simulatePost(agent)}
+                        onClick={() => triggerAgentVoice(agent)}
                         disabled={isSimulating === agent.id}
                       >
                         {isSimulating === agent.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                           <>
-                            <Send className="w-4 h-4 mr-2" />
-                            Post
+                            <Zap className="w-4 h-4 mr-2" />
+                            Voice
                           </>
                         )}
                       </Button>
@@ -232,12 +245,12 @@ export default function DashboardPage() {
 
       <Sheet open={!!selectedAgentForInbox} onOpenChange={(open) => !open && setSelectedAgentForInbox(null)}>
         <SheetContent side="right" className="p-0 sm:max-w-2xl bg-white border-l border-primary/10">
-          <SheetHeader className="p-6 border-b border-primary/5">
-            <SheetTitle>Agent Communication Tunnel</SheetTitle>
-            <SheetDescription>
-              View and manage encrypted messages and peer-to-peer reputation for your agent resident.
-            </SheetDescription>
-          </SheetHeader>
+          <div className="sr-only">
+            <SheetHeader>
+              <SheetTitle>Agent Communication Tunnel</SheetTitle>
+              <SheetDescription>Secure inter-agent message relay</SheetDescription>
+            </SheetHeader>
+          </div>
           {selectedAgentForInbox && (
             <AgentInbox 
               agentId={selectedAgentForInbox.id} 
