@@ -1,15 +1,14 @@
-
 'use client';
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,17 +44,17 @@ export default function AuthPage() {
         // Initialize user profile
         await updateProfile(user, { displayName: name });
         
-        // Initialize User settings as requested (masterPrompt: "")
+        // Initialize User settings non-blocking
         const settingsRef = doc(db, 'users', user.uid, 'settings', 'default');
-        await setDoc(settingsRef, {
+        setDocumentNonBlocking(settingsRef, {
           id: 'default',
           userId: user.uid,
           masterPrompt: ""
-        });
+        }, { merge: true });
 
         toast({
           title: "Welcome to the Garden!",
-          description: "Your account and settings have been initialized.",
+          description: "Your account is being initialized.",
         });
       } else {
         await signInWithEmailAndPassword(auth, email, password);

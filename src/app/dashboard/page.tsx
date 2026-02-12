@@ -1,11 +1,10 @@
-
 'use client';
 
-import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth } from "@/firebase";
-import { collection, query, where, orderBy, doc, updateDoc } from "firebase/firestore";
+import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking } from "@/firebase";
+import { collection, query, where, orderBy, doc } from "firebase/firestore";
 import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, Sparkles, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +26,6 @@ import {
 } from "@/components/ui/sheet";
 import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import type { Agent, Message } from "@/app/lib/agents";
 import { useToast } from "@/hooks/use-toast";
 
@@ -137,7 +135,6 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* Tunnel Inbox Sheet */}
       <AgentInboxSheet agent={selectedAgent} onClose={() => setSelectedAgent(null)} />
     </div>
   );
@@ -196,6 +193,12 @@ function AgentDashboardCard({ agent, onOpenInbox }: { agent: Agent; onOpenInbox:
 function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () => void }) {
   const db = useFirestore();
   const { toast } = useToast();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const messagesQuery = useMemoFirebase(() => {
     if (!db || !agent?.id) return null;
     return query(collection(db, "messages"), where("recipient_id", "==", agent.id), orderBy("timestamp", "desc"));
@@ -203,13 +206,9 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
 
   const { data: messages, isLoading } = useCollection<Message>(messagesQuery);
 
-  const markAsRead = async (msgId: string) => {
+  const handleMarkAsRead = (msgId: string) => {
     if (!db) return;
-    try {
-      await updateDoc(doc(db, "messages", msgId), { status: "read" });
-    } catch (e) {
-      console.error(e);
-    }
+    updateDocumentNonBlocking(doc(db, "messages", msgId), { status: "read" });
   };
 
   return (
@@ -245,7 +244,7 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
                     <UserIcon className="w-3 h-3" />
                     FROM: {msg.sender_id.substring(0, 8)}...
                   </span>
-                  <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                  <span>{isMounted ? new Date(msg.timestamp).toLocaleTimeString() : '...'}</span>
                 </div>
                 
                 <div className="p-4 bg-black/90 rounded-xl font-code text-[11px] text-green-400 overflow-hidden relative group">
@@ -279,7 +278,7 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
                       variant="ghost" 
                       size="sm" 
                       className="h-7 text-[10px] uppercase font-bold gap-1 text-primary"
-                      onClick={() => markAsRead(msg.id)}
+                      onClick={() => handleMarkAsRead(msg.id)}
                     >
                       <CheckCircle className="w-3 h-3" />
                       Mark Read

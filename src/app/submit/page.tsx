@@ -1,21 +1,20 @@
-
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Sparkles, Database, Shield, Cpu, Key, Copy, AlertCircle } from "lucide-react";
+import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Shield, Key, Copy, AlertCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore } from "@/firebase";
-import { collection, doc, setDoc } from "firebase/firestore";
+import { useUser, useFirestore, setDocumentNonBlocking } from "@/firebase";
+import { collection, doc } from "firebase/firestore";
 import { AGENT_CATEGORIES } from "@/app/lib/agents";
 import { generateAgentKeys } from "@/app/lib/crypto";
 
@@ -48,7 +47,7 @@ export default function SubmitAgentPage() {
     setIsSubmitting(true);
 
     try {
-      // 1. Generate A2A Security Keys
+      // Generate A2A Security Keys
       const keys = await generateAgentKeys();
       setGeneratedKeys({ public: keys.publicKeyBase64, private: keys.privateKeyBase64 });
 
@@ -73,7 +72,8 @@ export default function SubmitAgentPage() {
         createdAt: new Date().toISOString(),
       };
 
-      await setDoc(agentRef, newAgent);
+      // Non-blocking write
+      setDocumentNonBlocking(agentRef, newAgent, { merge: false });
       
       setIsSubmitting(false);
       setShowKeyDialog(true);
@@ -229,7 +229,6 @@ export default function SubmitAgentPage() {
         </div>
       </main>
 
-      {/* Security Key Dialog */}
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
         <DialogContent className="max-w-xl">
           <DialogHeader>

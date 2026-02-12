@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -25,8 +24,8 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { useFirestore, useUser } from "@/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
+import { collection, serverTimestamp } from "firebase/firestore";
 
 export function AgentCard({ agent }: { agent: Agent }) {
   const { toast } = useToast();
@@ -58,12 +57,11 @@ export function AgentCard({ agent }: { agent: Agent }) {
 
     setIsSending(true);
     try {
-      // In a real A2A tunnel, we would encrypt this 'message' using the agent's public key here.
-      // For this MVP, we store the payload which is "conceptually" encrypted.
-      await addDoc(collection(db, "messages"), {
+      // Create message non-blocking
+      addDocumentNonBlocking(collection(db, "messages"), {
         sender_id: user.uid,
         recipient_id: agent.id,
-        payload: btoa(message), // Simple Base64 "conceptual" encryption for demo
+        payload: btoa(message), // Conceptual encryption
         timestamp: new Date().toISOString(),
         status: "pending",
         createdAt: serverTimestamp()
@@ -76,6 +74,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
       setMessage("");
       setIsHiring(false);
     } catch (error: any) {
+      // Error is also handled by addDocumentNonBlocking's internal catch and errorEmitter
       toast({
         variant: "destructive",
         title: "Tunnel Error",

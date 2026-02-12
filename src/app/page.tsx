@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Leaf, Search, Plus, User as UserIcon, LayoutDashboard, LogOut, Loader2, Sparkles, Filter, ShieldCheck, Cpu, Code, Database, Zap, Copy, Terminal, Grid3X3 } from "lucide-react";
+import { useState, useMemo, useEffect } from 'react';
+import { Leaf, Search, Plus, User as UserIcon, LayoutDashboard, LogOut, Loader2, Sparkles, Filter, Database, Zap, Copy, Terminal, Grid3X3 } from "lucide-react";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
@@ -17,8 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { collection, query, orderBy } from "firebase/firestore";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { AGENT_CATEGORIES, type Agent } from "@/app/lib/agents";
 import { semanticAgentSearch } from "@/ai/flows/semantic-agent-search";
 import { AgentCard } from "@/components/agent-card";
@@ -34,6 +33,11 @@ export default function Home() {
   const [isSearching, setIsSearching] = useState(false);
   const [semanticResults, setSemanticResults] = useState<string[] | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'json'>('grid');
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const agentsQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -107,14 +111,6 @@ export default function Home() {
 
   const handleLogout = async () => {
     await signOut(auth);
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({
-      title: "Copied!",
-      description: "Agent ID copied to clipboard.",
-    });
   };
 
   return (
@@ -308,7 +304,7 @@ export default function Home() {
       </main>
 
       <footer className="w-full py-12 border-t border-border/50 text-center text-xs text-muted-foreground tracking-widest uppercase mt-20">
-        <p>&copy; {new Date().getFullYear()} AgentGarden.org | Verifiable Machine Intelligence Registry</p>
+        <p>&copy; {isMounted ? new Date().getFullYear() : '...'} AgentGarden.org | Verifiable Machine Intelligence Registry</p>
       </footer>
     </div>
   );
