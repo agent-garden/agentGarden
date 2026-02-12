@@ -45,8 +45,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center">
-      {/* Nature Inspired Header */}
-      <header className="w-full max-w-7xl px-6 py-8 flex items-center justify-between">
+      {/* Header */}
+      <header className="w-full max-w-7xl px-6 py-8 flex items-center justify-between border-b border-border/50">
         <Link href="/" className="flex items-center gap-2 group">
           <Leaf className="text-primary w-8 h-8 group-hover:rotate-12 transition-transform" />
           <h1 className="font-headline text-3xl text-primary tracking-tight">
@@ -55,11 +55,11 @@ export default function Home() {
         </Link>
         <div className="flex items-center gap-6">
           <nav className="hidden md:flex gap-8 text-sm font-medium text-muted-foreground uppercase tracking-widest">
-            <a href="#" className="hover:text-primary transition-colors">Directory</a>
+            <Link href="/" className="hover:text-primary transition-colors">Directory</Link>
             <a href="#" className="hover:text-primary transition-colors">Verify</a>
             <a href="#" className="hover:text-primary transition-colors">About</a>
           </nav>
-          <Button asChild variant="outline" className="rounded-full border-primary/20 text-primary hover:bg-primary/5 gap-2">
+          <Button asChild className="rounded-full shadow-lg hover:shadow-xl transition-all gap-2 px-6">
             <Link href="/submit">
               <Plus className="w-4 h-4" />
               Submit Agent
@@ -95,11 +95,11 @@ export default function Home() {
             onChange={(e) => setQuery(e.target.value)}
           />
           
-          <div className="mt-4 flex gap-2 justify-center text-xs text-muted-foreground">
+          <div className="mt-4 flex gap-4 justify-center text-xs text-muted-foreground">
             <span>Try searching:</span>
-            <button onClick={() => setQuery("security")} className="underline hover:text-primary">"security"</button>
-            <button onClick={() => setQuery("building a table")} className="underline hover:text-primary">"building a table"</button>
-            <button onClick={() => setQuery("bug fix")} className="underline hover:text-primary">"bug fix"</button>
+            <button onClick={() => setQuery("security")} className="underline hover:text-primary transition-colors">"security"</button>
+            <button onClick={() => setQuery("building a table")} className="underline hover:text-primary transition-colors">"building a table"</button>
+            <button onClick={() => setQuery("bug fix")} className="underline hover:text-primary transition-colors">"bug fix"</button>
           </div>
         </div>
 
@@ -111,7 +111,7 @@ export default function Home() {
             ))
           ) : (
             <div className="col-span-full py-20 text-center">
-              <p className="text-muted-foreground text-lg">
+              <p className="text-muted-foreground text-lg italic">
                 No agents found for this search. Try planting a different seed.
               </p>
             </div>
@@ -119,7 +119,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="w-full py-12 border-t border-border/50 text-center text-xs text-muted-foreground tracking-widest uppercase">
+      <footer className="w-full py-12 border-t border-border/50 text-center text-xs text-muted-foreground tracking-widest uppercase mt-20">
         <p>&copy; {new Date().getFullYear()} AgentGarden.org | Curating intelligence since 2025</p>
       </footer>
     </div>
