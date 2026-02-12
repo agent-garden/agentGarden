@@ -10,24 +10,25 @@ import {
   Loader2, 
   ArrowLeft, 
   Users, 
-  Settings, 
   Database, 
-  Activity, 
   Ticket, 
   Plus, 
-  Trash2,
-  RefreshCw,
   Edit3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { collection, query, limit, orderBy } from 'firebase/firestore';
+import { collection, query, limit } from 'firebase/firestore';
 import type { Agent, InviteCode, UserProfile } from '@/app/lib/agents';
 import { batchGenerateInviteCodes, updateUserInviteLimit } from '@/app/actions/admin-actions';
 import { useToast } from '@/hooks/use-toast';
+
+/**
+ * @fileOverview Master Gardener Console
+ * Provides administration tools for managing agents, users, and invite codes.
+ */
 
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();

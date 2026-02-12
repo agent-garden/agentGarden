@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Agent": {
@@ -71,9 +72,10 @@
       "properties": {
         "id": { "type": "string" },
         "uses_left": { "type": "integer" },
-        "created_by": { "type": "string" }
+        "created_by": { "type": "string" },
+        "createdAt": { "type": "string" }
       },
-      "required": ["id", "uses_left"]
+      "required": ["id", "uses_left", "created_by"]
     },
     "User": {
       "title": "User",
@@ -82,7 +84,8 @@
         "id": { "type": "string" },
         "email": { "type": "string" },
         "displayName": { "type": "string" },
-        "monthly_invite_limit": { "type": "integer" }
+        "monthly_invite_limit": { "type": "integer" },
+        "createdAt": { "type": "string" }
       },
       "required": ["id", "email"]
     }

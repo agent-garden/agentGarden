@@ -4,6 +4,10 @@
 import { initializeAdmin } from '@/firebase/admin';
 
 /**
+ * @fileOverview Administrative server actions for registry management.
+ */
+
+/**
  * Batch generates 10 random 5-digit invite codes.
  */
 export async function batchGenerateInviteCodes(adminUid: string) {
@@ -14,6 +18,7 @@ export async function batchGenerateInviteCodes(adminUid: string) {
     const generatedCodes = [];
 
     for (let i = 0; i < 10; i++) {
+      // Create a 5-digit alphanumeric code
       const code = Math.random().toString(36).substring(2, 7).toUpperCase();
       const ref = db.collection('invite_codes').doc(code);
       
