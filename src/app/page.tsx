@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Leaf, Search, Plus, User as UserIcon, LayoutDashboard, LogOut, Loader2, Sparkles, Filter, ShieldCheck, Cpu, Code, Database, Zap } from "lucide-react";
+import { Leaf, Search, Plus, User as UserIcon, LayoutDashboard, LogOut, Loader2, Sparkles, Filter, ShieldCheck, Cpu, Code, Database, Zap, Copy, Terminal, Grid3X3 } from "lucide-react";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
@@ -22,15 +21,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AGENT_CATEGORIES, type Agent } from "@/app/lib/agents";
 import { semanticAgentSearch } from "@/ai/flows/semantic-agent-search";
+import { AgentCard } from "@/components/agent-card";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const db = useFirestore();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isSearching, setIsSearching] = useState(false);
   const [semanticResults, setSemanticResults] = useState<string[] | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'json'>('grid');
 
   const agentsQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -39,8 +42,9 @@ export default function Home() {
 
   const { data: allAgents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsQuery);
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim() || !allAgents) {
+  const handleSearch = async (overrideQuery?: string) => {
+    const q = overrideQuery ?? searchQuery;
+    if (!q.trim() || !allAgents) {
       setSemanticResults(null);
       return;
     }
@@ -48,7 +52,7 @@ export default function Home() {
     setIsSearching(true);
     try {
       const result = await semanticAgentSearch({
-        query: searchQuery,
+        query: q,
         agents: allAgents.map(a => ({
           id: a.id,
           name: a.name,
@@ -59,8 +63,24 @@ export default function Home() {
       setSemanticResults(result.rankedIds);
     } catch (error) {
       console.error("Semantic search failed:", error);
+      toast({
+        variant: "destructive",
+        title: "Search Error",
+        description: "The Garden's semantic index is currently offline. Falling back to keyword matching.",
+      });
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleCategoryClick = (cat: string) => {
+    setSelectedCategory(cat);
+    if (cat !== 'All') {
+      setSearchQuery(cat);
+      handleSearch(cat);
+    } else {
+      setSearchQuery('');
+      setSemanticResults(null);
     }
   };
 
@@ -87,6 +107,14 @@ export default function Home() {
 
   const handleLogout = async () => {
     await signOut(auth);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied!",
+      description: "Agent ID copied to clipboard.",
+    });
   };
 
   return (
@@ -180,12 +208,12 @@ export default function Home() {
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
               <Button 
-                onClick={handleSearch} 
+                onClick={() => handleSearch()} 
                 disabled={isSearching}
                 className="rounded-full h-12 px-8 font-headline text-lg gap-2"
               >
                 {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                Semantic Search
+                {isSearching ? 'Querying the Garden...' : 'Semantic Search'}
               </Button>
             </div>
           </div>
@@ -194,7 +222,7 @@ export default function Home() {
             {['All', ...AGENT_CATEGORIES].map((cat) => (
               <button
                 key={cat}
-                onClick={() => setSelectedCategory(cat)}
+                onClick={() => handleCategoryClick(cat)}
                 className={`px-6 py-2 rounded-full text-sm font-medium transition-all border ${
                   selectedCategory === cat 
                     ? 'bg-primary text-white border-primary shadow-lg scale-105' 
@@ -208,14 +236,37 @@ export default function Home() {
         </div>
 
         <section className="w-full space-y-10">
-          <div className="flex items-center justify-between border-b pb-4">
-            <h3 className="font-headline text-3xl text-primary flex items-center gap-3">
-              <Filter className="w-6 h-6" />
-              {searchQuery ? (semanticResults ? "Semantic Matches" : `Search for "${searchQuery}"`) : 'Capability Directory'}
-            </h3>
-            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              {filteredAgents.length} Specialists Indexed
-            </span>
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b pb-6 gap-4">
+            <div className="space-y-1">
+              <h3 className="font-headline text-3xl text-primary flex items-center gap-3">
+                <Filter className="w-6 h-6" />
+                {searchQuery ? (semanticResults ? "Semantic Matches" : `Search for "${searchQuery}"`) : 'Capability Directory'}
+              </h3>
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                {filteredAgents.length} Specialists Indexed • Verifiable Identity Ready
+              </p>
+            </div>
+            
+            <div className="flex items-center bg-muted/50 p-1 rounded-full border border-border">
+              <Button 
+                variant={viewMode === 'grid' ? 'secondary' : 'ghost'} 
+                size="sm" 
+                className="rounded-full gap-2 text-xs uppercase font-bold tracking-widest"
+                onClick={() => setViewMode('grid')}
+              >
+                <Grid3X3 className="w-3 h-3" />
+                Grid
+              </Button>
+              <Button 
+                variant={viewMode === 'json' ? 'secondary' : 'ghost'} 
+                size="sm" 
+                className="rounded-full gap-2 text-xs uppercase font-bold tracking-widest"
+                onClick={() => setViewMode('json')}
+              >
+                <Terminal className="w-3 h-3" />
+                JSON
+              </Button>
+            </div>
           </div>
 
           {isAgentsLoading ? (
@@ -232,60 +283,26 @@ export default function Home() {
                 Clear all filters
               </Button>
             </div>
-          ) : (
+          ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredAgents.map((agent) => (
-                <Card key={agent.id} className="border-none shadow-xl bg-white/80 backdrop-blur-sm group hover:scale-[1.02] transition-all flex flex-col overflow-hidden">
-                  <div className="h-1 bg-primary/20 group-hover:bg-primary transition-colors" />
-                  <CardHeader className="flex flex-row items-center gap-4 pb-2">
-                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                       <Cpu className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1">
-                      <CardTitle className="font-headline text-2xl text-primary flex items-center gap-2">
-                        {agent.name}
-                        {agent.verified && <ShieldCheck className="w-4 h-4 text-accent fill-accent/20" />}
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">{agent.handle}</p>
-                    </div>
-                    {agent.public_api_enabled && (
-                      <Badge variant="outline" className="text-[9px] uppercase tracking-tighter border-accent text-accent">API Ready</Badge>
-                    )}
-                  </CardHeader>
-                  <CardContent className="flex-1 space-y-6 pt-4">
-                    <p className="text-sm text-foreground/80 italic leading-relaxed line-clamp-3 h-[60px]">
-                      "{agent.introduction}"
-                    </p>
-                    
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap gap-2">
-                        {agent.specialties.map(tag => (
-                          <Badge key={tag} variant="secondary" className="bg-primary/5 text-primary text-[10px] uppercase font-bold px-2 py-0 border-none">
-                            #{tag}
-                          </Badge>
-                        ))}
-                      </div>
-                      
-                      {agent.stack && (
-                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
-                          <Code className="w-3 h-3" />
-                          <span>Stack: {agent.stack}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-3 pt-4 border-t mt-auto">
-                      <Button className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10 shadow-md">
-                        Hire Specialist
-                      </Button>
-                      <Button variant="outline" className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10">
-                        Capability Specs
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                <AgentCard key={agent.id} agent={agent} />
               ))}
             </div>
+          ) : (
+            <Card className="border-none shadow-2xl bg-[#1e1e1e] p-6 rounded-3xl">
+              <pre className="text-xs text-green-400 font-code overflow-x-auto whitespace-pre-wrap leading-relaxed">
+                {JSON.stringify(filteredAgents.map(a => ({
+                  id: a.id,
+                  name: a.name,
+                  handle: a.handle,
+                  capabilities: a.specialties,
+                  stack: a.stack,
+                  verified: a.verified,
+                  api_endpoint: a.endpoint_url
+                })), null, 2)}
+              </pre>
+            </Card>
           )}
         </section>
       </main>
