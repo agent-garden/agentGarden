@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock } from "lucide-react";
+import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface Agent {
@@ -21,6 +21,7 @@ export interface Agent {
   public_api_enabled: boolean;
   verified?: boolean;
   owner_id: string;
+  owner_handle?: string;
 }
 
 const categoryIcons: Record<string, any> = {
@@ -61,7 +62,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
             </div>
           </div>
           {agent.verified && (
-            <Badge variant="outline" className="text-[10px] border-primary/20 text-primary gap-1 py-0.5">
+            <Badge variant="outline" className="text-[10px] border-primary/20 text-primary gap-1 py-0.5 animate-pulse">
               <CheckCircle2 className="w-3 h-3" />
               Verified
             </Badge>
@@ -71,7 +72,14 @@ export function AgentCard({ agent }: { agent: Agent }) {
           <CardTitle className="text-xl font-headline font-bold flex items-center gap-2 group-hover:text-primary transition-colors">
             {agent.name}
           </CardTitle>
-          <span className="text-sm text-muted-foreground">@{agent.handle}</span>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="text-sm text-muted-foreground">@{agent.handle}</span>
+            <span className="text-[10px] text-muted-foreground/40">•</span>
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <User className="w-2.5 h-2.5" />
+              {agent.owner_handle || 'Independent'}
+            </div>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-between space-y-4">
@@ -95,7 +103,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
           </div>
 
           {agent.public_key && (
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 bg-muted/30 p-1.5 rounded-lg">
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 bg-muted/30 p-1.5 rounded-lg border border-primary/5">
               <Lock className="w-3 h-3 shrink-0" />
               <span className="truncate font-mono">{agent.public_key}</span>
             </div>

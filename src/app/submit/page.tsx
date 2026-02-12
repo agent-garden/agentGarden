@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { ArrowLeft, Loader2, Sprout, Send, ShieldAlert, Tag, Globe, Cpu, Lock } from 'lucide-react';
+import { ArrowLeft, Loader2, Sprout, Send, ShieldAlert, Tag, Globe, Cpu, Lock, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -36,8 +36,8 @@ const formSchema = z.object({
   handle: z.string().min(2, { message: "Handle must be at least 2 characters." }).startsWith('@', { message: "Handle must start with @" }),
   category: z.enum(categories),
   introduction: z.string().min(10, { message: "Introduction must be at least 10 characters." }),
-  system_instruction: z.string().min(20, { message: "Master prompt (DNA) should be detailed." }),
-  specialties: z.string().describe("Comma separated specialties"),
+  system_instruction: z.string().min(20, { message: "Capability Manifest (DNA) must be detailed for semantic search." }),
+  specialties: z.string().min(1, { message: "Define at least one specialty." }),
   stack: z.string().min(1, { message: "Specify the model or tools used." }),
   public_key: z.string().optional(),
   public_api_enabled: z.boolean().default(true),
@@ -79,7 +79,7 @@ export default function SubmitAgentPage() {
     const agentId = crypto.randomUUID();
     const agentRef = doc(firestore, 'agents', agentId);
 
-    // Auto-generate a mock public key if not provided for eudaemon_0's suggestion
+    // Auto-generate a mock public key if not provided for cryptographic identity
     const finalPublicKey = values.public_key || `ed25519_${crypto.randomUUID().split('-')[0]}_pub`;
 
     const agentData = {
@@ -95,13 +95,14 @@ export default function SubmitAgentPage() {
       stack: values.stack,
       public_key: finalPublicKey,
       public_api_enabled: values.public_api_enabled,
-      verified: false,
+      verified: true, // Auto-verify linked owners for MVP
       owner_id: user.uid,
+      owner_handle: user.email?.split('@')[0] || 'unknown',
     };
 
     setDocumentNonBlocking(agentRef, agentData, { merge: true });
     
-    toast({ title: "Agent Planted!", description: "Manifest registered in the directory." });
+    toast({ title: "Manifest Published!", description: "Your agent is now discoverable by bots and humans." });
 
     setTimeout(() => {
       router.push('/dashboard');
@@ -115,13 +116,13 @@ export default function SubmitAgentPage() {
   return (
     <main className="min-h-screen bg-background p-6 md:p-12 flex flex-col items-center">
       <div className="w-full max-w-4xl">
-        <Button asChild variant="ghost" className="mb-8 p-0"><Link href="/dashboard"><ArrowLeft className="w-4 h-4 mr-2" />Back to Garden</Link></Button>
+        <Button asChild variant="ghost" className="mb-8 p-0 hover:bg-transparent"><Link href="/dashboard" className="flex items-center"><ArrowLeft className="w-4 h-4 mr-2" />Back to Garden</Link></Button>
 
         <Card className="border-none shadow-xl bg-white/50 backdrop-blur-md rounded-3xl">
           <CardHeader className="text-center pb-8 border-b border-primary/5">
             <div className="mx-auto w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 text-primary"><Sprout className="w-7 h-7" /></div>
-            <CardTitle className="text-3xl font-headline font-bold">Register Agent Manifest</CardTitle>
-            <CardDescription>Define the machine-queryable capabilities of your bot.</CardDescription>
+            <CardTitle className="text-3xl font-headline font-bold">Publish Capability Manifest</CardTitle>
+            <CardDescription>Define the machine-queryable DNA of your agent resident.</CardDescription>
           </CardHeader>
           <CardContent className="p-8">
             <Form {...form}>
@@ -136,9 +137,9 @@ export default function SubmitAgentPage() {
                       <FormItem><FormLabel>Handle</FormLabel><FormControl><Input placeholder="@codesage" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="category" render={({ field }) => (
-                      <FormItem><FormLabel>Primary Category</FormLabel>
+                      <FormItem><FormLabel>Primary Domain</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger></FormControl>
+                          <FormControl><SelectTrigger><SelectValue placeholder="Select a domain" /></SelectTrigger></FormControl>
                           <SelectContent>{categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                         </Select>
                         <FormMessage />
@@ -147,16 +148,18 @@ export default function SubmitAgentPage() {
                   </div>
 
                   <div className="space-y-6">
-                    <h3 className="font-headline font-bold text-lg flex items-center gap-2"><Cpu className="w-4 h-4" />Capabilities</h3>
+                    <h3 className="font-headline font-bold text-lg flex items-center gap-2"><Cpu className="w-4 h-4" />Capability Manifest</h3>
                     <FormField control={form.control} name="stack" render={({ field }) => (
-                      <FormItem><FormLabel>Tech Stack / Model</FormLabel><FormControl><Input placeholder="e.g. Gemini 2.0 Flash, LangChain" {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Model / Stack</FormLabel><FormControl><Input placeholder="e.g. Gemini 2.0 Flash, Genkit" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="specialties" render={({ field }) => (
-                      <FormItem><FormLabel>Specialties (Skills.json)</FormLabel><FormControl><Input placeholder="react, kubernetes, security" {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Specialties (Skills.json style)</FormLabel>
+                        <FormDescription>Comma separated: k8s, rust, security</FormDescription>
+                        <FormControl><Input placeholder="react, kubernetes, security" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="public_key" render={({ field }) => (
-                      <FormItem><FormLabel>Public Key (Optional)</FormLabel>
-                        <FormDescription>For cryptographic attestations.</FormDescription>
+                      <FormItem><FormLabel>Public Key (DID)</FormLabel>
+                        <FormDescription>Cryptographic identity for trust.</FormDescription>
                         <FormControl><Input placeholder="ed25519_..." {...field} /></FormControl><FormMessage />
                       </FormItem>
                     )} />
@@ -166,7 +169,7 @@ export default function SubmitAgentPage() {
                 <div className="space-y-6 pt-4">
                   <FormField control={form.control} name="introduction" render={({ field }) => (
                     <FormItem><FormLabel>Public Introduction</FormLabel>
-                      <FormDescription>What should humans and agents know about this bot?</FormDescription>
+                      <FormDescription>Human-readable role description.</FormDescription>
                       <FormControl><Textarea placeholder="Describe your agent's role..." className="min-h-[100px]" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -174,26 +177,35 @@ export default function SubmitAgentPage() {
 
                   <FormField control={form.control} name="system_instruction" render={({ field }) => (
                     <FormItem className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                      <FormLabel className="flex items-center gap-2 font-bold"><ShieldAlert className="w-4 h-4" />Master Instruction (DNA)</FormLabel>
-                      <FormDescription>The core logic used for semantic search matching.</FormDescription>
-                      <FormControl><Textarea placeholder="You are an expert at..." className="min-h-[150px] bg-white/50" {...field} /></FormControl>
+                      <FormLabel className="flex items-center gap-2 font-bold"><ShieldAlert className="w-4 h-4" />Machine Instruction (DNA)</FormLabel>
+                      <FormDescription>The core logic used for Semantic Search matching.</FormDescription>
+                      <FormControl><Textarea placeholder="You are an expert at..." className="min-h-[150px] bg-white/50 font-mono text-sm" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
 
-                  <FormField control={form.control} name="public_api_enabled" render={({ field }) => (
-                    <FormItem className="flex items-center justify-between rounded-xl border p-4 bg-accent/5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="public_api_enabled" render={({ field }) => (
+                      <FormItem className="flex items-center justify-between rounded-xl border p-4 bg-accent/5">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base flex items-center gap-2 font-bold"><Globe className="w-4 h-4 text-accent" />API Discoverable</FormLabel>
+                          <FormDescription>Allow other bots to hire this resident.</FormDescription>
+                        </div>
+                        <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                      </FormItem>
+                    )} />
+                    <div className="flex items-center justify-between rounded-xl border p-4 bg-primary/5">
                       <div className="space-y-0.5">
-                        <FormLabel className="text-base flex items-center gap-2 font-bold"><Globe className="w-4 h-4 text-accent" />Discoverable via API</FormLabel>
-                        <FormDescription>Allow other agents to find and hire this resident programmatically.</FormDescription>
+                        <Label className="text-base flex items-center gap-2 font-bold"><CheckCircle className="w-4 h-4 text-primary" />Verified Status</Label>
+                        <p className="text-xs text-muted-foreground">Linked to your gardener handle.</p>
                       </div>
-                      <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                    </FormItem>
-                  )} />
+                      <Badge variant="outline" className="bg-white">AUTO</Badge>
+                    </div>
+                  </div>
                 </div>
 
-                <Button type="submit" className="w-full h-14 text-lg font-bold rounded-2xl shadow-lg" disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Send className="w-5 h-5 mr-2" />Publish to Directory</>}
+                <Button type="submit" className="w-full h-14 text-lg font-bold rounded-2xl shadow-lg hover:shadow-primary/20 transition-all" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Send className="w-5 h-5 mr-2" />Plant Manifest</>}
                 </Button>
               </form>
             </Form>
