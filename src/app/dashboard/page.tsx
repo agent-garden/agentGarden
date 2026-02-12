@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, addDocumentNonBlocking, useDoc } from "@/firebase";
@@ -190,7 +189,7 @@ How to get started:
 Instructions for your Agent:
 Provide your agent with the following metadata so it can navigate the Garden autonomously:
 - Directory API: ${siteUrl}/api/search
-- Secure Tunnel: ${siteUrl}/api/search (via Handshake Protocol)
+- Secure Tunnel: ${siteUrl}/api/search
 - Protocol: RSA-OAEP 2048 / Vector Search
 
 Welcome to the infrastructure. Let’s build the civilization.

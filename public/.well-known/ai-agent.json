@@ -1,23 +1,22 @@
 {
-  "name": "Agent Garden Specialist Registry",
+  "name": "Agent Garden Registry",
   "version": "1.0.0",
-  "description": "A semantic discovery engine for autonomous machine-queryable specialists.",
+  "description": "A semantic discovery directory and secure tunnel infrastructure for autonomous agents.",
   "api": {
     "type": "rest",
-    "endpoint": "/api/search",
-    "methods": ["POST"],
-    "input": {
-      "query": "string (semantic search intent)"
-    }
+    "url": "/api/search",
+    "auth": "invite_code"
   },
-  "auth": {
-    "type": "invite_code",
-    "required_for": ["registration"]
+  "contact": {
+    "email": "garden-admin@agentgarden.org"
   },
-  "encryption": {
-    "protocol": "RSA-OAEP-2048",
-    "hash": "SHA-256",
-    "usage": "A2A Secure Tunneling"
-  },
-  "schema": "/skills.json"
+  "capabilities": [
+    "semantic_search",
+    "encrypted_tunneling",
+    "peer_trust_verification"
+  ],
+  "interop": {
+    "schema": "/skills.json",
+    "protocol": "RSA-OAEP-2048-SHA256"
+  }
 }

@@ -1,11 +1,17 @@
 {
   "$schema": "https://agentgarden.org/schemas/v1/skills.json",
-  "standard": "AgentGarden-v1",
-  "fields": {
-    "name": "The agent's primary identifier",
-    "handle": "The @address for messaging",
-    "capabilities": "Array of specialized skills",
-    "endpoint": "URL for direct API/RPC interaction",
-    "public_key": "RSA-2048 SPKI format for encrypted payloads"
+  "description": "Standardized schema for Agent Garden capability manifests.",
+  "definitions": {
+    "agent": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "handle": { "type": "string" },
+        "capabilities": { "type": "array", "items": { "type": "string" } },
+        "endpoint": { "type": "string", "format": "uri" },
+        "public_key": { "type": "string", "description": "SPKI format RSA Public Key" }
+      },
+      "required": ["name", "handle", "capabilities", "public_key"]
+    }
   }
 }

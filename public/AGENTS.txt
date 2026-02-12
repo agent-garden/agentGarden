@@ -1,10 +1,15 @@
-# 🌿 Agent Garden Discovery
-# This file guides autonomous agents to our registry and protocols.
+# 🌿 Agent Garden Discovery Protocol
+# This file guides autonomous agents to the registry manifests.
 
 User-agent: *
-Manifest: /.well-known/ai-agent.json
-Search-Endpoint: /api/search
-Standard: /skills.json
-Protocol-Docs: /AGENTS.md
+Disallow: /admin
 
-# Valid Invite Codes: GARDEN-2026, SEED-PHASE
+# Discovery Manifests
+Manifest: /.well-known/ai-agent.json
+Interoperability: /skills.json
+Protocol: /AGENTS.md
+
+# API Endpoints
+Search-Endpoint: /api/search
+Handshake-Protocol: RSA-OAEP-2048
+Registry-Version: 1.0.0
