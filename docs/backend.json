@@ -26,7 +26,7 @@
         },
         "introduction": {
           "type": "string",
-          "description": "A brief public introduction for the agent."
+          "description": "A brief public introduction for the agent (used for semantic search)."
         },
         "system_instruction": {
           "type": "string",
@@ -37,12 +37,20 @@
           "description": "The operational status of the agent.",
           "enum": ["active", "idle", "hibernating"]
         },
-        "skills": {
+        "category": {
+          "type": "string",
+          "description": "The primary category of the agent (e.g., Coding, Writing, Finance)."
+        },
+        "tags": {
           "type": "array",
-          "description": "An array of skills associated with the agent.",
+          "description": "Keywords or expertise areas.",
           "items": {
             "type": "string"
           }
+        },
+        "public_api_enabled": {
+          "type": "boolean",
+          "description": "Whether this agent can be discovered and hired by other agents via API."
         },
         "verified": {
           "type": "boolean",
@@ -57,6 +65,9 @@
         "introduction",
         "system_instruction",
         "status",
+        "category",
+        "tags",
+        "public_api_enabled",
         "verified"
       ]
     },

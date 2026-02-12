@@ -10,9 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore } from "@/firebase";
 import { collection, doc, setDoc } from "firebase/firestore";
+import { AGENT_CATEGORIES } from "@/app/lib/agents";
 
 export default function SubmitAgentPage() {
   const { user, isUserLoading } = useUser();
@@ -27,7 +30,9 @@ export default function SubmitAgentPage() {
     handle: "",
     introduction: "",
     masterPrompt: "",
-    skills: "",
+    category: "General",
+    tags: "",
+    publicApiEnabled: true
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,13 +52,14 @@ export default function SubmitAgentPage() {
         handle: formData.handle.startsWith('@') ? formData.handle : `@${formData.handle}`,
         introduction: formData.introduction,
         system_instruction: formData.masterPrompt,
-        skills: formData.skills.split(',').map(s => s.trim()).filter(s => s !== ""),
+        category: formData.category,
+        tags: formData.tags.split(',').map(s => s.trim()).filter(s => s !== ""),
         status: "active",
+        public_api_enabled: formData.publicApiEnabled,
         verified: false,
         createdAt: new Date().toISOString(),
       };
 
-      // Initiation without await as per guidelines for mutation operations
       setDoc(agentRef, newAgent).catch((err) => {
         console.error("Failed to plant seed:", err);
       });
@@ -61,7 +67,7 @@ export default function SubmitAgentPage() {
       setIsSuccess(true);
       toast({
         title: "Seed Planted!",
-        description: "Your agent has been added to your dashboard.",
+        description: "Your agent has been added to the directory.",
       });
 
       setTimeout(() => {
@@ -149,16 +155,16 @@ export default function SubmitAgentPage() {
           <div className="space-y-3 text-center md:text-left">
             <h2 className="font-headline text-5xl text-foreground">Plant a New Agent</h2>
             <p className="text-muted-foreground text-lg">
-              Define the soul and identity of your agent.
+              Define the identity and search parameters for your agent.
             </p>
           </div>
 
           <Card className="border-none shadow-2xl bg-white/60 backdrop-blur-xl overflow-hidden">
             <div className="h-2 bg-primary w-full" />
             <CardHeader className="pt-8 px-8">
-              <CardTitle className="font-headline text-3xl text-primary">Agent DNA</CardTitle>
+              <CardTitle className="font-headline text-3xl text-primary">Discovery DNA</CardTitle>
               <CardDescription className="text-base">
-                The Master Prompt defines how your agent thinks and acts.
+                Ensure humans and other agents can find your specialist.
               </CardDescription>
             </CardHeader>
             <CardContent className="px-8 pb-10">
@@ -189,12 +195,39 @@ export default function SubmitAgentPage() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="category" className="text-sm font-bold uppercase tracking-wider">Category</Label>
+                    <Select value={formData.category} onValueChange={(v) => setFormData({...formData, category: v})}>
+                      <SelectTrigger className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50">
+                        <SelectValue placeholder="Select Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AGENT_CATEGORIES.map(cat => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="tags" className="text-sm font-bold uppercase tracking-wider">Search Tags</Label>
+                    <Input 
+                      id="tags" 
+                      placeholder="e.g. security, devops, react" 
+                      className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
+                      value={formData.tags}
+                      onChange={(e) => setFormData({...formData, tags: e.target.value})}
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="introduction" className="text-sm font-bold uppercase tracking-wider">Public Introduction</Label>
+                  <Label htmlFor="introduction" className="text-sm font-bold uppercase tracking-wider">Public Introduction (Searchable Index)</Label>
                   <Textarea 
                     id="introduction" 
-                    placeholder="A brief tagline for the directory." 
-                    className="min-h-[80px] resize-none rounded-xl border-primary/10 focus-visible:border-primary bg-white/50"
+                    placeholder="Describe exactly what this agent excels at. This text is used for semantic matching." 
+                    className="min-h-[100px] resize-none rounded-xl border-primary/10 focus-visible:border-primary bg-white/50"
                     required
                     value={formData.introduction}
                     onChange={(e) => setFormData({...formData, introduction: e.target.value})}
@@ -204,30 +237,26 @@ export default function SubmitAgentPage() {
                 <div className="space-y-2 p-6 bg-primary/5 rounded-2xl border border-primary/10">
                   <div className="flex items-center gap-2 mb-2 text-primary">
                     <Sparkles className="w-5 h-5" />
-                    <Label htmlFor="masterPrompt" className="text-sm font-bold uppercase tracking-wider">Master Prompt (The Soul)</Label>
+                    <Label htmlFor="masterPrompt" className="text-sm font-bold uppercase tracking-wider">System Instruction (The Soul)</Label>
                   </div>
                   <Textarea 
                     id="masterPrompt" 
-                    placeholder="e.g. You are a helpful gardening assistant. Your personality is cheerful and you always suggest organic solutions..." 
-                    className="min-h-[200px] resize-none rounded-xl border-primary/20 focus-visible:border-primary bg-white shadow-inner text-base leading-relaxed"
+                    placeholder="Provide the core behavior instructions..." 
+                    className="min-h-[150px] resize-none rounded-xl border-primary/20 focus-visible:border-primary bg-white shadow-inner text-base"
                     required
                     value={formData.masterPrompt}
                     onChange={(e) => setFormData({...formData, masterPrompt: e.target.value})}
                   />
-                  <p className="text-[11px] text-muted-foreground mt-3 leading-tight italic">
-                    This prompt is never shown to other users. It is the core set of instructions used whenever this agent executes a task.
-                  </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="skills" className="text-sm font-bold uppercase tracking-wider">Skills (Comma Separated)</Label>
-                  <Input 
-                    id="skills" 
-                    placeholder="e.g. Botany, Soil Care, Pest Control" 
-                    required
-                    className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
-                    value={formData.skills}
-                    onChange={(e) => setFormData({...formData, skills: e.target.value})}
+                <div className="flex items-center justify-between p-6 bg-muted/30 rounded-2xl">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold uppercase tracking-wider">Public API Discovery</Label>
+                    <p className="text-xs text-muted-foreground">Allow other autonomous agents to hire this agent via API.</p>
+                  </div>
+                  <Switch 
+                    checked={formData.publicApiEnabled} 
+                    onCheckedChange={(v) => setFormData({...formData, publicApiEnabled: v})} 
                   />
                 </div>
 
@@ -242,7 +271,7 @@ export default function SubmitAgentPage() {
                       Planting...
                     </>
                   ) : (
-                    "Plant Agent in Garden"
+                    "Publish to Directory"
                   )}
                 </Button>
               </form>
