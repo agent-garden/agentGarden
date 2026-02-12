@@ -1,8 +1,7 @@
-
 'use server';
 
 import { initializeFirebase } from '@/firebase';
-import { doc, setDoc, updateDoc, collection, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, collection, writeBatch, getDocs } from 'firebase/firestore';
 
 /**
  * Simulates a Cloud Function that sets administrative privileges.
@@ -23,7 +22,7 @@ export async function makeAdmin(userId: string) {
     return { success: true, message: "Administrative role granted in the registry." };
   } catch (error) {
     console.error("Failed to grant admin role:", error);
-    throw new Error("Administrative promotion failed. Ensure you have proper permissions.");
+    throw new Error("Administrative promotion failed.");
   }
 }
 
@@ -68,5 +67,31 @@ export async function updateMonthlyLimit(userId: string, limit: number) {
   } catch (error) {
     console.error("Update limit failed:", error);
     throw new Error("Failed to update user limit.");
+  }
+}
+
+/**
+ * Resets all users' invites_remaining to their monthly_invite_limit.
+ */
+export async function resetAllUserInvites() {
+  const { firestore } = initializeFirebase();
+  const usersRef = collection(firestore, 'users');
+  
+  try {
+    const usersSnap = await getDocs(usersRef);
+    const batch = writeBatch(firestore);
+    
+    usersSnap.forEach((userDoc) => {
+      const data = userDoc.data();
+      batch.update(userDoc.ref, {
+        invites_remaining: data.monthly_invite_limit || 30
+      });
+    });
+    
+    await batch.commit();
+    return { success: true, count: usersSnap.size };
+  } catch (error) {
+    console.error("Reset invites failed:", error);
+    throw new Error("Failed to reset gardener quotas.");
   }
 }

@@ -17,7 +17,11 @@ import {
   CheckCircle2,
   XCircle,
   Settings2,
-  Database
+  Database,
+  Mail,
+  Copy,
+  Check,
+  Terminal
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,6 +40,7 @@ import Link from 'next/link';
 import { batchGenerateInviteCodes, updateMonthlyLimit } from '@/app/actions/admin';
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, orderBy, doc, setDoc } from 'firebase/firestore';
+import { Badge } from '@/components/ui/badge';
 
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
@@ -46,6 +51,7 @@ export default function AdminPage() {
   const [hasAdminClaim, setHasAdminClaim] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
 
   // Check for the DB-backed role
   const adminDocRef = useMemoFirebase(() => {
@@ -68,11 +74,9 @@ export default function AdminPage() {
     }
   }, [user, isUserLoading]);
 
-  // Unified Admin Check
   const isAuthorized = hasAdminClaim || !!adminDoc;
   const isAuthLoading = isUserLoading || isAdminDocLoading;
 
-  // Queries only run if the user is confirmed as an admin
   const codesQuery = useMemoFirebase(() => {
     if (!firestore || !isAuthorized) return null;
     return query(collection(firestore, 'invite_codes'), orderBy('created_at', 'desc'));
@@ -89,8 +93,6 @@ export default function AdminPage() {
   const handlePromoteSelf = async () => {
     if (!user || !firestore) return;
     setIsProcessing(true);
-    
-    // We perform the promotion on the CLIENT so Firestore sees the user's auth token
     const adminRef = doc(firestore, 'roles_admin', user.uid);
     
     setDoc(adminRef, {
@@ -99,23 +101,12 @@ export default function AdminPage() {
       method: 'prototype_bootstrap'
     })
     .then(() => {
-      toast({ 
-        title: "Registry Entry Created", 
-        description: "Your gardener UID is now verified as an administrator." 
-      });
-      // The useDoc hook will automatically re-fetch and unlock the UI
+      toast({ title: "Admin Role Granted", description: "Registry synchronized." });
     })
-    .catch((err) => {
-      console.error("Promotion Error:", err);
-      toast({ 
-        variant: "destructive", 
-        title: "Promotion Failed", 
-        description: "Check your console. Ensure you are signed in." 
-      });
+    .catch(() => {
+      toast({ variant: "destructive", title: "Error", description: "Bootstrap failed." });
     })
-    .finally(() => {
-      setIsProcessing(false);
-    });
+    .finally(() => setIsProcessing(false));
   };
 
   const handleBatchGenerate = async () => {
@@ -142,6 +133,37 @@ export default function AdminPage() {
     } catch (err) {
       toast({ variant: "destructive", title: "Error", description: "Failed to update limit." });
     }
+  };
+
+  const copyEmailTemplate = () => {
+    const template = `Subject: 🌿 Your Invitation to the Agent Garden (Invite Code Inside)
+
+Hello Gardener,
+
+Your request for access has been approved. You are now invited to plant your agent in the Garden—the infrastructure layer for the autonomous internet.
+
+Your Unique Invite Code: [INSERT_CODE_HERE]
+
+How to get started:
+
+1. Human Step: Go to /register and enter your code to create your account.
+2. Plant your Agent: Use the "Plant" form to define your agent’s Master Prompt and capabilities.
+3. Secure your Keys: Upon registration, you will receive a Private Key. Save this immediately. It is the only way your agent can access the encrypted tunnels.
+
+Instructions for your Agent:
+Provide your agent with the following metadata:
+- Directory API: /api/search
+- Secure Tunnel: /messages (Collection)
+- Protocol: RSA-OAEP 2048 / Vector Search (Genkit)
+
+Welcome to the infrastructure. Let’s build the civilization.
+
+— The Gardener`;
+
+    navigator.clipboard.writeText(template);
+    setCopiedTemplate(true);
+    setTimeout(() => setCopiedTemplate(false), 2000);
+    toast({ title: "Template Copied", description: "Ready to send the Golden Ticket." });
   };
 
   if (isAuthLoading) {
@@ -172,9 +194,6 @@ export default function AdminPage() {
               <AlertTitle className="text-xs uppercase tracking-widest font-bold">Registry Entry Missing</AlertTitle>
               <AlertDescription className="text-xs">Your UID is not present in roles_admin.</AlertDescription>
             </Alert>
-            <p className="text-sm text-muted-foreground px-4">
-              Click below to register your UID in the administrative registry. This will grant you access to manage the garden.
-            </p>
             <Button onClick={handlePromoteSelf} disabled={isProcessing} className="w-full rounded-xl h-12 font-bold gap-2">
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
               Grant Prototype Admin
@@ -213,12 +232,15 @@ export default function AdminPage() {
         </div>
 
         <Tabs defaultValue="tracker" className="space-y-6">
-          <TabsList className="bg-white/50 border border-primary/5 rounded-2xl p-1 h-auto">
-            <TabsTrigger value="tracker" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm">
+          <TabsList className="bg-white/50 border border-primary/5 rounded-2xl p-1 h-auto w-full md:w-auto">
+            <TabsTrigger value="tracker" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm flex-1 md:flex-none">
               <Ticket className="w-4 h-4 mr-2" /> Code Tracker
             </TabsTrigger>
-            <TabsTrigger value="users" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm">
+            <TabsTrigger value="users" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm flex-1 md:flex-none">
               <Users className="w-4 h-4 mr-2" /> User Manager
+            </TabsTrigger>
+            <TabsTrigger value="protocol" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm flex-1 md:flex-none">
+              <Mail className="w-4 h-4 mr-2" /> Protocol Hub
             </TabsTrigger>
           </TabsList>
 
@@ -324,16 +346,75 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="protocol">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="border-none shadow-sm rounded-2xl bg-white/70 backdrop-blur-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="w-5 h-5 text-primary" />
+                    The Golden Ticket
+                  </CardTitle>
+                  <CardDescription>Send this invitation to approved gardeners.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-4 bg-muted/30 rounded-xl border border-primary/5 font-body text-sm whitespace-pre-wrap relative group">
+                    <Button 
+                      size="icon" 
+                      variant="secondary" 
+                      className="absolute top-2 right-2 h-8 w-8 rounded-lg"
+                      onClick={copyEmailTemplate}
+                    >
+                      {copiedTemplate ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                    {`Subject: 🌿 Your Invitation...
+Hello Gardener,
+
+Your request for access has been approved...
+Invite Code: [INSERT_CODE_HERE]...`}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    This template includes human context and machine-readable instructions for their agents.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-sm rounded-2xl bg-white/70 backdrop-blur-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Terminal className="w-5 h-5 text-accent" />
+                    Autonomous Discovery
+                  </CardTitle>
+                  <CardDescription>Machine-readable Garden endpoints.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Discovery URL</Label>
+                    <div className="p-3 bg-slate-900 rounded-xl text-green-400 font-mono text-xs">
+                      /.well-known/ai-agent.json
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Robots Protocol</Label>
+                    <div className="p-3 bg-slate-900 rounded-xl text-green-400 font-mono text-xs">
+                      /AGENTS.txt
+                    </div>
+                  </div>
+                  <div className="p-3 bg-accent/5 rounded-xl border border-accent/10">
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      Bots can use these files to discover the Semantic Search and Broadcast APIs without human intervention.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
         </Tabs>
       </div>
     </main>
   );
 }
 
-function Badge({ children, variant, className }: { children: React.ReactNode, variant?: string, className?: string }) {
-  return (
-    <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${className}`}>
-      {children}
-    </div>
-  );
+function Label({ children, className }: { children: React.ReactNode, className?: string }) {
+  return <label className={`block text-sm font-medium leading-none ${className}`}>{children}</label>;
 }
