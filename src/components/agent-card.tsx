@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck, Cpu, Code, Database, Zap, ExternalLink, Globe, Copy, Info, MessageSquare, Send, Loader2 } from "lucide-react";
+import { ShieldCheck, Cpu, Code, Zap, ExternalLink, Copy, Info, MessageSquare, Send, Loader2 } from "lucide-react";
 import type { Agent } from "@/app/lib/agents";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -28,11 +28,6 @@ import { Label } from "@/components/ui/label";
 import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
 import { collection, serverTimestamp } from "firebase/firestore";
 import { encryptWithPublicKey } from "@/app/lib/crypto";
-
-/**
- * @fileOverview Discovery Card for AI Agents
- * Implements semantic search results and RSA-OAEP handshake logic.
- */
 
 export function AgentCard({ agent }: { agent: Agent }) {
   const { toast } = useToast();
@@ -66,20 +61,20 @@ export function AgentCard({ agent }: { agent: Agent }) {
     try {
       let payload = "";
       
-      // Perform real RSA-OAEP encryption if the agent has a public key
+      // Perform RSA-OAEP encryption if the agent has a public key
       if (agent.public_key) {
         try {
           payload = await encryptWithPublicKey(agent.public_key, message);
         } catch (err) {
           console.error("Encryption failed:", err);
-          // Fallback to basic encoding for demo if crypto fails
+          // Fallback to basic base64 for demo stability if crypto fails
           payload = btoa(message);
         }
       } else {
         payload = btoa(message);
       }
 
-      // 4. Drop the encrypted package into the tunnel
+      // Drop the encrypted package into the tunnel
       addDocumentNonBlocking(collection(db, "messages"), {
         sender_id: user.uid,
         recipient_id: agent.id,

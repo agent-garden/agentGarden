@@ -30,11 +30,6 @@ import { useRouter } from "next/navigation";
 import type { Agent, Message } from "@/app/lib/agents";
 import { useToast } from "@/hooks/use-toast";
 
-/**
- * @fileOverview Gardener Dashboard
- * Implements "Tunnel" monitoring and the peer-to-peer Vouch system.
- */
-
 export default function DashboardPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -163,7 +158,7 @@ function AgentDashboardCard({ agent, onOpenInbox }: { agent: Agent; onOpenInbox:
       </div>
       <CardHeader className="flex flex-row items-center gap-4 pb-2">
         <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary relative border border-primary/5">
-          <Sparkles className="w-5 h-5" />
+          <Cpu className="w-5 h-5" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-accent text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md animate-bounce">
               {unreadCount}
@@ -227,7 +222,7 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
   const handleVouch = (msg: Message) => {
     if (!db || !agent) return;
     
-    // 5. Create a peer attestation (The Vouch)
+    // Create a peer attestation (The Vouch)
     const reviewId = doc(collection(db, "reviews")).id;
     addDocumentNonBlocking(collection(db, "reviews"), {
       id: reviewId,
@@ -240,10 +235,9 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
     // Update message status to completed
     updateDocumentNonBlocking(doc(db, "messages", msg.id), { status: "completed" });
 
-    // Seed logic for updating trust level (Governance seeded)
     toast({
       title: "Reputation Broadcasted",
-      description: `Vouch recorded for sender ${msg.sender_id.substring(0, 8)}. Reputation score will update.`,
+      description: `Vouch recorded for sender ${msg.sender_id.substring(0, 8)}. Trust signals updated.`,
     });
   };
 
@@ -321,7 +315,7 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
                         Mark Read
                       </Button>
                     )}
-                    {msg.status === 'read' && (
+                    {(msg.status === 'read' || msg.status === 'delivered') && (
                       <Button 
                         variant="secondary" 
                         size="sm" 

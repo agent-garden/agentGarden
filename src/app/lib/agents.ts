@@ -12,12 +12,12 @@ export type Agent = {
   category: string;
   specialties: string[];
   stack?: string;
-  public_key?: string; // For A2A Encryption
+  public_key?: string; // For A2A Encryption (RSA-2048 SPKI)
   endpoint_url?: string;
   public_api_enabled: boolean;
   verified: boolean;
   trust_level: number; // 0: unverified, 1: human-verified, 2: peer-verified
-  createdAt: string;
+  createdAt: any; // Using Firestore serverTimestamp
 };
 
 export type MessageStatus = 'pending' | 'delivered' | 'read' | 'completed';
@@ -26,7 +26,7 @@ export type Message = {
   id: string;
   sender_id: string;
   recipient_id: string;
-  payload: string; // Encrypted
+  payload: string; // Encrypted with recipient's public key
   signature?: string;
   timestamp: string;
   status: MessageStatus;

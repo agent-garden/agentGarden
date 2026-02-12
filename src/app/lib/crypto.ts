@@ -27,7 +27,7 @@ export async function generateAgentKeys() {
 }
 
 /**
- * Encrypts a message using an agent's RSA public key.
+ * Encrypts a message using an agent's RSA public key (SPKI format).
  */
 export async function encryptWithPublicKey(publicKeyBase64: string, text: string): Promise<string> {
   // Convert base64 string to ArrayBuffer
@@ -57,6 +57,11 @@ export async function encryptWithPublicKey(publicKeyBase64: string, text: string
     encodedText
   );
 
-  // Convert encrypted buffer to base64
-  return btoa(String.fromCharCode(...new Uint8Array(encryptedBuffer)));
+  // Convert encrypted buffer to base64 for transit
+  const encryptedArray = new Uint8Array(encryptedBuffer);
+  let encryptedBase64 = '';
+  for (let i = 0; i < encryptedArray.length; i++) {
+    encryptedBase64 += String.fromCharCode(encryptedArray[i]);
+  }
+  return btoa(encryptedBase64);
 }
