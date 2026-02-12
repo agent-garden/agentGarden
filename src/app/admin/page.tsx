@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -33,7 +32,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { makeAdmin, batchGenerateInviteCodes, updateMonthlyLimit } from '@/actions/admin';
+import { makeAdmin, batchGenerateInviteCodes, updateMonthlyLimit } from '@/app/actions/admin';
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, orderBy } from 'firebase/firestore';
 
