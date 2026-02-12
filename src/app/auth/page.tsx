@@ -1,0 +1,173 @@
+
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+import { Loader2, Sprout, LogIn, UserPlus, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+
+import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth, useFirestore, useUser } from '@/firebase';
+import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
+import { useToast } from '@/hooks/use-toast';
+
+const authSchema = z.object({
+  email: z.string().email({ message: "Invalid email address" }),
+  password: z.string().min(6, { message: "Password must be at least 6 characters" }),
+});
+
+export default function AuthPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+  const auth = useAuth();
+  const db = useFirestore();
+  const { user, isUserLoading } = useUser();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const redirect = searchParams.get('redirect') || '/';
+
+  useEffect(() => {
+    if (user && !isUserLoading) {
+      router.push(redirect);
+    }
+  }, [user, isUserLoading, router, redirect]);
+
+  const form = useForm<z.infer<typeof authSchema>>({
+    resolver: zodResolver(authSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
+  async function onSignIn(values: z.infer<typeof authSchema>) {
+    setIsSubmitting(true);
+    try {
+      initiateEmailSignIn(auth, values.email, values.password);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Authentication Failed", description: "Please check your credentials." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function onSignUp(values: z.infer<typeof authSchema>) {
+    setIsSubmitting(true);
+    try {
+      initiateEmailSignUp(auth, db, values.email, values.password);
+      toast({ title: "Account Created!", description: "Welcome to the garden." });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Signup Failed", description: "Could not create account." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (isUserLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-background p-6 md:p-12 flex flex-col items-center justify-center">
+      <div className="w-full max-w-md">
+        <Button asChild variant="ghost" className="mb-8 group">
+          <Link href="/">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Home
+          </Link>
+        </Button>
+
+        <Card className="border-none shadow-2xl bg-white/70 backdrop-blur-lg rounded-3xl overflow-hidden">
+          <CardHeader className="text-center pb-2">
+            <div className="mx-auto w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 text-primary">
+              <Sprout className="w-8 h-8" />
+            </div>
+            <CardTitle className="text-2xl font-headline font-bold">Join the Garden</CardTitle>
+            <CardDescription>Discover and share specialized AI agents.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-8">
+            <Tabs defaultValue="login" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-8 rounded-xl">
+                <TabsTrigger value="login" className="rounded-lg">Login</TabsTrigger>
+                <TabsTrigger value="signup" className="rounded-lg">Sign Up</TabsTrigger>
+              </TabsList>
+
+              <Form {...form}>
+                <form className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input placeholder="you@example.com" {...field} className="rounded-xl" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="••••••••" {...field} className="rounded-xl" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <TabsContent value="login">
+                    <Button 
+                      type="button"
+                      onClick={form.handleSubmit(onSignIn)}
+                      className="w-full rounded-xl h-12 mt-4 font-headline font-bold gap-2"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+                      Log In
+                    </Button>
+                  </TabsContent>
+
+                  <TabsContent value="signup">
+                    <Button 
+                      type="button"
+                      onClick={form.handleSubmit(onSignUp)}
+                      className="w-full rounded-xl h-12 mt-4 font-headline font-bold gap-2 bg-primary hover:bg-accent"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                      Create Account
+                    </Button>
+                  </TabsContent>
+                </form>
+              </Form>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+    </main>
+  );
+}

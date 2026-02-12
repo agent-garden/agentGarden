@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -21,10 +22,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useFirestore, useUser, useAuth } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
@@ -46,16 +46,14 @@ export default function SubmitAgentPage() {
   const router = useRouter();
   const { toast } = useToast();
   const firestore = useFirestore();
-  const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Ensure user is signed in anonymously at minimum to allow creation per security rules
   useEffect(() => {
-    if (!isUserLoading && !user && auth) {
-      initiateAnonymousSignIn(auth);
+    if (!isUserLoading && !user) {
+      router.push('/auth?redirect=/submit');
     }
-  }, [user, isUserLoading, auth]);
+  }, [user, isUserLoading, router]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -68,7 +66,7 @@ export default function SubmitAgentPage() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!firestore) return;
+    if (!firestore || !user) return;
     setIsSubmitting(true);
 
     const skillsArray = values.skills
@@ -76,7 +74,6 @@ export default function SubmitAgentPage() {
       .map(s => s.trim())
       .filter(s => s !== "");
 
-    // Generate a unique ID for the agent
     const agentId = crypto.randomUUID();
     const agentRef = doc(firestore, 'agents', agentId);
 
@@ -86,21 +83,28 @@ export default function SubmitAgentPage() {
       handle: values.handle,
       introduction: values.introduction,
       skills: skillsArray,
-      verified: false, // Security rules strictly enforce this to be false on creation
+      verified: false,
+      creatorId: user.uid,
     };
 
-    // Save to Firestore using non-blocking write
     setDocumentNonBlocking(agentRef, agentData, { merge: true });
     
     toast({
       title: "Agent Submitted!",
-      description: "Your agent has been added to the garden and is awaiting verification.",
+      description: "Your agent has been added to the garden.",
     });
 
-    // Redirect back to the garden after a short delay
     setTimeout(() => {
       router.push('/');
     }, 1500);
+  }
+
+  if (isUserLoading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
@@ -120,7 +124,7 @@ export default function SubmitAgentPage() {
             </div>
             <CardTitle className="text-3xl font-headline font-bold text-primary">Submit an Agent</CardTitle>
             <CardDescription className="text-lg font-body mt-2">
-              Share your AI creation with the world. All submissions are vetted before verification.
+              Share your AI creation. Authenticated as {user.email}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-8">
@@ -134,7 +138,7 @@ export default function SubmitAgentPage() {
                       <FormItem>
                         <FormLabel className="font-headline font-semibold">Agent Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g. K8s Guard" className="rounded-xl border-primary/10 focus-visible:ring-primary/20" {...field} />
+                          <Input placeholder="e.g. K8s Guard" className="rounded-xl" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -147,7 +151,7 @@ export default function SubmitAgentPage() {
                       <FormItem>
                         <FormLabel className="font-headline font-semibold">Handle</FormLabel>
                         <FormControl>
-                          <Input placeholder="@handle" className="rounded-xl border-primary/10 focus-visible:ring-primary/20" {...field} />
+                          <Input placeholder="@handle" className="rounded-xl" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -163,14 +167,11 @@ export default function SubmitAgentPage() {
                       <FormLabel className="font-headline font-semibold">Introduction</FormLabel>
                       <FormControl>
                         <Textarea 
-                          placeholder="What does this agent do? Be descriptive, this helps people find it via vector search." 
-                          className="min-h-[120px] rounded-xl border-primary/10 focus-visible:ring-primary/20 resize-none"
+                          placeholder="What does this agent do?" 
+                          className="min-h-[120px] rounded-xl resize-none"
                           {...field} 
                         />
                       </FormControl>
-                      <FormDescription>
-                        This text will be used to help others find your agent semantically.
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -183,11 +184,8 @@ export default function SubmitAgentPage() {
                     <FormItem>
                       <FormLabel className="font-headline font-semibold">Skills</FormLabel>
                       <FormControl>
-                        <Input placeholder="kubernetes, security, react" className="rounded-xl border-primary/10 focus-visible:ring-primary/20" {...field} />
+                        <Input placeholder="kubernetes, security, react" className="rounded-xl" {...field} />
                       </FormControl>
-                      <FormDescription>
-                        Separate skills with commas.
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -195,8 +193,8 @@ export default function SubmitAgentPage() {
 
                 <Button 
                   type="submit" 
-                  className="w-full rounded-2xl h-14 text-lg font-headline font-bold bg-primary hover:bg-accent transition-all duration-300 gap-2"
-                  disabled={isSubmitting || isUserLoading}
+                  className="w-full rounded-2xl h-14 text-lg font-headline font-bold bg-primary hover:bg-accent gap-2"
+                  disabled={isSubmitting}
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-5 h-5 animate-spin" />

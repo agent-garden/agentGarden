@@ -1,12 +1,14 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Loader2, Sparkles, Sprout, Plus } from 'lucide-react';
+import { Search, Loader2, Sparkles, Sprout, Plus, LogIn, LogOut, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AgentCard, type Agent } from '@/components/agent-card';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useAuth } from '@/firebase';
 import { collection } from 'firebase/firestore';
+import { initiateSignOut } from '@/firebase/non-blocking-login';
 import Link from 'next/link';
 
 export default function Home() {
@@ -14,12 +16,12 @@ export default function Home() {
   const [hasSearched, setHasSearched] = useState(false);
   
   const firestore = useFirestore();
+  const auth = useAuth();
+  const { user } = useUser();
   
-  // Memoize the collection reference for real-time updates
   const agentsRef = useMemoFirebase(() => collection(firestore, 'agents'), [firestore]);
   const { data: agents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsRef);
 
-  // Filter agents locally for a fast, responsive search experience
   const filteredResults = useMemo(() => {
     if (!hasSearched) return [];
     if (!agents) return [];
@@ -40,25 +42,43 @@ export default function Home() {
     setHasSearched(true);
   };
 
-  const results = filteredResults;
-
   return (
     <main className="min-h-screen flex flex-col items-center bg-background p-6 md:p-12">
       {/* Top Navigation */}
-      <div className="w-full max-w-7xl flex justify-end mb-8">
-        <Button asChild variant="outline" className="rounded-full gap-2 border-primary/20 hover:bg-primary/5 shadow-sm">
-          <Link href="/submit">
-            <Plus className="w-4 h-4" />
-            Submit Agent
-          </Link>
-        </Button>
+      <div className="w-full max-w-7xl flex justify-between items-center mb-8">
+        <div className="flex items-center gap-2 text-primary font-headline font-bold text-xl">
+          <Sprout className="w-6 h-6" />
+          <span>Garden</span>
+        </div>
+        <div className="flex items-center gap-3">
+          {user ? (
+            <div className="flex items-center gap-3">
+              <span className="hidden md:inline text-sm text-muted-foreground">
+                {user.email}
+              </span>
+              <Button onClick={() => initiateSignOut(auth)} variant="ghost" size="icon" className="rounded-full">
+                <LogOut className="w-4 h-4 text-muted-foreground" />
+              </Button>
+              <Button asChild className="rounded-full gap-2 shadow-lg">
+                <Link href="/submit">
+                  <Plus className="w-4 h-4" />
+                  Submit Agent
+                </Link>
+              </Button>
+            </div>
+          ) : (
+            <Button asChild variant="outline" className="rounded-full gap-2 border-primary text-primary hover:bg-primary/10">
+              <Link href="/auth">
+                <LogIn className="w-4 h-4" />
+                Login
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Header */}
       <div className="w-full max-w-4xl flex flex-col items-center text-center space-y-4 mt-4 md:mt-12">
-        <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-primary/10 text-primary mb-2">
-          <Sprout className="w-10 h-10" />
-        </div>
         <h1 className="text-5xl md:text-7xl font-headline text-primary font-bold tracking-tight">
           Agent Garden
         </h1>
@@ -76,7 +96,7 @@ export default function Home() {
             </div>
             <Input
               type="text"
-              placeholder="e.g. 'help me with wood' or 'k8s hardening'"
+              placeholder="What are you looking for?"
               className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-lg h-16 py-4 px-4"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -88,21 +108,11 @@ export default function Home() {
                 className="rounded-full px-8 h-12 bg-primary hover:bg-accent text-primary-foreground font-headline font-bold"
                 disabled={isAgentsLoading || !query.trim()}
               >
-                {isAgentsLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  "Search"
-                )}
+                Search
               </Button>
             </div>
           </div>
         </form>
-        
-        <div className="flex justify-center gap-4 mt-6 text-xs text-muted-foreground/60">
-          <span>Real-time Search</span>
-          <span>•</span>
-          <span>Firestore Database</span>
-        </div>
       </div>
 
       {/* Results Section */}
@@ -110,19 +120,19 @@ export default function Home() {
         {isAgentsLoading && (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
             <Loader2 className="w-10 h-10 text-primary animate-spin" />
-            <p className="text-muted-foreground animate-pulse font-headline">Tending to the garden...</p>
+            <p className="text-muted-foreground font-headline">Tending to the garden...</p>
           </div>
         )}
 
-        {!isAgentsLoading && hasSearched && results.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {results.map((agent) => (
+        {!isAgentsLoading && hasSearched && filteredResults.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredResults.map((agent) => (
               <AgentCard key={agent.id} agent={agent} />
             ))}
           </div>
         )}
 
-        {!isAgentsLoading && hasSearched && results.length === 0 && (
+        {!isAgentsLoading && hasSearched && filteredResults.length === 0 && (
           <div className="text-center py-20 bg-white/30 backdrop-blur-sm rounded-3xl border border-dashed border-border/60">
             <Sparkles className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
             <h3 className="text-xl font-headline text-foreground/70">No agents found</h3>
