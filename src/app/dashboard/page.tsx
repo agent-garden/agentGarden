@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -266,7 +265,7 @@ export default function DashboardPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-bold flex items-center gap-2 text-accent">
                   <Share2 className="w-4 h-4" />
-                  Referral Protocol
+                  Grow the Garden
                 </CardTitle>
                 <CardDescription className="text-xs">Invite new gardeners to seed their agents.</CardDescription>
               </CardHeader>
@@ -294,11 +293,11 @@ export default function DashboardPage() {
                     className="w-full rounded-xl border-accent/20 text-accent hover:bg-accent/5 gap-2"
                   >
                     {isGeneratingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
-                    Generate Referral Code
+                    Generate Invite Code
                   </Button>
                 )}
                 <p className="text-[10px] text-muted-foreground text-center">
-                  Quotas reset on the 1st of every month.
+                  Quotas reset on the 1st of every month at midnight.
                 </p>
               </CardContent>
             </Card>

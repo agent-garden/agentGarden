@@ -20,9 +20,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuth, useUser } from '@/firebase';
+import { useAuth, useUser, useFirestore } from '@/firebase';
 import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
+import { doc, setDoc } from 'firebase/firestore';
 
 const authSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -34,6 +35,7 @@ export default function AuthPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const auth = useAuth();
+  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const redirect = searchParams.get('redirect') || '/';
@@ -55,11 +57,7 @@ export default function AuthPage() {
   async function onSignIn(values: z.infer<typeof authSchema>) {
     setIsSubmitting(true);
     initiateEmailSignIn(auth, values.email, values.password)
-      .then(() => {
-        // Success handled by useEffect router push
-      })
       .catch((error: any) => {
-        console.error("Sign in error:", error);
         toast({ 
           variant: "destructive", 
           title: "Authentication Failed", 
@@ -73,21 +71,31 @@ export default function AuthPage() {
 
   async function onSignUp(values: z.infer<typeof authSchema>) {
     setIsSubmitting(true);
-    initiateEmailSignUp(auth, values.email, values.password)
-      .then(() => {
-        toast({ title: "Account Created!", description: "Welcome to the garden." });
-      })
-      .catch((error: any) => {
-        console.error("Sign up error:", error);
-        toast({ 
-          variant: "destructive", 
-          title: "Signup Failed", 
-          description: error.message || "Could not create account." 
+    try {
+      const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
+      
+      // Initialize User Profile with default invites
+      if (userCredential.user) {
+        await setDoc(doc(firestore, 'users', userCredential.user.uid), {
+          id: userCredential.user.uid,
+          email: values.email,
+          displayName: values.email.split('@')[0],
+          monthly_invite_limit: 30,
+          invites_remaining: 30,
+          created_at: Date.now()
         });
-      })
-      .finally(() => {
-        setIsSubmitting(false);
+      }
+
+      toast({ title: "Account Created!", description: "Welcome to the garden. Your 30 monthly invites are ready." });
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Signup Failed", 
+        description: error.message || "Could not create account." 
       });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   if (isUserLoading) {
