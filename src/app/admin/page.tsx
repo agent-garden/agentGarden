@@ -12,31 +12,35 @@ import {
   Users, 
   Ticket, 
   Plus, 
-  Edit3,
-  RefreshCw,
   Cpu,
-  User as UserIcon,
   Inbox,
   CheckCircle,
   XCircle,
-  Clock
+  Trash2,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { collection, query, limit, orderBy } from 'firebase/firestore';
 import type { Agent, InviteCode, UserProfile, InviteRequest } from '@/app/lib/agents';
-import { batchGenerateInviteCodes, updateUserInviteLimit, resetAllUserInvites } from '@/app/actions/admin-actions';
+import { 
+  batchGenerateInviteCodes, 
+  approveInviteRequests, 
+  rejectInviteRequests,
+  resetAllUserInvites 
+} from '@/app/actions/admin-actions';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
@@ -63,8 +67,8 @@ export default function AdminPage() {
   const inviteRequestsQuery = useMemoFirebase(() => db ? query(collection(db, "invite_requests"), orderBy("timestamp", "desc"), limit(100)) : null, [db]);
 
   const { data: agents } = useCollection<Agent>(allAgentsQuery);
-  const { data: inviteCodes, isLoading: isCodesLoading } = useCollection<InviteCode>(inviteCodesQuery);
-  const { data: profiles, isLoading: isProfilesLoading } = useCollection<UserProfile>(usersQuery);
+  const { data: inviteCodes } = useCollection<InviteCode>(inviteCodesQuery);
+  const { data: profiles } = useCollection<UserProfile>(usersQuery);
   const { data: inviteRequests, isLoading: isRequestsLoading } = useCollection<InviteRequest>(inviteRequestsQuery);
 
   const handleBatchGenerate = async () => {
@@ -73,6 +77,50 @@ export default function AdminPage() {
     const result = await batchGenerateInviteCodes(user.uid);
     setIsGenerating(false);
     if (result.success) toast({ title: "Batch Generated", description: `10 codes created.` });
+  };
+
+  const handleToggleRequest = (id: string) => {
+    setSelectedRequests(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (!inviteRequests) return;
+    const pendingIds = inviteRequests.filter(r => r.status === 'pending').map(r => r.id);
+    if (selectedRequests.length === pendingIds.length) {
+      setSelectedRequests([]);
+    } else {
+      setSelectedRequests(pendingIds);
+    }
+  };
+
+  const handleApproveSelected = async () => {
+    if (!user || selectedRequests.length === 0) return;
+    setIsProcessing(true);
+    const result = await approveInviteRequests(selectedRequests, user.uid);
+    setIsProcessing(false);
+    
+    if (result.success) {
+      toast({ title: "Applications Approved", description: `${result.count} Golden Tickets dispatched.` });
+      setSelectedRequests([]);
+    } else {
+      toast({ variant: "destructive", title: "Error", description: result.error });
+    }
+  };
+
+  const handleRejectSelected = async () => {
+    if (selectedRequests.length === 0) return;
+    setIsProcessing(true);
+    const result = await rejectInviteRequests(selectedRequests);
+    setIsProcessing(false);
+    
+    if (result.success) {
+      toast({ title: "Applications Rejected", description: `${result.count} requests updated.` });
+      setSelectedRequests([]);
+    } else {
+      toast({ variant: "destructive", title: "Error", description: result.error });
+    }
   };
 
   if (isUserLoading || isAdmin === null) return (<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>);
@@ -95,24 +143,78 @@ export default function AdminPage() {
 
           <TabsContent value="requests">
             <div className="space-y-6">
-              <h2 className="font-headline text-3xl flex items-center gap-2"><Inbox className="w-8 h-8 text-primary" /> Invite Applications</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="font-headline text-3xl flex items-center gap-2"><Inbox className="w-8 h-8 text-primary" /> Invite Applications</h2>
+                {selectedRequests.length > 0 && (
+                  <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right-4">
+                    <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{selectedRequests.length} Selected</span>
+                    <Button onClick={handleApproveSelected} disabled={isProcessing} size="sm" className="rounded-full bg-green-600 hover:bg-green-700">
+                      {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                      Approve
+                    </Button>
+                    <Button onClick={handleRejectSelected} disabled={isProcessing} variant="destructive" size="sm" className="rounded-full">
+                      {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
+                      Reject
+                    </Button>
+                  </div>
+                )}
+              </div>
               <div className="bg-white/60 rounded-3xl border shadow-sm overflow-hidden">
                 <table className="w-full text-left">
                   <thead className="bg-muted/50 border-b">
-                    <tr><th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Applicant</th><th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Intended Use</th><th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Status</th><th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Actions</th></tr>
+                    <tr>
+                      <th className="px-6 py-4 w-12">
+                        <Checkbox 
+                          checked={inviteRequests?.filter(r => r.status === 'pending').length === selectedRequests.length && selectedRequests.length > 0}
+                          onCheckedChange={handleSelectAll}
+                        />
+                      </th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Applicant</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Intended Use</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Status</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Actions</th>
+                    </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {isRequestsLoading ? (<tr><td colSpan={4} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></td></tr>) : 
+                    {isRequestsLoading ? (<tr><td colSpan={5} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></td></tr>) : 
                       inviteRequests?.map((req) => (
-                      <tr key={req.id} className="hover:bg-primary/5">
+                      <tr key={req.id} className={`hover:bg-primary/5 transition-colors ${selectedRequests.includes(req.id) ? 'bg-primary/10' : ''}`}>
+                        <td className="px-6 py-4">
+                          <Checkbox 
+                            disabled={req.status !== 'pending'}
+                            checked={selectedRequests.includes(req.id)}
+                            onCheckedChange={() => handleToggleRequest(req.id)}
+                          />
+                        </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-col"><span className="font-bold">{req.name}</span><span className="text-[10px] text-muted-foreground">{req.email}</span></div>
                         </td>
                         <td className="px-6 py-4 text-xs italic text-foreground/80 max-w-xs truncate">"{req.intended_use}"</td>
-                        <td className="px-6 py-4"><Badge variant={req.status === 'pending' ? 'secondary' : 'default'}>{req.status}</Badge></td>
-                        <td className="px-6 py-4 flex items-center gap-2">
-                          <Button size="sm" variant="ghost" className="rounded-full text-green-600"><CheckCircle className="w-4 h-4" /></Button>
-                          <Button size="sm" variant="ghost" className="rounded-full text-red-600"><XCircle className="w-4 h-4" /></Button>
+                        <td className="px-6 py-4">
+                          <Badge variant={req.status === 'pending' ? 'secondary' : req.status === 'approved' ? 'default' : 'destructive'}>
+                            {req.status}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4">
+                          {req.status === 'pending' && (
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                onClick={() => { setSelectedRequests([req.id]); handleApproveSelected(); }} 
+                                size="sm" variant="ghost" className="rounded-full text-green-600 p-2 h-8 w-8"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                onClick={() => { setSelectedRequests([req.id]); handleRejectSelected(); }}
+                                size="sm" variant="ghost" className="rounded-full text-red-600 p-2 h-8 w-8"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          )}
+                          {req.status === 'approved' && (
+                            <span className="text-[10px] font-mono font-bold text-primary">CODE DISPATCHED</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -127,8 +229,8 @@ export default function AdminPage() {
               <div className="flex items-center justify-between"><h2 className="font-headline text-3xl">Registry codes</h2><Button onClick={handleBatchGenerate} disabled={isGenerating} className="rounded-full"><Plus className="w-4 h-4 mr-2" />Batch 10</Button></div>
               <div className="bg-white/60 rounded-3xl border shadow-sm overflow-hidden">
                 <table className="w-full text-left">
-                  <thead className="bg-muted/50 border-b"><tr><th className="px-6 py-4 text-xs font-bold">Code</th><th className="px-6 py-4 text-xs font-bold">Status</th><th className="px-6 py-4 text-xs font-bold">Uses</th></tr></thead>
-                  <tbody className="divide-y">{inviteCodes?.map(c => (<tr key={c.id}><td>{c.id}</td><td><Badge variant={c.uses_left > 0 ? 'default' : 'secondary'}>{c.uses_left > 0 ? 'Active' : 'Burned'}</Badge></td><td>{c.uses_left}</td></tr>))}</tbody>
+                  <thead className="bg-muted/50 border-b"><tr><th className="px-6 py-4 text-xs font-bold">Code</th><th className="px-6 py-4 text-xs font-bold">Assigned To</th><th className="px-6 py-4 text-xs font-bold">Status</th><th className="px-6 py-4 text-xs font-bold">Uses</th></tr></thead>
+                  <tbody className="divide-y">{inviteCodes?.map(c => (<tr key={c.id} className="hover:bg-muted/30"><td className="px-6 py-4 font-mono font-bold">{c.id}</td><td className="px-6 py-4 text-xs">{c.assigned_to || 'General'}</td><td><Badge variant={c.uses_left > 0 ? 'default' : 'secondary'}>{c.uses_left > 0 ? 'Active' : 'Burned'}</Badge></td><td>{c.uses_left}</td></tr>))}</tbody>
                 </table>
               </div>
             </div>
@@ -139,7 +241,7 @@ export default function AdminPage() {
               <h2 className="font-headline text-3xl">Manifest</h2>
               <div className="bg-white/60 rounded-3xl border shadow-sm overflow-hidden">
                 <table className="w-full text-left">
-                   <tbody className="divide-y">{agents?.map(a => (<tr key={a.id}><td className="px-6 py-4 font-bold">{a.name}</td><td className="px-6 py-4 text-xs">{a.handle}</td><td><Badge>{a.status}</Badge></td></tr>))}</tbody>
+                   <tbody className="divide-y">{agents?.map(a => (<tr key={a.id} className="hover:bg-primary/5"><td className="px-6 py-4 font-bold">{a.name}</td><td className="px-6 py-4 text-xs">{a.handle}</td><td className="px-6 py-4"><Badge variant="outline">{a.category}</Badge></td><td><Badge>{a.status}</Badge></td></tr>))}</tbody>
                 </table>
               </div>
             </div>
@@ -147,10 +249,13 @@ export default function AdminPage() {
 
           <TabsContent value="users">
             <div className="space-y-6">
-              <h2 className="font-headline text-3xl">Gardener Management</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="font-headline text-3xl">Gardener Management</h2>
+                <Button variant="outline" size="sm" onClick={resetAllUserInvites} className="rounded-full">Reset All Quotas</Button>
+              </div>
               <div className="bg-white/60 rounded-3xl border shadow-sm overflow-hidden">
                 <table className="w-full text-left">
-                   <tbody className="divide-y">{profiles?.map(p => (<tr key={p.id}><td className="px-6 py-4 font-bold">{p.displayName}</td><td className="px-6 py-4">{p.invites_remaining} left</td></tr>))}</tbody>
+                   <tbody className="divide-y">{profiles?.map(p => (<tr key={p.id} className="hover:bg-muted/30"><td className="px-6 py-4 font-bold">{p.displayName || p.email}</td><td className="px-6 py-4 text-xs text-muted-foreground">{p.id}</td><td className="px-6 py-4 font-bold text-primary">{p.invites_remaining} left</td></tr>))}</tbody>
                 </table>
               </div>
             </div>
