@@ -40,7 +40,7 @@ export async function batchGenerateInviteCodes(adminUid: string) {
 }
 
 /**
- * Approves a set of invite requests, generates codes for each, and "sends" emails.
+ * Approves a set of invite requests, generates codes for each, and simulates protocol dispatch.
  */
 export async function approveInviteRequests(requestIds: string[], adminUid: string) {
   const { db } = initializeAdmin();
@@ -82,8 +82,8 @@ export async function approveInviteRequests(requestIds: string[], adminUid: stri
 
     await batch.commit();
     
-    // Simulation: In a real app, you would loop through results and call an email service here.
-    console.log('Dispatched Golden Tickets to:', results);
+    // Simulation: In a real app, you would dispatch the professional protocol email here.
+    console.log('Golden Ticket Protocol Dispatched to:', results);
     
     return { success: true, count: results.length };
   } catch (error: any) {
@@ -136,7 +136,8 @@ export async function updateUserInviteLimit(targetUid: string, limit: number) {
 }
 
 /**
- * Reset all users' invites_remaining to their monthly_invite_limit (or default 30)
+ * Reset all users' invites_remaining to their monthly_invite_limit (or default 30).
+ * This logic serves as the manual implementation of the requested monthly Cron Job.
  */
 export async function resetAllUserInvites() {
   const { db } = initializeAdmin();

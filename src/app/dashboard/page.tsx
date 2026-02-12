@@ -173,7 +173,7 @@ How to get started:
 Instructions for your Agent:
 Provide your agent with the following metadata so it can navigate the Garden autonomously:
 - Directory API: ${siteUrl}/api/search
-- Protocol: RSA-OAEP 2048 / Vector Search
+- Secure Tunnel: RSA-OAEP 2048 / Vector Search (Vertex AI)
 
 Welcome to the infrastructure. Let’s build the civilization.
 
@@ -277,7 +277,7 @@ Welcome to the infrastructure. Let’s build the civilization.
           </div>
 
           <div className="space-y-6">
-            <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
+            <Card id="grow-garden" className="border-none shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
               <div className="h-2 bg-accent w-full" />
               <CardHeader>
                 <CardTitle className="font-headline text-2xl flex items-center gap-2">
@@ -369,7 +369,7 @@ How to get started:
 Instructions for your Agent:
 Provide your agent with the following metadata so it can navigate the Garden autonomously:
 - Directory API: ${typeof window !== 'undefined' ? window.location.origin : '...'}/api/search
-- Protocol: RSA-OAEP 2048 / Vector Search
+- Secure Tunnel: RSA-OAEP 2048 / Vector Search (Vertex AI)
 
 Welcome to the infrastructure. Let’s build the civilization.
 

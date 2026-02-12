@@ -35,6 +35,11 @@ import {
 } from '@/app/actions/admin-actions';
 import { useToast } from '@/hooks/use-toast';
 
+/**
+ * @fileOverview Master Gardener Console
+ * Protected by Admin Custom Claims Route Guard.
+ */
+
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -45,21 +50,29 @@ export default function AdminPage() {
   const db = useFirestore();
   const { toast } = useToast();
 
+  // ROUTE GUARD: Verify admin custom claim
   useEffect(() => {
     async function checkAdmin() {
       if (!user) return;
       try {
         const idTokenResult = await user.getIdTokenResult(true);
-        setIsAdmin(!!idTokenResult.claims.admin);
+        if (idTokenResult.claims.admin) {
+          setIsAdmin(true);
+        } else {
+          setIsAdmin(false);
+          toast({ variant: "destructive", title: "Access Denied", description: "Admin privileges required." });
+          router.push('/');
+        }
       } catch (error) {
         setIsAdmin(false);
+        router.push('/');
       }
     }
     if (!isUserLoading) {
       if (!user) router.push('/auth?redirect=/admin');
       else checkAdmin();
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, router, toast]);
 
   const allAgentsQuery = useMemoFirebase(() => db ? query(collection(db, "agents"), limit(100)) : null, [db]);
   const inviteCodesQuery = useMemoFirebase(() => db ? query(collection(db, "invite_codes"), orderBy("createdAt", "desc"), limit(100)) : null, [db]);
@@ -124,12 +137,17 @@ export default function AdminPage() {
   };
 
   if (isUserLoading || isAdmin === null) return (<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>);
-  if (isAdmin === false) return (<div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-6"><ShieldAlert className="w-24 h-24 text-destructive" /><h1 className="font-headline text-5xl">Restricted Access</h1><Button asChild variant="outline"><Link href="/dashboard">Dashboard</Link></Button></div>);
+  if (isAdmin === false) return null; // Redirect logic handled in useEffect
 
   return (
     <div className="min-h-screen bg-background pb-20">
       <header className="w-full border-b bg-white/50 backdrop-blur-md sticky top-0 z-50 h-20 flex items-center justify-between px-6">
-        <div className="flex items-center gap-4"><Link href="/dashboard"><ArrowLeft className="w-5 h-5" /></Link><h1 className="font-headline text-3xl text-primary flex items-center gap-2"><ShieldCheck className="w-8 h-8" /> Master Gardener Console</h1></div>
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard"><ArrowLeft className="w-5 h-5 hover:text-primary transition-colors" /></Link>
+          <h1 className="font-headline text-3xl text-primary flex items-center gap-2">
+            <ShieldCheck className="w-8 h-8" /> Master Gardener Console
+          </h1>
+        </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-12 space-y-12">
@@ -200,24 +218,29 @@ export default function AdminPage() {
                             <div className="flex items-center gap-2">
                               <Button 
                                 onClick={() => { setSelectedRequests([req.id]); handleApproveSelected(); }} 
-                                size="sm" variant="ghost" className="rounded-full text-green-600 p-2 h-8 w-8"
+                                size="sm" variant="ghost" className="rounded-full text-green-600 p-2 h-8 w-8 hover:bg-green-50"
                               >
                                 <CheckCircle className="w-4 h-4" />
                               </Button>
                               <Button 
                                 onClick={() => { setSelectedRequests([req.id]); handleRejectSelected(); }}
-                                size="sm" variant="ghost" className="rounded-full text-red-600 p-2 h-8 w-8"
+                                size="sm" variant="ghost" className="rounded-full text-red-600 p-2 h-8 w-8 hover:bg-red-50"
                               >
                                 <XCircle className="w-4 h-4" />
                               </Button>
                             </div>
                           )}
                           {req.status === 'approved' && (
-                            <span className="text-[10px] font-mono font-bold text-primary">CODE DISPATCHED</span>
+                            <span className="text-[10px] font-mono font-bold text-primary flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" /> PROTOCOL DISPATCHED
+                            </span>
                           )}
                         </td>
                       </tr>
                     ))}
+                    {inviteRequests?.length === 0 && (
+                      <tr><td colSpan={5} className="px-6 py-12 text-center text-muted-foreground italic">No applications received yet.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -226,11 +249,32 @@ export default function AdminPage() {
 
           <TabsContent value="registry">
             <div className="space-y-6">
-              <div className="flex items-center justify-between"><h2 className="font-headline text-3xl">Registry codes</h2><Button onClick={handleBatchGenerate} disabled={isGenerating} className="rounded-full"><Plus className="w-4 h-4 mr-2" />Batch 10</Button></div>
+              <div className="flex items-center justify-between">
+                <h2 className="font-headline text-3xl flex items-center gap-2"><Ticket className="w-8 h-8 text-primary" /> Registry Codes</h2>
+                <Button onClick={handleBatchGenerate} disabled={isGenerating} className="rounded-full shadow-lg hover:shadow-xl transition-all">
+                  <Plus className="w-4 h-4 mr-2" /> Batch 10
+                </Button>
+              </div>
               <div className="bg-white/60 rounded-3xl border shadow-sm overflow-hidden">
                 <table className="w-full text-left">
-                  <thead className="bg-muted/50 border-b"><tr><th className="px-6 py-4 text-xs font-bold">Code</th><th className="px-6 py-4 text-xs font-bold">Assigned To</th><th className="px-6 py-4 text-xs font-bold">Status</th><th className="px-6 py-4 text-xs font-bold">Uses</th></tr></thead>
-                  <tbody className="divide-y">{inviteCodes?.map(c => (<tr key={c.id} className="hover:bg-muted/30"><td className="px-6 py-4 font-mono font-bold">{c.id}</td><td className="px-6 py-4 text-xs">{c.assigned_to || 'General'}</td><td><Badge variant={c.uses_left > 0 ? 'default' : 'secondary'}>{c.uses_left > 0 ? 'Active' : 'Burned'}</Badge></td><td>{c.uses_left}</td></tr>))}</tbody>
+                  <thead className="bg-muted/50 border-b">
+                    <tr>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Code</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Assigned To</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Status</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Uses Left</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {inviteCodes?.map(c => (
+                      <tr key={c.id} className="hover:bg-muted/30">
+                        <td className="px-6 py-4 font-mono font-bold text-primary">{c.id}</td>
+                        <td className="px-6 py-4 text-xs">{c.assigned_to || 'General Seed'}</td>
+                        <td><Badge variant={c.uses_left > 0 ? 'default' : 'secondary'}>{c.uses_left > 0 ? 'Active' : 'Burned'}</Badge></td>
+                        <td className="px-6 py-4 font-bold">{c.uses_left}</td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </div>
@@ -238,10 +282,27 @@ export default function AdminPage() {
 
           <TabsContent value="agents">
             <div className="space-y-6">
-              <h2 className="font-headline text-3xl">Manifest</h2>
+              <h2 className="font-headline text-3xl flex items-center gap-2"><Cpu className="w-8 h-8 text-primary" /> Manifest</h2>
               <div className="bg-white/60 rounded-3xl border shadow-sm overflow-hidden">
                 <table className="w-full text-left">
-                   <tbody className="divide-y">{agents?.map(a => (<tr key={a.id} className="hover:bg-primary/5"><td className="px-6 py-4 font-bold">{a.name}</td><td className="px-6 py-4 text-xs">{a.handle}</td><td className="px-6 py-4"><Badge variant="outline">{a.category}</Badge></td><td><Badge>{a.status}</Badge></td></tr>))}</tbody>
+                   <thead className="bg-muted/50 border-b">
+                    <tr>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Agent</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Handle</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Category</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Status</th>
+                    </tr>
+                  </thead>
+                   <tbody className="divide-y">
+                    {agents?.map(a => (
+                      <tr key={a.id} className="hover:bg-primary/5">
+                        <td className="px-6 py-4 font-bold">{a.name}</td>
+                        <td className="px-6 py-4 text-xs font-mono">{a.handle}</td>
+                        <td className="px-6 py-4"><Badge variant="outline">{a.category}</Badge></td>
+                        <td><Badge>{a.status}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </div>
@@ -250,12 +311,29 @@ export default function AdminPage() {
           <TabsContent value="users">
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="font-headline text-3xl">Gardener Management</h2>
-                <Button variant="outline" size="sm" onClick={resetAllUserInvites} className="rounded-full">Reset All Quotas</Button>
+                <h2 className="font-headline text-3xl flex items-center gap-2"><Users className="w-8 h-8 text-primary" /> Gardener Management</h2>
+                <Button variant="outline" size="sm" onClick={resetAllUserInvites} className="rounded-full gap-2 border-dashed">
+                  <ArrowLeft className="w-4 h-4 rotate-90" /> Manual Quota Reset
+                </Button>
               </div>
               <div className="bg-white/60 rounded-3xl border shadow-sm overflow-hidden">
                 <table className="w-full text-left">
-                   <tbody className="divide-y">{profiles?.map(p => (<tr key={p.id} className="hover:bg-muted/30"><td className="px-6 py-4 font-bold">{p.displayName || p.email}</td><td className="px-6 py-4 text-xs text-muted-foreground">{p.id}</td><td className="px-6 py-4 font-bold text-primary">{p.invites_remaining} left</td></tr>))}</tbody>
+                  <thead className="bg-muted/50 border-b">
+                    <tr>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Gardener</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">UID Reference</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">Allowance</th>
+                    </tr>
+                  </thead>
+                   <tbody className="divide-y">
+                    {profiles?.map(p => (
+                      <tr key={p.id} className="hover:bg-muted/30">
+                        <td className="px-6 py-4 font-bold">{p.displayName || p.email}</td>
+                        <td className="px-6 py-4 text-[10px] font-mono text-muted-foreground">{p.id}</td>
+                        <td className="px-6 py-4 font-bold text-primary">{p.invites_remaining} seeds left</td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </div>
