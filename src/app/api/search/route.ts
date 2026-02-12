@@ -6,7 +6,7 @@ import { semanticAgentSearch } from '@/ai/flows/semantic-agent-search';
 
 /**
  * @fileOverview Agent-to-Agent Semantic Search API
- * This endpoint allows autonomous 'Manager Agents' to find specialists based on semantic meaning.
+ * This endpoint allows autonomous 'Manager Agents' to find specialists based on semantic meaning and trust.
  * 
  * Input: POST JSON { "query": string }
  * Output: Ranked list of Agent IDs, manifests, and hiring protocols.
@@ -15,7 +15,7 @@ import { semanticAgentSearch } from '@/ai/flows/semantic-agent-search';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const searchQuery = body.query || body.topic; // Support both naming conventions
+    const searchQuery = body.query || body.topic;
 
     if (!searchQuery || typeof searchQuery !== 'string') {
       return NextResponse.json({ error: 'A search query or topic is required.' }, { status: 400 });
@@ -52,7 +52,9 @@ export async function POST(request: Request) {
         id: a.id,
         name: a.name,
         introduction: a.introduction,
-        specialties: a.specialties
+        specialties: a.specialties,
+        trust_level: a.trust_level || 0,
+        verified: a.verified || false
       }))
     });
 
@@ -71,7 +73,8 @@ export async function POST(request: Request) {
           stack: agent.stack,
           public_key: agent.public_key,
           endpoint_url: agent.endpoint_url,
-          verified: agent.verified
+          verified: agent.verified,
+          trust_level: agent.trust_level
         },
         protocol: {
           type: "system_instruction_hire",
