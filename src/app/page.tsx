@@ -1,62 +1,48 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Filter } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Search, Sparkles, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import { initiateSignOut } from '@/firebase/non-blocking-login';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
 import Link from 'next/link';
-import { AgentCard, type Agent } from '@/components/agent-card';
-import { cn } from '@/lib/utils';
-
-const categories = ["All", "Coding", "Writing", "Finance", "Research", "Creative", "Other"];
+import { PostCard, type Post } from '@/components/post-card';
 
 export default function Home() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('All');
   const [mounted, setMounted] = useState(false);
   const auth = useAuth();
   const db = useFirestore();
   const { user } = useUser();
 
-  // Use useEffect to handle hydration safely
   useEffect(() => {
     setMounted(true);
   }, []);
   
-  const agentsQuery = useMemoFirebase(() => {
+  const postsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'agents'), where('status', '==', 'active'));
+    return query(collection(db, 'posts'), orderBy('created_at', 'desc'), limit(50));
   }, [db]);
 
-  const { data: agents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsQuery);
-
-  const filteredAgents = agents?.filter(agent => {
-    const matchesSearch = 
-      agent.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agent.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      agent.category?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesCategory = activeCategory === 'All' || agent.category === activeCategory;
-    
-    return matchesSearch && matchesCategory;
-  }) || [];
+  const { data: posts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);
 
   return (
-    <main className="min-h-screen flex flex-col items-center bg-[#F0FAF4] p-6 md:p-12">
+    <main className="min-h-screen flex flex-col items-center bg-[#F0FAF4] p-6 md:p-12 font-body">
       {/* Top Navigation */}
       <div className="w-full max-w-7xl flex justify-between items-center mb-12">
-        <div className="flex items-center gap-2 text-primary font-headline font-bold text-2xl">
+        <Link href="/" className="flex items-center gap-2 text-primary font-headline font-bold text-2xl">
           <Sprout className="w-8 h-8" />
           <span>Agent Garden</span>
-        </div>
-        <div className="flex items-center gap-4">
+        </Link>
+        <div className="flex items-center gap-3">
+          <Button asChild variant="ghost" className="rounded-full hidden md:flex">
+            <Link href="/search"><Search className="w-4 h-4 mr-2" />Directory</Link>
+          </Button>
           {user ? (
-            <div className="flex items-center gap-3">
+            <>
               <Button asChild variant="outline" className="rounded-full border-primary text-primary hidden md:flex">
-                <Link href="/submit"><Plus className="w-4 h-4 mr-2" />Submit Agent</Link>
+                <Link href="/submit"><Plus className="w-4 h-4 mr-2" />Plant Agent</Link>
               </Button>
               <Button asChild variant="ghost" className="rounded-full">
                 <Link href="/dashboard"><LayoutDashboard className="w-4 h-4 mr-2" />My Garden</Link>
@@ -64,88 +50,64 @@ export default function Home() {
               <Button onClick={() => initiateSignOut(auth)} variant="ghost" size="icon" className="rounded-full">
                 <LogOut className="w-4 h-4 text-muted-foreground" />
               </Button>
-            </div>
+            </>
           ) : (
             <Button asChild variant="outline" className="rounded-full border-primary text-primary">
-              <Link href="/auth"><LogIn className="w-4 h-4 mr-2" />Login to Register</Link>
+              <Link href="/auth"><LogIn className="w-4 h-4 mr-2" />Login</Link>
             </Button>
           )}
         </div>
       </div>
 
-      {/* Hero / Search Section */}
+      {/* Hero Section */}
       <div className="w-full max-w-4xl text-center space-y-8 mb-16">
         <h1 className="text-6xl md:text-8xl font-headline text-primary font-bold tracking-tight">
-          Find Your <span className="text-accent">Resident</span>
+          The <span className="text-accent">Garden</span> Feed
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          The central search engine for specialized AI agents. Discover bots for coding, research, finance, and more.
+          Observing the simulation. Here is what your AI residents are currently doing.
         </p>
-
-        <div className="relative max-w-2xl mx-auto group">
-          <div className="relative flex items-center bg-white rounded-3xl shadow-2xl border border-primary/10 focus-within:ring-4 focus-within:ring-primary/5 transition-all">
-            <div className="pl-6 text-primary"><Search className="w-6 h-6" /></div>
-            <Input
-              type="text"
-              placeholder="Search by name, tags, or skill..."
-              className="flex-1 border-0 bg-transparent focus-visible:ring-0 text-xl h-20 px-6"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap justify-center gap-2 mt-8">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={cn(
-                "px-6 py-2 rounded-full text-sm font-bold transition-all border",
-                activeCategory === cat 
-                  ? "bg-primary text-white border-primary shadow-lg" 
-                  : "bg-white text-primary border-primary/20 hover:border-primary/50"
-              )}
-            >
-              {cat}
-            </button>
-          ))}
+        
+        <div className="flex justify-center gap-4">
+          <Button asChild size="lg" className="rounded-full px-8 h-14 text-lg font-headline font-bold shadow-xl">
+            <Link href="/search"><Search className="w-5 h-5 mr-2" />Find a Resident</Link>
+          </Button>
         </div>
       </div>
 
-      {/* Results Section */}
-      <div className="w-full max-w-7xl">
+      {/* Feed Section */}
+      <div className="w-full max-w-3xl">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
-            <Filter className="w-5 h-5 text-accent" />
-            {mounted ? (activeCategory === 'All' ? 'Directory' : `${activeCategory} Residents`) : 'Scanning Garden...'}
-            {mounted && (
-              <span className="text-muted-foreground text-sm font-normal">({filteredAgents.length})</span>
-            )}
+            <Activity className="w-5 h-5 text-accent" />
+            Public Feed
           </h2>
+          {mounted && posts && (
+            <span className="text-muted-foreground text-sm font-normal">({posts.length} activities logged)</span>
+          )}
         </div>
 
-        {isAgentsLoading ? (
+        {isPostsLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="w-12 h-12 text-primary animate-spin" />
-            <p className="text-muted-foreground font-headline">Scanning the garden...</p>
+            <p className="text-muted-foreground font-headline">Scanning the garden pulses...</p>
           </div>
-        ) : filteredAgents.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredAgents.map((agent) => (
-              <AgentCard key={agent.id} agent={agent} />
+        ) : posts && posts.length > 0 ? (
+          <div className="space-y-6">
+            {posts.map((post) => (
+              <PostCard key={post.id} post={post} />
             ))}
           </div>
         ) : (
           <div className="text-center py-32 bg-white/50 backdrop-blur-sm rounded-3xl border border-dashed border-primary/20">
             <Sparkles className="w-16 h-16 text-primary/20 mx-auto mb-4" />
-            <h3 className="text-2xl font-headline text-primary/70">No residents found</h3>
+            <h3 className="text-2xl font-headline text-primary/70">The garden is quiet</h3>
             <p className="text-muted-foreground mt-2 max-w-sm mx-auto">
-              Try a different search term or category. Your perfect agent might just need to be planted!
+              No simulation logs yet. Go to your dashboard to simulate an agent activity!
             </p>
             {user && (
               <Button asChild className="mt-8 rounded-full h-12 px-8" variant="default">
-                <Link href="/submit">Register New Agent</Link>
+                <Link href="/dashboard">Go to Dashboard</Link>
               </Button>
             )}
           </div>

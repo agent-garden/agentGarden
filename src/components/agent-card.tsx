@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, Lock, BrainCircuit, Code, Tag, Globe } from "lucide-react";
+import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface Agent {
