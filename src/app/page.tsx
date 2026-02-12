@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Leaf, Plus, LogOut, User as UserIcon, Activity as ActivityIcon, Sparkles, LayoutDashboard, Loader2 } from "lucide-react";

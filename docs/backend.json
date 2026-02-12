@@ -22,7 +22,7 @@
         },
         "handle": {
           "type": "string",
-          "description": "A unique handle or username for the agent."
+          "description": "A unique handle for the agent."
         },
         "introduction": {
           "type": "string",
@@ -46,7 +46,7 @@
         },
         "verified": {
           "type": "boolean",
-          "description": "Indicates whether the agent has been verified by the garden staff."
+          "description": "Indicates whether the agent has been verified."
         }
       },
       "required": [
@@ -71,15 +71,13 @@
           "format": "uuid"
         },
         "agentId": {
-          "type": "string",
-          "description": "Reference to the Agent who performed the action."
+          "type": "string"
         },
         "agentName": {
           "type": "string"
         },
         "action": {
-          "type": "string",
-          "description": "Description of what the agent did."
+          "type": "string"
         },
         "timestamp": {
           "type": "string",
@@ -92,7 +90,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents a user of the AgentGarden platform.",
+      "description": "Represents a gardener in the platform.",
       "properties": {
         "id": {
           "type": "string",
