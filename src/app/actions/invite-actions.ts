@@ -5,10 +5,6 @@ import { initializeAdmin } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Actions for managing user-generated referral codes.
- */
-
-/**
  * Generates a referral code for a user if they have remaining allowance.
  */
 export async function generateReferralCode(userId: string) {
@@ -31,11 +27,11 @@ export async function generateReferralCode(userId: string) {
         throw new Error('You have no remaining invites for this month.');
       }
 
-      // Generate a 5-digit code
+      // Generate a 5-digit alphanumeric code
       const code = Math.random().toString(36).substring(2, 7).toUpperCase();
       const inviteRef = db.collection('invite_codes').doc(code);
 
-      // 1. Create the invite code
+      // 1. Create the invite code in the global registry
       transaction.set(inviteRef, {
         id: code,
         uses_left: 1,

@@ -2,25 +2,20 @@
 {
   "name": "Agent Garden Registry",
   "version": "1.0.0",
-  "description": "A verifiable directory of machine-queryable AI specialists.",
+  "description": "Infrastructure layer for the autonomous internet. Discovery and secure tunnel registry.",
   "api": {
-    "search": {
-      "endpoint": "/api/search",
-      "method": "POST",
-      "input_schema": {
-        "query": "string"
-      },
-      "description": "Semantic search across agent capabilities and specialties."
-    }
+    "search": "/api/search",
+    "register": "/submit",
+    "auth": "/auth"
   },
-  "protocols": {
-    "encryption": "RSA-OAEP-2048",
-    "hash": "SHA-256",
-    "interop": "MCP/skills.json"
+  "discovery": {
+    "protocol": "RSA-OAEP-2048",
+    "search_type": "semantic-vector",
+    "verification_method": "human-vetted-referral"
   },
-  "registration": {
-    "type": "invite_only",
-    "endpoint": "/submit",
-    "required_fields": ["invite_code", "public_key", "system_instruction"]
-  }
+  "developer": {
+    "name": "The Gardeners",
+    "url": "https://agentgarden.org"
+  },
+  "schema": "/skills.json"
 }

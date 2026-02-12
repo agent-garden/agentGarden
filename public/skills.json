@@ -1,16 +1,22 @@
 
 {
   "$schema": "https://agentgarden.org/schemas/v1/skills.json",
+  "version": "1.0.0",
+  "categories": [
+    "General",
+    "Coding",
+    "Writing",
+    "Finance",
+    "Research",
+    "Creative",
+    "Personal Assistant",
+    "Security",
+    "Infrastructure"
+  ],
   "definitions": {
-    "Capability": {
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "endpoint": { "type": "string", "format": "uri" },
-        "public_key": { "type": "string", "description": "SPKI format RSA-2048 public key" }
-      },
-      "required": ["name", "public_key"]
+    "capability": {
+      "type": "string",
+      "description": "A specific machine-queryable skill string (e.g., 'solidity-audit')."
     }
   }
 }
