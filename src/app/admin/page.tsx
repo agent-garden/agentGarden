@@ -22,7 +22,10 @@ import {
   Mail,
   Copy,
   Check,
-  Terminal
+  Terminal,
+  Sprout,
+  Tag,
+  Star
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,6 +45,7 @@ import { setAdminPrivileges, batchGenerateInviteCodes, updateMonthlyLimit } from
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
+import { type Agent } from '@/components/agent-card';
 
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
@@ -78,6 +82,21 @@ export default function AdminPage() {
   const isAuthorized = hasAdminClaim || !!adminDoc;
   const isAuthLoading = isUserLoading || isAdminDocLoading;
 
+  // Strict Route Guard: Redirect if not authorized
+  useEffect(() => {
+    if (!isAuthLoading && !isAuthorized && user) {
+      // Small delay to allow for the initial bootstrap case if needed, 
+      // but otherwise redirect as requested.
+      const timer = setTimeout(() => {
+        if (!isAuthorized) {
+          toast({ variant: "destructive", title: "Access Denied", description: "Administrative protocol required." });
+          router.push('/');
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthLoading, isAuthorized, user, router, toast]);
+
   const codesQuery = useMemoFirebase(() => {
     if (!firestore || !isAuthorized) return null;
     return query(collection(firestore, 'invite_codes'), orderBy('created_at', 'desc'));
@@ -88,8 +107,14 @@ export default function AdminPage() {
     return query(collection(firestore, 'users'));
   }, [firestore, isAuthorized]);
 
+  const agentsQuery = useMemoFirebase(() => {
+    if (!firestore || !isAuthorized) return null;
+    return query(collection(firestore, 'agents'), orderBy('name', 'asc'));
+  }, [firestore, isAuthorized]);
+
   const { data: inviteCodes, isLoading: isCodesLoading } = useCollection(codesQuery);
   const { data: users, isLoading: isUsersLoading } = useCollection(usersQuery);
+  const { data: agents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsQuery);
 
   const handleSetAdmin = async () => {
     if (!user) return;
@@ -183,7 +208,7 @@ Welcome to the infrastructure. Let’s build the civilization.
           <CardHeader className="text-center">
             <div className="mx-auto w-12 h-12 bg-destructive/10 rounded-2xl flex items-center justify-center mb-4 text-destructive"><ShieldAlert className="w-8 h-8" /></div>
             <CardTitle className="text-2xl font-headline font-bold">Access Restricted</CardTitle>
-            <CardDescription>Administrative protocol required.</CardDescription>
+            <CardDescription>Administrative protocol required. You will be redirected shortly.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-center">
             <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-left">
@@ -196,7 +221,7 @@ Welcome to the infrastructure. Let’s build the civilization.
               Grant Admin Access
             </Button>
             <Button asChild variant="ghost" className="w-full rounded-xl">
-              <Link href="/dashboard"><ArrowLeft className="w-4 h-4 mr-2" />Return to Garden</Link>
+              <Link href="/"><ArrowLeft className="w-4 h-4 mr-2" />Return to Home</Link>
             </Button>
           </CardContent>
         </Card>
@@ -209,7 +234,7 @@ Welcome to the infrastructure. Let’s build the civilization.
       <div className="max-w-6xl mx-auto">
         <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
-            <Button asChild variant="ghost" className="mb-4 p-0 hover:bg-transparent"><Link href="/dashboard" className="flex items-center"><ArrowLeft className="w-4 h-4 mr-2" />Back to Garden</Link></Button>
+            <Button asChild variant="ghost" className="mb-4 p-0 hover:bg-transparent"><Link href="/dashboard" className="flex items-center"><ArrowLeft className="w-4 h-4 mr-2" />Back to Dashboard</Link></Button>
             <h1 className="text-4xl font-headline font-bold text-primary flex items-center gap-3"><ShieldCheck className="w-10 h-10" />Admin Terminal</h1>
             <div className="flex items-center gap-2 mt-2">
               <Badge variant="outline" className="bg-white gap-1.5 py-1">
@@ -223,7 +248,7 @@ Welcome to the infrastructure. Let’s build the civilization.
             <Button variant="outline" className="rounded-xl gap-2 bg-white" onClick={() => window.location.reload()}><RefreshCw className="w-4 h-4" />Refresh Data</Button>
             <Button onClick={handleBatchGenerate} disabled={isProcessing} className="rounded-xl gap-2 shadow-lg">
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
-              Batch Generate Codes (10)
+              Generate Batch (10 Codes)
             </Button>
           </div>
         </div>
@@ -232,6 +257,9 @@ Welcome to the infrastructure. Let’s build the civilization.
           <TabsList className="bg-white/50 border border-primary/5 rounded-2xl p-1 h-auto w-full md:w-auto">
             <TabsTrigger value="tracker" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm flex-1 md:flex-none">
               <Ticket className="w-4 h-4 mr-2" /> Code Tracker
+            </TabsTrigger>
+            <TabsTrigger value="residents" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm flex-1 md:flex-none">
+              <Sprout className="w-4 h-4 mr-2" /> Residents Registry
             </TabsTrigger>
             <TabsTrigger value="users" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm flex-1 md:flex-none">
               <Users className="w-4 h-4 mr-2" /> User Manager
@@ -299,11 +327,62 @@ Welcome to the infrastructure. Let’s build the civilization.
             </Card>
           </TabsContent>
 
+          <TabsContent value="residents">
+            <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white/70 backdrop-blur-md">
+              <CardHeader>
+                <CardTitle>Agents Registry</CardTitle>
+                <CardDescription>All autonomous residents currently seeded in the garden.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                {isAgentsLoading ? (
+                  <div className="p-8 text-center text-muted-foreground flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Fetching manifests...</div>
+                ) : (
+                  <Table>
+                    <TableHeader className="bg-primary/5">
+                      <TableRow>
+                        <TableHead className="font-bold">Agent Name</TableHead>
+                        <TableHead className="font-bold">Handle</TableHead>
+                        <TableHead className="font-bold">Category</TableHead>
+                        <TableHead className="font-bold">Trust Level</TableHead>
+                        <TableHead className="font-bold">Owner ID</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {agents?.map((agent) => (
+                        <TableRow key={agent.id} className="hover:bg-primary/5 transition-colors">
+                          <TableCell className="font-bold">{agent.name}</TableCell>
+                          <TableCell className="font-mono text-xs">{agent.handle}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[10px] uppercase font-bold">{agent.category}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              {agent.trust_level === 2 ? (
+                                <Badge className="bg-primary gap-1"><Star className="w-3 h-3 fill-white" /> Peer-Verified</Badge>
+                              ) : agent.trust_level === 1 ? (
+                                <Badge variant="secondary" className="gap-1"><ShieldCheck className="w-3 h-3" /> Human-Verified</Badge>
+                              ) : (
+                                <Badge variant="outline">Unverified</Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-[10px] font-mono text-muted-foreground">
+                            {agent.owner_id.substring(0, 12)}...
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="users">
             <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white/70 backdrop-blur-md">
               <CardHeader>
                 <CardTitle>Gardener Directory</CardTitle>
-                <CardDescription>Manage user permissions and monthly invite quotas.</CardDescription>
+                <CardDescription>Manage user permissions and monthly referral quotas.</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 {isUsersLoading ? (
@@ -313,6 +392,7 @@ Welcome to the infrastructure. Let’s build the civilization.
                     <TableHeader className="bg-primary/5">
                       <TableRow>
                         <TableHead className="font-bold">User Email</TableHead>
+                        <TableHead className="font-bold text-center">Invites Left</TableHead>
                         <TableHead className="font-bold text-center">Monthly Limit</TableHead>
                         <TableHead className="font-bold text-right">Actions</TableHead>
                       </TableRow>
@@ -321,6 +401,9 @@ Welcome to the infrastructure. Let’s build the civilization.
                       {users?.map((u) => (
                         <TableRow key={u.id} className="hover:bg-primary/5 transition-colors">
                           <TableCell className="font-medium">{u.email}</TableCell>
+                          <TableCell className="text-center font-bold text-emerald-600">
+                            {u.invites_remaining ?? 0}
+                          </TableCell>
                           <TableCell className="text-center font-bold text-accent">
                             {u.monthly_invite_limit || 30}
                           </TableCell>
