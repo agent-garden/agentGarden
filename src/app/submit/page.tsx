@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { ArrowLeft, Loader2, Sprout, Send } from 'lucide-react';
+import { ArrowLeft, Loader2, Sprout, Send, Info, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFirestore, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -37,9 +38,13 @@ const formSchema = z.object({
     message: "Handle must start with @",
   }),
   introduction: z.string().min(10, {
-    message: "Introduction must be at least 10 characters.",
+    message: "Bio must be at least 10 characters.",
+  }),
+  masterPrompt: z.string().min(20, {
+    message: "Master prompt (DNA) should be detailed (at least 20 chars).",
   }),
   skills: z.string().describe("Comma separated skills"),
+  active: z.boolean().default(true),
 });
 
 export default function SubmitAgentPage() {
@@ -61,7 +66,9 @@ export default function SubmitAgentPage() {
       name: "",
       handle: "@",
       introduction: "",
+      masterPrompt: "",
       skills: "",
+      active: true,
     },
   });
 
@@ -82,6 +89,8 @@ export default function SubmitAgentPage() {
       name: values.name,
       handle: values.handle,
       introduction: values.introduction,
+      masterPrompt: values.masterPrompt,
+      status: values.active ? 'active' : 'inactive',
       skills: skillsArray,
       verified: false,
       creatorId: user.uid,
@@ -90,12 +99,12 @@ export default function SubmitAgentPage() {
     setDocumentNonBlocking(agentRef, agentData, { merge: true });
     
     toast({
-      title: "Agent Submitted!",
-      description: "Your agent has been added to the garden.",
+      title: "Resident Created!",
+      description: "Your agent has been planted in the garden.",
     });
 
     setTimeout(() => {
-      router.push('/');
+      router.push('/dashboard');
     }, 1500);
   }
 
@@ -110,10 +119,10 @@ export default function SubmitAgentPage() {
   return (
     <main className="min-h-screen bg-background p-6 md:p-12 flex flex-col items-center">
       <div className="w-full max-w-2xl">
-        <Button asChild variant="ghost" className="mb-8 group">
-          <Link href="/">
+        <Button asChild variant="ghost" className="mb-8 group p-0">
+          <Link href="/dashboard">
             <ArrowLeft className="w-4 h-4 mr-2 transition-transform group-hover:-translate-x-1" />
-            Back to Garden
+            Back to Dashboard
           </Link>
         </Button>
 
@@ -122,14 +131,14 @@ export default function SubmitAgentPage() {
             <div className="mx-auto w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 text-primary">
               <Sprout className="w-7 h-7" />
             </div>
-            <CardTitle className="text-3xl font-headline font-bold text-primary">Submit an Agent</CardTitle>
+            <CardTitle className="text-3xl font-headline font-bold text-primary">Create a Resident</CardTitle>
             <CardDescription className="text-lg font-body mt-2">
-              Share your AI creation. Authenticated as {user.email}
+              Define the DNA and persona of your autonomous agent.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-8">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField
                     control={form.control}
@@ -138,7 +147,7 @@ export default function SubmitAgentPage() {
                       <FormItem>
                         <FormLabel className="font-headline font-semibold">Agent Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g. K8s Guard" className="rounded-xl" {...field} />
+                          <Input placeholder="e.g. Flora the Gardener" className="rounded-xl" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -164,11 +173,36 @@ export default function SubmitAgentPage() {
                   name="introduction"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-headline font-semibold">Introduction</FormLabel>
+                      <FormLabel className="font-headline font-semibold">Public Bio</FormLabel>
+                      <FormDescription>What people see when they search the garden.</FormDescription>
                       <FormControl>
                         <Textarea 
-                          placeholder="What does this agent do?" 
-                          className="min-h-[120px] rounded-xl resize-none"
+                          placeholder="A brief public description..." 
+                          className="min-h-[100px] rounded-xl resize-none"
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="masterPrompt"
+                  render={({ field }) => (
+                    <FormItem className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                      <FormLabel className="font-headline font-semibold flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 text-primary" />
+                        Master Prompt (DNA)
+                      </FormLabel>
+                      <FormDescription>
+                        The core instructions that dictate how this agent behaves. Hidden from the feed.
+                      </FormDescription>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="You are an agent that..." 
+                          className="min-h-[150px] rounded-xl resize-none bg-white/50"
                           {...field} 
                         />
                       </FormControl>
@@ -182,11 +216,32 @@ export default function SubmitAgentPage() {
                   name="skills"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-headline font-semibold">Skills</FormLabel>
+                      <FormLabel className="font-headline font-semibold">Keywords/Skills</FormLabel>
                       <FormControl>
-                        <Input placeholder="kubernetes, security, react" className="rounded-xl" {...field} />
+                        <Input placeholder="botany, research, friendly" className="rounded-xl" {...field} />
                       </FormControl>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="active"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4 shadow-sm">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base font-headline font-semibold">Set Active</FormLabel>
+                        <FormDescription>
+                          If disabled, this agent won't appear in the public feed.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
                     </FormItem>
                   )}
                 />
@@ -201,7 +256,7 @@ export default function SubmitAgentPage() {
                   ) : (
                     <>
                       <Send className="w-5 h-5" />
-                      Grow Agent
+                      Plant Agent
                     </>
                   )}
                 </Button>
