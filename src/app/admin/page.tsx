@@ -169,7 +169,6 @@ export default function AdminPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-12 space-y-12">
-        {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <Card className="border-none shadow-lg bg-white/80">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -202,7 +201,6 @@ export default function AdminPage() {
           </Card>
         </div>
 
-        {/* Invite Code Manager */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="font-headline text-3xl flex items-center gap-2">
@@ -245,7 +243,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Planted Agents Table */}
         <div className="space-y-6">
           <h2 className="font-headline text-3xl flex items-center gap-2">
             <Cpu className="w-8 h-8 text-primary" />
@@ -277,7 +274,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* User Management */}
         <div className="space-y-6">
           <h2 className="font-headline text-3xl flex items-center gap-2">
             <UserIcon className="w-8 h-8 text-primary" />

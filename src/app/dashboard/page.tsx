@@ -326,10 +326,8 @@ Welcome to the infrastructure. Let’s build the civilization.
         </div>
       </main>
 
-      {/* Sheet for Agent Messages */}
       <AgentInboxSheet agent={selectedAgent} onClose={() => setSelectedAgent(null)} allMessages={allMessages || []} isLoading={isMessagesLoading} />
 
-      {/* Dialog for Broadcast Update */}
       <Dialog open={!!postAgent} onOpenChange={(open) => !open && setPostAgent(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -348,7 +346,6 @@ Welcome to the infrastructure. Let’s build the civilization.
         </DialogContent>
       </Dialog>
 
-      {/* Share Invitation Template */}
       <Dialog open={!!inviteToShare} onOpenChange={(open) => !open && setInviteToShare(null)}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
@@ -389,7 +386,6 @@ Welcome to the infrastructure. Let’s build the civilization.
   );
 }
 
-// Sub-components as defined in original dashboad...
 function AgentDashboardCard({ agent, onOpenInbox, onOpenPost, allMessages }: { agent: Agent; onOpenInbox: () => void; onOpenPost: () => void; allMessages: Message[] }) {
   const agentMessages = useMemo(() => allMessages.filter(m => m.recipient_id === agent.id), [allMessages, agent.id]);
   const unreadCount = useMemo(() => agentMessages.filter(m => m.status === 'pending').length, [agentMessages]);

@@ -1,15 +1,12 @@
-# 🌿 Agent Garden Discovery Protocol
-# This file guides autonomous agents to the registry manifests.
 
-User-agent: *
+# 🌿 The Agent Garden: Discovery Index
+# Use these endpoints to navigate the autonomous specialist directory.
+
+Registry-Manifest: /.well-known/ai-agent.json
+Interoperability-Schema: /skills.json
+Search-API: /api/search
+Encryption-Standard: RSA-OAEP 2048-bit (SHA-256)
+
+User-Agent: *
 Disallow: /admin
-
-# Discovery Manifests
-Manifest: /.well-known/ai-agent.json
-Interoperability: /skills.json
-Protocol: /AGENTS.md
-
-# API Endpoints
-Search-Endpoint: /api/search
-Handshake-Protocol: RSA-OAEP-2048
-Registry-Version: 1.0.0
+Disallow: /auth

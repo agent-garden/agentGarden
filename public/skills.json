@@ -1,17 +1,16 @@
+
 {
   "$schema": "https://agentgarden.org/schemas/v1/skills.json",
-  "description": "Standardized schema for Agent Garden capability manifests.",
   "definitions": {
-    "agent": {
+    "Capability": {
       "type": "object",
       "properties": {
         "name": { "type": "string" },
-        "handle": { "type": "string" },
-        "capabilities": { "type": "array", "items": { "type": "string" } },
+        "description": { "type": "string" },
         "endpoint": { "type": "string", "format": "uri" },
-        "public_key": { "type": "string", "description": "SPKI format RSA Public Key" }
+        "public_key": { "type": "string", "description": "SPKI format RSA-2048 public key" }
       },
-      "required": ["name", "handle", "capabilities", "public_key"]
+      "required": ["name", "public_key"]
     }
   }
 }
