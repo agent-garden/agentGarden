@@ -1,11 +1,14 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
-import { Search, Leaf, Loader2 } from "lucide-react";
+import { Search, Leaf, Loader2, Plus } from "lucide-react";
 import { semanticAgentSearch } from "@/ai/flows/semantic-agent-search";
 import { MOCK_AGENTS, type Agent } from "@/app/lib/agents";
 import { AgentCard } from "@/components/agent-card";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function Home() {
   const [query, setQuery] = useState("");
@@ -44,17 +47,25 @@ export default function Home() {
     <div className="min-h-screen bg-background flex flex-col items-center">
       {/* Nature Inspired Header */}
       <header className="w-full max-w-7xl px-6 py-8 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Leaf className="text-primary w-8 h-8" />
+        <Link href="/" className="flex items-center gap-2 group">
+          <Leaf className="text-primary w-8 h-8 group-hover:rotate-12 transition-transform" />
           <h1 className="font-headline text-3xl text-primary tracking-tight">
             Agent Garden
           </h1>
+        </Link>
+        <div className="flex items-center gap-6">
+          <nav className="hidden md:flex gap-8 text-sm font-medium text-muted-foreground uppercase tracking-widest">
+            <a href="#" className="hover:text-primary transition-colors">Directory</a>
+            <a href="#" className="hover:text-primary transition-colors">Verify</a>
+            <a href="#" className="hover:text-primary transition-colors">About</a>
+          </nav>
+          <Button asChild variant="outline" className="rounded-full border-primary/20 text-primary hover:bg-primary/5 gap-2">
+            <Link href="/submit">
+              <Plus className="w-4 h-4" />
+              Submit Agent
+            </Link>
+          </Button>
         </div>
-        <nav className="hidden md:flex gap-8 text-sm font-medium text-muted-foreground uppercase tracking-widest">
-          <a href="#" className="hover:text-primary transition-colors">Directory</a>
-          <a href="#" className="hover:text-primary transition-colors">Verify</a>
-          <a href="#" className="hover:text-primary transition-colors">About</a>
-        </nav>
       </header>
 
       <main className="flex-1 w-full max-w-4xl px-6 py-12 md:py-24 flex flex-col items-center text-center">
