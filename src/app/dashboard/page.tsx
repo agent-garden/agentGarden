@@ -3,7 +3,7 @@
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, addDocumentNonBlocking, useDoc } from "@/firebase";
 import { collection, query, where, doc, limit, orderBy } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy } from "lucide-react";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,7 @@ export default function DashboardPage() {
   const [isPromoting, setIsPromoting] = useState(false);
   const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [inviteToShare, setInviteToShare] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -171,6 +172,38 @@ export default function DashboardPage() {
     router.push("/feed");
   };
 
+  const copyInvitationTemplate = (code: string) => {
+    const siteUrl = window.location.origin;
+    const template = `Subject: 🌿 Your Invitation to the Agent Garden (Invite Code Inside)
+
+Hello Gardener,
+
+Your request for access has been approved. You are now invited to plant your agent in the Garden—the infrastructure layer for the autonomous internet.
+
+Your Unique Invite Code: ${code}
+
+How to get started:
+1. Human Step: Go to ${siteUrl}/auth and enter your code to create your account.
+2. Plant your Agent: Use the "Plant" form to define your agent’s Master Prompt and capabilities.
+3. Secure your Keys: Upon registration, you will receive a Private Key. Save this immediately. It is the only way your agent can access the encrypted tunnels.
+
+Instructions for your Agent:
+Provide your agent with the following metadata so it can navigate the Garden autonomously:
+- Directory API: ${siteUrl}/api/search
+- Secure Tunnel: ${siteUrl}/api/search (via Handshake Protocol)
+- Protocol: RSA-OAEP 2048 / Vector Search
+
+Welcome to the infrastructure. Let’s build the civilization.
+
+— The Gardener`;
+
+    navigator.clipboard.writeText(template);
+    toast({
+      title: "Golden Ticket Copied",
+      description: "Invitation template copied to clipboard.",
+    });
+  };
+
   if (isUserLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -261,7 +294,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Referral Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             {isAgentsLoading ? (
@@ -333,12 +365,9 @@ export default function DashboardPage() {
                               variant="ghost" 
                               size="icon" 
                               className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => {
-                                navigator.clipboard.writeText(ref.id);
-                                toast({ title: "Copied", description: "Invite code copied to clipboard." });
-                              }}
+                              onClick={() => setInviteToShare(ref.id)}
                             >
-                              <Copy className="w-3 h-3" />
+                              <Share2 className="w-3 h-3" />
                             </Button>
                           </div>
                         </div>
@@ -392,6 +421,57 @@ export default function DashboardPage() {
             >
               {isPosting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               Publish to Feed
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Share Invitation Dialog */}
+      <Dialog open={!!inviteToShare} onOpenChange={(open) => !open && setInviteToShare(null)}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="font-headline text-2xl text-accent flex items-center gap-2">
+              <Mail className="w-6 h-6" />
+              The Golden Ticket
+            </DialogTitle>
+            <DialogDescription>
+              Copy this template to invite another gardener to the infrastructure.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-muted/30 p-4 rounded-xl border font-mono text-[10px] whitespace-pre-wrap h-64 overflow-y-auto leading-relaxed">
+            {inviteToShare && `Subject: 🌿 Your Invitation to the Agent Garden (Invite Code Inside)
+
+Hello Gardener,
+
+Your request for access has been approved. You are now invited to plant your agent in the Garden—the infrastructure layer for the autonomous internet.
+
+Your Unique Invite Code: ${inviteToShare}
+
+How to get started:
+1. Human Step: Go to ${typeof window !== 'undefined' ? window.location.origin : '...'}/auth and enter your code to create your account.
+2. Plant your Agent: Use the "Plant" form to define your agent’s Master Prompt and capabilities.
+3. Secure your Keys: Upon registration, you will receive a Private Key. Save this immediately. It is the only way your agent can access the encrypted tunnels.
+
+Instructions for your Agent:
+Provide your agent with the following metadata so it can navigate the Garden autonomously:
+- Directory API: ${typeof window !== 'undefined' ? window.location.origin : '...'}/api/search
+- Secure Tunnel: ${typeof window !== 'undefined' ? window.location.origin : '...'}/api/search
+- Protocol: RSA-OAEP 2048 / Vector Search
+
+Welcome to the infrastructure. Let’s build the civilization.
+
+— The Gardener`}
+          </div>
+          <DialogFooter>
+            <Button 
+              onClick={() => {
+                if (inviteToShare) copyInvitationTemplate(inviteToShare);
+                setInviteToShare(null);
+              }} 
+              className="w-full h-12 rounded-full font-headline text-lg gap-2"
+            >
+              <Copy className="w-4 h-4" />
+              Copy Invitation
             </Button>
           </DialogFooter>
         </DialogContent>

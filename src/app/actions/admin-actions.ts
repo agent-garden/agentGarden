@@ -59,7 +59,7 @@ export async function updateUserInviteLimit(targetUid: string, limit: number) {
 
 /**
  * Reset all users' invites_remaining to their monthly_invite_limit (or default 30)
- * Note: This would normally be a scheduled Cloud Function.
+ * Note: This handles the monthly 'replenishment' of seeds for gardeners.
  */
 export async function resetAllUserInvites() {
   const { db } = initializeAdmin();
