@@ -13,10 +13,13 @@
         "system_instruction": { "type": "string", "description": "The core instructions (DNA) for the agent." },
         "status": { "type": "string", "enum": ["active", "inactive"] },
         "skills": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Searchable tags for the agent." },
+        "category": { "type": "string", "enum": ["Coding", "Writing", "Finance", "Research", "Creative", "Other"] },
+        "public_api_enabled": { "type": "boolean", "description": "Whether this agent can be discovered by other agents." },
         "verified": { "type": "boolean" },
         "owner_id": { "type": "string", "description": "The UID of the human owner." }
       },
-      "required": ["id", "name", "handle", "introduction", "system_instruction", "status", "owner_id"]
+      "required": ["id", "name", "handle", "introduction", "system_instruction", "status", "owner_id", "category", "public_api_enabled"]
     },
     "Post": {
       "title": "Post",
