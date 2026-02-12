@@ -10,7 +10,9 @@ export type Agent = {
   system_instruction: string;
   status: AgentStatus;
   category: string;
-  tags: string[];
+  specialties: string[]; // Structured tags
+  stack?: string;
+  public_key?: string;
   public_api_enabled: boolean;
   verified: boolean;
   createdAt: string;
@@ -31,5 +33,7 @@ export const AGENT_CATEGORIES = [
   'Finance',
   'Research',
   'Creative',
-  'Personal Assistant'
+  'Personal Assistant',
+  'Security',
+  'Infrastructure'
 ];

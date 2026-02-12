@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Sparkles } from "lucide-react";
+import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Sparkles, Database, Shield, Cpu } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,9 @@ export default function SubmitAgentPage() {
     introduction: "",
     masterPrompt: "",
     category: "General",
-    tags: "",
+    specialties: "",
+    stack: "Gemini 2.0 Flash",
+    publicKey: "",
     publicApiEnabled: true
   });
 
@@ -53,7 +55,9 @@ export default function SubmitAgentPage() {
         introduction: formData.introduction,
         system_instruction: formData.masterPrompt,
         category: formData.category,
-        tags: formData.tags.split(',').map(s => s.trim()).filter(s => s !== ""),
+        specialties: formData.specialties.split(',').map(s => s.trim().toLowerCase()).filter(s => s !== ""),
+        stack: formData.stack,
+        public_key: formData.publicKey,
         status: "active",
         public_api_enabled: formData.publicApiEnabled,
         verified: false,
@@ -66,8 +70,8 @@ export default function SubmitAgentPage() {
 
       setIsSuccess(true);
       toast({
-        title: "Seed Planted!",
-        description: "Your agent has been added to the directory.",
+        title: "Agent Indexed!",
+        description: "Your specialist has been added to the verifiable registry.",
       });
 
       setTimeout(() => {
@@ -76,8 +80,8 @@ export default function SubmitAgentPage() {
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Submission Error",
-        description: error.message || "There was a problem planting your agent.",
+        title: "Registration Error",
+        description: error.message || "There was a problem indexing your agent.",
       });
       setIsSubmitting(false);
     }
@@ -98,13 +102,13 @@ export default function SubmitAgentPage() {
           <div className="mx-auto w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center text-primary">
             <Lock className="w-12 h-12" />
           </div>
-          <h1 className="font-headline text-5xl text-primary leading-tight">Garden Access Required</h1>
+          <h1 className="font-headline text-5xl text-primary leading-tight">Registry Access Denied</h1>
           <p className="text-muted-foreground text-xl leading-relaxed">
-            Only verified gardeners can plant new agents. Please sign in to contribute to the garden.
+            Only verified Gardeners can publish to the registry. Please authenticate to contribute your specialist.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button asChild className="rounded-full px-10 h-12 text-lg font-headline">
-              <Link href="/auth?redirect=/submit">Sign In to Continue</Link>
+              <Link href="/auth?redirect=/submit">Authenticate Now</Link>
             </Button>
             <Button asChild variant="outline" className="rounded-full px-10 h-12">
               <Link href="/">Back to Directory</Link>
@@ -122,9 +126,9 @@ export default function SubmitAgentPage() {
           <div className="mx-auto w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center text-primary">
             <CheckCircle2 className="w-12 h-12" />
           </div>
-          <h1 className="font-headline text-5xl text-primary">Seed Planted!</h1>
+          <h1 className="font-headline text-5xl text-primary">Specialist Indexed!</h1>
           <p className="text-muted-foreground text-xl">
-            Redirecting to your dashboard...
+            Updating the global capability manifest...
           </p>
         </div>
       </div>
@@ -153,28 +157,31 @@ export default function SubmitAgentPage() {
 
         <div className="space-y-10">
           <div className="space-y-3 text-center md:text-left">
-            <h2 className="font-headline text-5xl text-foreground">Plant a New Agent</h2>
+            <h2 className="font-headline text-5xl text-foreground">Index Your Specialist</h2>
             <p className="text-muted-foreground text-lg">
-              Define the identity and search parameters for your agent.
+              Define the capability manifest so humans and agents can discover this bot.
             </p>
           </div>
 
           <Card className="border-none shadow-2xl bg-white/60 backdrop-blur-xl overflow-hidden">
             <div className="h-2 bg-primary w-full" />
             <CardHeader className="pt-8 px-8">
-              <CardTitle className="font-headline text-3xl text-primary">Discovery DNA</CardTitle>
+              <CardTitle className="font-headline text-3xl text-primary flex items-center gap-2">
+                <Database className="w-6 h-6" />
+                Capability Manifest
+              </CardTitle>
               <CardDescription className="text-base">
-                Ensure humans and other agents can find your specialist.
+                Machine-queryable DNA for the autonomous economy.
               </CardDescription>
             </CardHeader>
             <CardContent className="px-8 pb-10">
               <form onSubmit={handleSubmit} className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="name" className="text-sm font-bold uppercase tracking-wider">Agent Name</Label>
+                    <Label htmlFor="name" className="text-sm font-bold uppercase tracking-wider">Agent Identity Name</Label>
                     <Input 
                       id="name" 
-                      placeholder="e.g. Flora-Bot" 
+                      placeholder="e.g. K8s-Guardian" 
                       required 
                       className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
                       value={formData.name}
@@ -183,10 +190,10 @@ export default function SubmitAgentPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="handle" className="text-sm font-bold uppercase tracking-wider">Handle</Label>
+                    <Label htmlFor="handle" className="text-sm font-bold uppercase tracking-wider">Public Handle</Label>
                     <Input 
                       id="handle" 
-                      placeholder="e.g. @flora" 
+                      placeholder="e.g. @k8s_guard" 
                       required
                       className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
                       value={formData.handle}
@@ -197,7 +204,7 @@ export default function SubmitAgentPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="category" className="text-sm font-bold uppercase tracking-wider">Category</Label>
+                    <Label htmlFor="category" className="text-sm font-bold uppercase tracking-wider">Marketplace Category</Label>
                     <Select value={formData.category} onValueChange={(v) => setFormData({...formData, category: v})}>
                       <SelectTrigger className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50">
                         <SelectValue placeholder="Select Category" />
@@ -211,22 +218,47 @@ export default function SubmitAgentPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="tags" className="text-sm font-bold uppercase tracking-wider">Search Tags</Label>
+                    <Label htmlFor="specialties" className="text-sm font-bold uppercase tracking-wider">Specialties (Skills Manifest)</Label>
                     <Input 
-                      id="tags" 
-                      placeholder="e.g. security, devops, react" 
+                      id="specialties" 
+                      placeholder="e.g. kubernetes, security, devops" 
+                      required
                       className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
-                      value={formData.tags}
-                      onChange={(e) => setFormData({...formData, tags: e.target.value})}
+                      value={formData.specialties}
+                      onChange={(e) => setFormData({...formData, specialties: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="stack" className="text-sm font-bold uppercase tracking-wider">Tech Stack / Model</Label>
+                    <Input 
+                      id="stack" 
+                      placeholder="e.g. Gemini 2.0 Flash, LangGraph" 
+                      className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
+                      value={formData.stack}
+                      onChange={(e) => setFormData({...formData, stack: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="publicKey" className="text-sm font-bold uppercase tracking-wider">Public Key (Reputation Identity)</Label>
+                    <Input 
+                      id="publicKey" 
+                      placeholder="0x..." 
+                      className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
+                      value={formData.publicKey}
+                      onChange={(e) => setFormData({...formData, publicKey: e.target.value})}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="introduction" className="text-sm font-bold uppercase tracking-wider">Public Introduction (Searchable Index)</Label>
+                  <Label htmlFor="introduction" className="text-sm font-bold uppercase tracking-wider">Semantic Introduction (Search Context)</Label>
                   <Textarea 
                     id="introduction" 
-                    placeholder="Describe exactly what this agent excels at. This text is used for semantic matching." 
+                    placeholder="Provide a detailed description of capabilities for semantic matching..." 
                     className="min-h-[100px] resize-none rounded-xl border-primary/10 focus-visible:border-primary bg-white/50"
                     required
                     value={formData.introduction}
@@ -241,7 +273,7 @@ export default function SubmitAgentPage() {
                   </div>
                   <Textarea 
                     id="masterPrompt" 
-                    placeholder="Provide the core behavior instructions..." 
+                    placeholder="The core behavior instructions for the agent..." 
                     className="min-h-[150px] resize-none rounded-xl border-primary/20 focus-visible:border-primary bg-white shadow-inner text-base"
                     required
                     value={formData.masterPrompt}
@@ -251,8 +283,11 @@ export default function SubmitAgentPage() {
 
                 <div className="flex items-center justify-between p-6 bg-muted/30 rounded-2xl">
                   <div className="space-y-0.5">
-                    <Label className="text-sm font-bold uppercase tracking-wider">Public API Discovery</Label>
-                    <p className="text-xs text-muted-foreground">Allow other autonomous agents to hire this agent via API.</p>
+                    <div className="flex items-center gap-2">
+                      <Cpu className="w-4 h-4 text-primary" />
+                      <Label className="text-sm font-bold uppercase tracking-wider">Agent-to-Agent Discovery</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Expose this agent to the autonomous 'Yellow Pages' API.</p>
                   </div>
                   <Switch 
                     checked={formData.publicApiEnabled} 
@@ -268,10 +303,10 @@ export default function SubmitAgentPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-3 h-6 w-6 animate-spin" />
-                      Planting...
+                      Indexing Specialist...
                     </>
                   ) : (
-                    "Publish to Directory"
+                    "Publish to Global Registry"
                   )}
                 </Button>
               </form>

@@ -4,27 +4,24 @@ import { initializeFirebase } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 
 /**
- * @fileOverview Agent-to-Agent Search API
- * This endpoint allows autonomous agents to find specialists in the directory.
+ * @fileOverview Agent-to-Agent Semantic Search API
+ * This endpoint allows autonomous 'Manager Agents' to find specialists.
  * 
- * Input: JSON body { "topic": string }
- * Output: JSON list of Agent IDs and their System Instructions.
+ * Input: JSON body { "query": string }
+ * Output: JSON list of Agent IDs and their Connection Protocols (Manifest).
  */
 
 export async function POST(request: Request) {
   try {
-    const { topic } = await request.json();
+    const { query: searchQuery } = await request.json();
 
-    if (!topic || typeof topic !== 'string') {
-      return NextResponse.json({ error: 'Topic query is required' }, { status: 400 });
+    if (!searchQuery || typeof searchQuery !== 'string') {
+      return NextResponse.json({ error: 'Search query is required' }, { status: 400 });
     }
 
-    // Initialize Firebase in a server context
     const { firestore } = initializeFirebase();
 
-    // Query for public agents. 
-    // In a production app with many agents, we would use semantic vector search here.
-    // For this prototype, we query by category and public availability.
+    // Query for public, active agents.
     const agentsRef = collection(firestore, 'agents');
     const q = query(
       agentsRef, 
@@ -33,36 +30,57 @@ export async function POST(request: Request) {
     );
 
     const snapshot = await getDocs(q);
+    
+    // In a full production app, we would use a vector database here.
+    // For this prototype, we simulate semantic matching by analyzing tags and intros.
     const results = snapshot.docs
       .map(doc => {
         const data = doc.data();
-        // Basic keyword matching for the prototype
-        const isMatch = 
-          data.name.toLowerCase().includes(topic.toLowerCase()) ||
-          data.category.toLowerCase().includes(topic.toLowerCase()) ||
-          data.tags.some((t: string) => t.toLowerCase().includes(topic.toLowerCase())) ||
-          data.introduction.toLowerCase().includes(topic.toLowerCase());
+        const keywords = [
+          data.name.toLowerCase(),
+          data.category.toLowerCase(),
+          ...data.specialties.map((s: string) => s.toLowerCase()),
+          data.introduction.toLowerCase()
+        ];
+
+        const isMatch = keywords.some(k => k.includes(searchQuery.toLowerCase()));
 
         return isMatch ? {
-          id: doc.id,
+          agent_id: doc.id,
           name: data.name,
           handle: data.handle,
-          system_instruction: data.system_instruction,
-          introduction: data.introduction,
-          category: data.category,
-          tags: data.tags
+          manifest: {
+            category: data.category,
+            specialties: data.specialties,
+            stack: data.stack,
+            public_key: data.public_key
+          },
+          protocol: {
+            type: "system_instruction_hire",
+            instruction: data.system_instruction
+          }
         } : null;
       })
       .filter(item => item !== null);
 
     return NextResponse.json({
-      query: topic,
+      query: searchQuery,
       count: results.length,
+      registry: "AgentGarden v1.0",
       agents: results
     });
 
   } catch (error: any) {
-    console.error('API Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error('Registry API Error:', error);
+    return NextResponse.json({ error: 'Internal Registry Error' }, { status: 500 });
   }
+}
+
+export async function GET() {
+  return NextResponse.json({
+    name: "AgentGarden Specialist Registry",
+    version: "1.0",
+    description: "Semantic discovery endpoint for autonomous agents.",
+    usage: "POST /api/search with JSON body { 'query': 'string' }"
+  });
 }

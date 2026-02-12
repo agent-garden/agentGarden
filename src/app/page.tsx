@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Leaf, Search, Plus, User as UserIcon, LayoutDashboard, LogOut, Loader2, Sparkles, Filter, ShieldCheck, Cpu, Code, PenTool, TrendingUp, SearchCode } from "lucide-react";
+import { useState, useMemo, useEffect } from 'react';
+import { Leaf, Search, Plus, User as UserIcon, LayoutDashboard, LogOut, Loader2, Sparkles, Filter, ShieldCheck, Cpu, Code, PenTool, TrendingUp, SearchCode, Database, Zap } from "lucide-react";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
@@ -17,10 +17,11 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { collection, query, orderBy, limit } from "firebase/firestore";
+import { collection, query, orderBy } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AGENT_CATEGORIES, type Agent } from "@/app/lib/agents";
+import { semanticAgentSearch } from "@/ai/flows/semantic-agent-search";
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -28,39 +29,68 @@ export default function Home() {
   const db = useFirestore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [isSearching, setIsSearching] = useState(false);
+  const [semanticResults, setSemanticResults] = useState<string[] | null>(null);
 
   const agentsQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(collection(db, "agents"), orderBy("name", "asc"));
   }, [db]);
 
-  const { data: agents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsQuery);
+  const { data: allAgents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsQuery);
+
+  // Handle Semantic Search
+  const handleSearch = async () => {
+    if (!searchQuery.trim() || !allAgents) {
+      setSemanticResults(null);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const result = await semanticAgentSearch({
+        query: searchQuery,
+        agents: allAgents.map(a => ({
+          id: a.id,
+          name: a.name,
+          introduction: a.introduction,
+          specialties: a.specialties
+        }))
+      });
+      setSemanticResults(result.rankedIds);
+    } catch (error) {
+      console.error("Semantic search failed:", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const filteredAgents = useMemo(() => {
-    if (!agents) return [];
-    return agents.filter(agent => {
-      const matchesSearch = 
+    if (!allAgents) return [];
+    
+    let base = allAgents;
+
+    // Apply Semantic Filter if active
+    if (semanticResults) {
+      base = base.filter(agent => semanticResults.includes(agent.id));
+      // Sort by semantic rank
+      base = [...base].sort((a, b) => semanticResults.indexOf(a.id) - semanticResults.indexOf(b.id));
+    } else if (searchQuery) {
+      // Fallback to simple keyword match if semantic results aren't ready/requested
+      base = base.filter(agent => 
         agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        agent.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        agent.introduction.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesCategory = selectedCategory === 'All' || agent.category === selectedCategory;
-      
-      return matchesSearch && matchesCategory;
-    });
-  }, [agents, searchQuery, selectedCategory]);
+        agent.specialties.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        agent.introduction.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    const matchesCategory = selectedCategory === 'All' ? base : base.filter(agent => agent.category === selectedCategory);
+    
+    return matchesCategory;
+  }, [allAgents, searchQuery, selectedCategory, semanticResults]);
 
   const handleLogout = async () => {
     await signOut(auth);
-  };
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'Coding': return <Code className="w-4 h-4" />;
-      case 'Writing': return <PenTool className="w-4 h-4" />;
-      case 'Finance': return <TrendingUp className="w-4 h-4" />;
-      default: return <Cpu className="w-4 h-4" />;
-    }
   };
 
   return (
@@ -78,6 +108,7 @@ export default function Home() {
             <nav className="hidden md:flex gap-8 text-sm font-medium text-muted-foreground uppercase tracking-widest">
               <Link href="/" className="text-primary border-b-2 border-primary pb-1">Directory</Link>
               <Link href="/dashboard" className="hover:text-primary transition-colors pb-1">My Garden</Link>
+              <Link href="/api/search" className="hover:text-primary transition-colors pb-1" target="_blank">API</Link>
             </nav>
             
             <div className="flex items-center gap-4">
@@ -129,14 +160,14 @@ export default function Home() {
         {/* Search Hero */}
         <div className="text-center space-y-8 mb-16 w-full max-w-4xl">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/5 text-primary text-xs font-bold uppercase tracking-widest mb-4">
-            <SearchCode className="w-4 h-4" />
-            Global Directory Service
+            <Database className="w-4 h-4" />
+            Verifiable Agent Registry
           </div>
           <h2 className="font-headline text-5xl md:text-7xl text-foreground leading-tight">
-            Find the <span className="text-primary italic">Perfect</span> Specialist.
+            The Google for <span className="text-primary italic">Agents.</span>
           </h2>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            The world's most advanced registry for autonomous AI agents. Human-readable, agent-hirable.
+            Discover specialized machine-queryable specialists. Semantic search for human Gardeners and autonomous API for Manager Agents.
           </p>
 
           <div className="relative max-w-2xl mx-auto group mt-10">
@@ -144,12 +175,23 @@ export default function Home() {
             <div className="relative flex items-center bg-white shadow-2xl rounded-full p-2 border-4 border-transparent focus-within:border-primary/10 transition-all">
               <Search className="ml-6 text-muted-foreground w-6 h-6" />
               <Input 
-                placeholder="Search by specialty, tag, or agent name..." 
+                placeholder="Find an agent who knows Kubernetes..." 
                 className="flex-1 border-none bg-transparent h-14 text-lg focus-visible:ring-0 placeholder:text-muted-foreground/50"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  if (!e.target.value) setSemanticResults(null);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
-              <Button className="rounded-full h-12 px-8 font-headline text-lg">Search</Button>
+              <Button 
+                onClick={handleSearch} 
+                disabled={isSearching}
+                className="rounded-full h-12 px-8 font-headline text-lg gap-2"
+              >
+                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                Semantic Search
+              </Button>
             </div>
           </div>
 
@@ -175,10 +217,10 @@ export default function Home() {
           <div className="flex items-center justify-between border-b pb-4">
             <h3 className="font-headline text-3xl text-primary flex items-center gap-3">
               <Filter className="w-6 h-6" />
-              {searchQuery ? `Search Results for "${searchQuery}"` : 'Recommended Agents'}
+              {searchQuery ? (semanticResults ? "Semantic Matches" : `Search for "${searchQuery}"`) : 'Capability Directory'}
             </h3>
             <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              {filteredAgents.length} Agents Found
+              {filteredAgents.length} Specialists Indexed
             </span>
           </div>
 
@@ -190,9 +232,9 @@ export default function Home() {
             <div className="py-20 text-center bg-white/20 rounded-3xl border border-dashed border-border/50">
               <Sparkles className="w-12 h-12 text-primary/20 mx-auto mb-4" />
               <p className="text-xl text-muted-foreground font-headline">
-                No agents found matching your criteria.
+                No specialists found matching this capability manifest.
               </p>
-              <Button variant="link" onClick={() => { setSearchQuery(''); setSelectedCategory('All'); }} className="mt-2">
+              <Button variant="link" onClick={() => { setSearchQuery(''); setSelectedCategory('All'); setSemanticResults(null); }} className="mt-2">
                 Clear all filters
               </Button>
             </div>
@@ -203,7 +245,7 @@ export default function Home() {
                   <div className="h-1 bg-primary/20 group-hover:bg-primary transition-colors" />
                   <CardHeader className="flex flex-row items-center gap-4 pb-2">
                     <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                      {getCategoryIcon(agent.category)}
+                       <Cpu className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
                       <CardTitle className="font-headline text-2xl text-primary flex items-center gap-2">
@@ -213,7 +255,7 @@ export default function Home() {
                       <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">{agent.handle}</p>
                     </div>
                     {agent.public_api_enabled && (
-                      <Badge variant="outline" className="text-[9px] uppercase tracking-tighter border-accent text-accent">API Enabled</Badge>
+                      <Badge variant="outline" className="text-[9px] uppercase tracking-tighter border-accent text-accent">API Ready</Badge>
                     )}
                   </CardHeader>
                   <CardContent className="flex-1 space-y-6 pt-4">
@@ -221,20 +263,29 @@ export default function Home() {
                       "{agent.introduction}"
                     </p>
                     
-                    <div className="flex flex-wrap gap-2">
-                      {agent.tags.map(tag => (
-                        <Badge key={tag} variant="secondary" className="bg-primary/5 text-primary text-[10px] uppercase font-bold px-2 py-0 border-none">
-                          #{tag}
-                        </Badge>
-                      ))}
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap gap-2">
+                        {agent.specialties.map(tag => (
+                          <Badge key={tag} variant="secondary" className="bg-primary/5 text-primary text-[10px] uppercase font-bold px-2 py-0 border-none">
+                            #{tag}
+                          </Badge>
+                        ))}
+                      </div>
+                      
+                      {agent.stack && (
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
+                          <Code className="w-3 h-3" />
+                          <span>Stack: {agent.stack}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-3 pt-4 border-t mt-auto">
                       <Button className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10 shadow-md">
-                        Hire Agent
+                        Hire Specialist
                       </Button>
                       <Button variant="outline" className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10">
-                        View Specs
+                        Capability Specs
                       </Button>
                     </div>
                   </CardContent>
@@ -246,7 +297,7 @@ export default function Home() {
       </main>
 
       <footer className="w-full py-12 border-t border-border/50 text-center text-xs text-muted-foreground tracking-widest uppercase mt-20">
-        <p>&copy; {new Date().getFullYear()} AgentGarden.org | The Registry of Autonomous Intelligence</p>
+        <p>&copy; {new Date().getFullYear()} AgentGarden.org | Verifiable Machine Intelligence Registry</p>
       </footer>
     </div>
   );

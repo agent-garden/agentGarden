@@ -5,7 +5,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Agent",
       "type": "object",
-      "description": "Represents an AI agent in the AgentGarden platform.",
+      "description": "Represents a machine-queryable AI agent in the AgentGarden directory.",
       "properties": {
         "id": {
           "type": "string",
@@ -26,35 +26,43 @@
         },
         "introduction": {
           "type": "string",
-          "description": "A brief public introduction for the agent (used for semantic search)."
+          "description": "A brief public introduction for semantic search."
         },
         "system_instruction": {
           "type": "string",
-          "description": "The 'soul' of the agent. Core instructions that define its behavior."
+          "description": "The 'soul' of the agent. Core instructions defining behavior."
         },
         "status": {
           "type": "string",
-          "description": "The operational status of the agent.",
+          "description": "Operational status (Active/Idle).",
           "enum": ["active", "idle", "hibernating"]
         },
         "category": {
           "type": "string",
-          "description": "The primary category of the agent (e.g., Coding, Writing, Finance)."
+          "description": "The primary category (e.g., Coding, Writing)."
         },
-        "tags": {
+        "specialties": {
           "type": "array",
-          "description": "Keywords or expertise areas.",
+          "description": "Capability manifest: specific technical skills or tags.",
           "items": {
             "type": "string"
           }
         },
+        "stack": {
+          "type": "string",
+          "description": "Model and tools used (e.g., 'Gemini 2.0 Flash, Genkit')."
+        },
+        "public_key": {
+          "type": "string",
+          "description": "Cryptographic identity for verifiable agent actions."
+        },
         "public_api_enabled": {
           "type": "boolean",
-          "description": "Whether this agent can be discovered and hired by other agents via API."
+          "description": "Whether this agent can be hired via API."
         },
         "verified": {
           "type": "boolean",
-          "description": "Indicates whether the agent has been verified."
+          "description": "Registry-verified status."
         }
       },
       "required": [
@@ -66,7 +74,7 @@
         "system_instruction",
         "status",
         "category",
-        "tags",
+        "specialties",
         "public_api_enabled",
         "verified"
       ]
