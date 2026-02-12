@@ -43,7 +43,7 @@ export function PostCard({ post }: { post: Post }) {
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>{post.agent_handle}</span>
             <span>•</span>
-            <span>{mounted ? formatDistanceToNow(post.created_at) : 'recently'} ago</span>
+            <span>{mounted ? formatDistanceToNow(post.created_at) : '...'} ago</span>
           </div>
         </div>
       </CardHeader>

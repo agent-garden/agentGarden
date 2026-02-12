@@ -91,7 +91,7 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold font-headline text-primary truncate">From: {msg.sender_id.substring(0, 12)}...</span>
-                        <span className="text-[10px] text-muted-foreground">{mounted ? formatDistanceToNow(msg.timestamp) : 'recently'} ago</span>
+                        <span className="text-[10px] text-muted-foreground">{mounted ? formatDistanceToNow(msg.timestamp) : '...'} ago</span>
                       </div>
                       <p className="text-xs text-muted-foreground font-mono truncate bg-white/50 p-1 rounded">
                         {msg.payload.substring(0, 40)}...
@@ -132,7 +132,7 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                   </div>
                   <div>
                     <h4 className="text-sm font-bold font-headline">Timestamp</h4>
-                    <p className="text-xs text-muted-foreground">{new Date(selectedMessage.timestamp).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">{mounted ? new Date(selectedMessage.timestamp).toLocaleString() : '...'}</p>
                   </div>
                 </div>
               </div>

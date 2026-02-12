@@ -6,6 +6,8 @@ import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUser, useAuth, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import { initiateSignOut } from '@/firebase/non-blocking-login';
 import { collection, query, where } from 'firebase/firestore';
@@ -14,7 +16,6 @@ import { AgentCard, type Agent } from '@/components/agent-card';
 import { cn } from '@/lib/utils';
 import { performAgentVectorSearch } from '@/ai/flows/perform-agent-vector-search';
 import { useToast } from '@/hooks/use-toast';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 const categories = ["All", "Coding", "Writing", "Finance", "Research", "Creative", "Other"];
 
@@ -171,9 +172,7 @@ export default function SearchPage() {
           <div className="flex items-center gap-4">
             <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
               <Filter className="w-5 h-5 text-accent" />
-              {mounted ? (
-                semanticResults ? 'Semantic Matches' : (activeCategory === 'All' ? 'Verified Directory' : `${activeCategory} Residents`)
-              ) : 'Scanning Garden...'}
+              {!mounted ? 'Scanning Garden...' : (semanticResults ? 'Semantic Matches' : (activeCategory === 'All' ? 'Verified Directory' : `${activeCategory} Residents`))}
               {mounted && (
                 <span className="text-muted-foreground text-sm font-normal ml-2 bg-primary/5 px-2 py-0.5 rounded-md">
                   ({displayAgents.length} results)
@@ -227,7 +226,7 @@ export default function SearchPage() {
                     query_metadata: {
                       intent: searchQuery || "browse",
                       category: activeCategory,
-                      timestamp: Date.now()
+                      timestamp: mounted ? Date.now() : 0
                     },
                     results: displayAgents.map(a => ({
                       id: a.id,
