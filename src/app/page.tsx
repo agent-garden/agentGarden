@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Loader2, Sparkles, Sprout } from 'lucide-react';
+import { Search, Loader2, Sparkles, Sprout, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AgentCard, type Agent } from '@/components/agent-card';
 import { performAgentVectorSearch } from '@/ai/flows/perform-agent-vector-search';
+import Link from 'next/link';
 
 export default function Home() {
   const [query, setQuery] = useState('');
@@ -20,7 +21,6 @@ export default function Home() {
     setLoading(true);
     setHasSearched(true);
     try {
-      // Calling the Genkit flow which handles vector search logic
       const searchResults = await performAgentVectorSearch({ query });
       setResults(searchResults || []);
     } catch (error) {
@@ -32,8 +32,18 @@ export default function Home() {
 
   return (
     <main className="min-h-screen flex flex-col items-center bg-background p-6 md:p-12">
+      {/* Top Navigation */}
+      <div className="w-full max-w-7xl flex justify-end mb-8">
+        <Button asChild variant="outline" className="rounded-full gap-2 border-primary/20 hover:bg-primary/5">
+          <Link href="/submit">
+            <Plus className="w-4 h-4" />
+            Submit Agent
+          </Link>
+        </Button>
+      </div>
+
       {/* Header */}
-      <div className="w-full max-w-4xl flex flex-col items-center text-center space-y-4 mt-8 md:mt-20">
+      <div className="w-full max-w-4xl flex flex-col items-center text-center space-y-4 mt-4 md:mt-12">
         <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-primary/10 text-primary mb-2">
           <Sprout className="w-10 h-10" />
         </div>
@@ -48,7 +58,7 @@ export default function Home() {
       {/* Search Section */}
       <div className="w-full max-w-3xl mt-12 mb-16">
         <form onSubmit={handleSearch} className="relative group">
-          <div className="relative flex items-center bg-white rounded-full shadow-lg border border-border group-focus-within:ring-4 group-focus-within:ring-primary/20 transition-all duration-300">
+          <div className="relative flex items-center bg-white rounded-3xl shadow-lg border border-border group-focus-within:ring-4 group-focus-within:ring-primary/20 transition-all duration-300">
             <div className="pl-6 text-muted-foreground">
               <Search className="w-5 h-5" />
             </div>
@@ -79,7 +89,7 @@ export default function Home() {
         <div className="flex justify-center gap-4 mt-6 text-xs text-muted-foreground/60">
           <span>Vector Search powered by Vertex AI</span>
           <span>•</span>
-          <span>PostgreSQL via Data Connect</span>
+          <span>Firestore Database</span>
         </div>
       </div>
 
@@ -104,7 +114,7 @@ export default function Home() {
           <div className="text-center py-20 bg-white/30 backdrop-blur-sm rounded-3xl border border-dashed border-border/60">
             <Sparkles className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
             <h3 className="text-xl font-headline text-foreground/70">No agents found yet</h3>
-            <p className="text-muted-foreground mt-2 font-body">Try a different query or seed the database first.</p>
+            <p className="text-muted-foreground mt-2 font-body">Try a different query or submit a new agent.</p>
           </div>
         )}
 
@@ -115,7 +125,6 @@ export default function Home() {
                 key={suggestion}
                 onClick={() => {
                   setQuery(suggestion);
-                  // Trigger search manually in the next tick
                   setTimeout(() => handleSearch(), 100);
                 }}
                 className="p-4 bg-white/40 hover:bg-white border border-border/50 rounded-2xl text-sm font-medium text-primary text-center transition-all hover:shadow-sm"
@@ -127,10 +136,9 @@ export default function Home() {
         )}
       </div>
 
-      {/* Footer Instructions */}
       <footer className="mt-auto pt-20 pb-10 text-center">
         <p className="text-sm text-muted-foreground">
-          Run <code className="bg-secondary px-2 py-0.5 rounded text-secondary-foreground">npx tsx scripts/seed-garden.ts</code> to seed your database.
+          Welcome to the Garden of AI possibilities.
         </p>
       </footer>
     </main>
