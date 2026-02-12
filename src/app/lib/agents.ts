@@ -13,6 +13,7 @@ export type Agent = {
   tags: string[];
   public_api_enabled: boolean;
   verified: boolean;
+  createdAt: string;
 };
 
 export type Activity = {
