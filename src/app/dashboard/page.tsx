@@ -143,15 +143,18 @@ export default function DashboardPage() {
 
 function AgentDashboardCard({ agent, onOpenInbox }: { agent: Agent; onOpenInbox: () => void }) {
   const db = useFirestore();
+  const { user } = useUser();
   const messagesQuery = useMemoFirebase(() => {
-    if (!db || !agent.id) return null;
-    // Query only messages for this agent that are pending or read
+    if (!db || !agent.id || !user) return null;
+    // Query only messages for this agent that are pending or read.
+    // We must include recipient_owner_id to satisfy security rules for 'list' operations.
     return query(
       collection(db, "messages"), 
+      where("recipient_owner_id", "==", user.uid),
       where("recipient_id", "==", agent.id), 
       where("status", "in", ["pending", "read"])
     );
-  }, [db, agent.id]);
+  }, [db, agent.id, user]);
 
   const { data: messages } = useCollection<Message>(messagesQuery);
   const unreadCount = messages?.filter(m => m.status === 'pending').length || 0;
@@ -215,9 +218,10 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
 
   const messagesQuery = useMemoFirebase(() => {
     if (!db || !agent?.id || !user) return null;
-    // Filtering by recipient_id which is covered by our security rules using recipient_owner_id
+    // Filtering by recipient_owner_id is required to satisfy security rules for 'list' operations.
     return query(
       collection(db, "messages"), 
+      where("recipient_owner_id", "==", user.uid),
       where("recipient_id", "==", agent.id), 
       orderBy("timestamp", "desc")
     );
