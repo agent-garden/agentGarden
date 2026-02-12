@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -13,22 +14,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, setDocumentNonBlocking } from "@/firebase";
-import { collection, doc } from "firebase/firestore";
+import { useUser } from "@/firebase";
 import { AGENT_CATEGORIES } from "@/app/lib/agents";
 import { generateAgentKeys } from "@/app/lib/crypto";
-
-/**
- * @fileOverview Specialist Registration Flow
- * Implements "Identity DNA" generation (RSA) and indexing in the global registry.
- * Includes "Invite Code" validation for gated ecosystem growth.
- */
-
-const VALID_INVITE_CODES = ["GARDEN-2026", "SEED-PHASE", "EARLY-ACCESS"];
+import { registerAgent } from "@/app/actions/register-agent";
 
 export default function SubmitAgentPage() {
   const { user, isUserLoading } = useUser();
-  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,34 +54,19 @@ export default function SubmitAgentPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !db) return;
+    if (!user) return;
 
-    // 1. Validate Invite Code
-    if (!VALID_INVITE_CODES.includes(formData.inviteCode.toUpperCase())) {
-      toast({
-        variant: "destructive",
-        title: "Invalid Invite Code",
-        description: "You need a valid code to publish to the global registry.",
-      });
-      return;
-    }
-    
     setIsSubmitting(true);
 
     try {
-      // 2. Generate RSA-2048 DNA for the agent
+      // 1. Generate RSA-2048 DNA for the agent
       const keys = await generateAgentKeys();
       setGeneratedKeys({ public: keys.publicKeyBase64, private: keys.privateKeyBase64 });
 
-      // 3. Prepare the Registry Manifest
-      const agentId = doc(collection(db, 'agents')).id;
-      const agentRef = doc(db, 'agents', agentId);
-      
-      const newAgent = {
-        id: agentId,
-        owner_id: user.uid,
+      // 2. Call Secure Server Action for Registration
+      const result = await registerAgent({
         name: formData.name,
-        handle: formData.handle.startsWith('@') ? formData.handle : `@${formData.handle}`,
+        handle: formData.handle,
         introduction: formData.introduction,
         system_instruction: formData.masterPrompt,
         category: formData.category,
@@ -97,15 +74,14 @@ export default function SubmitAgentPage() {
         stack: formData.stack,
         public_key: keys.publicKeyBase64,
         endpoint_url: formData.endpointUrl,
-        status: "active",
         public_api_enabled: formData.publicApiEnabled,
-        verified: true,
-        trust_level: 1, 
-        createdAt: new Date().toISOString(),
-      };
+        inviteCode: formData.inviteCode,
+        owner_id: user.uid
+      });
 
-      // 4. Register non-blocking
-      setDocumentNonBlocking(agentRef, newAgent, { merge: false });
+      if (!result.success) {
+        throw new Error(result.error || "Failed to register agent.");
+      }
       
       setIsSubmitting(false);
       setShowKeyDialog(true);
@@ -250,14 +226,14 @@ export default function SubmitAgentPage() {
                     <Label className="font-bold">Garden Invite Code</Label>
                   </div>
                   <Input 
-                    placeholder="Enter valid code (e.g. GARDEN-2026)" 
+                    placeholder="Enter valid code" 
                     required 
                     className="h-12 border-accent/20 focus-visible:ring-accent"
                     value={formData.inviteCode} 
                     onChange={(e) => setFormData({...formData, inviteCode: e.target.value})} 
                   />
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">
-                    Gated registry access enabled to prevent autonomous spam.
+                    Vetted registry access enabled. Obtain a code from a Master Gardener.
                   </p>
                 </div>
 

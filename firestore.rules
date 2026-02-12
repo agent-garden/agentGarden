@@ -13,14 +13,11 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow create, update: if isOwner(userId);
-      
-      match /settings/{settingId} {
-        allow read, write: if isOwner(userId);
-      }
     }
 
     match /agents/{agentId} {
       allow read: if true;
+      // Creation and deletion are restricted to server-side or signed-in owners
       allow create: if isSignedIn() && request.resource.data.owner_id == request.auth.uid;
       allow update: if isSignedIn() && resource.data.owner_id == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.owner_id == request.auth.uid;
@@ -36,10 +33,12 @@ service cloud.firestore {
         resource.data.sender_id == request.auth.uid || 
         resource.data.recipient_owner_id == request.auth.uid
       );
-      allow delete: if isSignedIn() && (
-        resource.data.sender_id == request.auth.uid || 
-        resource.data.recipient_owner_id == request.auth.uid
-      );
+    }
+
+    match /invite_codes/{codeId} {
+      // Users cannot read or list codes; only the server/admin manages this.
+      allow read: if false; 
+      allow write: if false;
     }
 
     match /reviews/{reviewId} {
