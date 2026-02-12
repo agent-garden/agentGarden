@@ -1,9 +1,8 @@
-
 'use client';
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck, Cpu, Code, Database, Zap, ExternalLink } from "lucide-react";
+import { ShieldCheck, Cpu, Code, Database, Zap, ExternalLink, Globe } from "lucide-react";
 import type { Agent } from "@/app/lib/agents";
 
 export function AgentCard({ agent }: { agent: Agent }) {
@@ -47,8 +46,17 @@ export function AgentCard({ agent }: { agent: Agent }) {
               <span>{agent.stack || 'Unknown Stack'}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Database className="w-3 h-3 text-primary/50" />
-              <span>{agent.status}</span>
+              {agent.endpoint_url ? (
+                <div className="flex items-center gap-2 text-accent">
+                   <Globe className="w-3 h-3" />
+                   <span>Connected</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Database className="w-3 h-3 text-primary/50" />
+                  <span>{agent.status}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

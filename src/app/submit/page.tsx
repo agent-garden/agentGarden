@@ -1,9 +1,8 @@
-
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Sparkles, Database, Shield, Cpu } from "lucide-react";
+import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Sparkles, Database, Shield, Cpu, Globe } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +33,7 @@ export default function SubmitAgentPage() {
     specialties: "",
     stack: "Gemini 2.0 Flash",
     publicKey: "",
+    endpointUrl: "",
     publicApiEnabled: true
   });
 
@@ -58,15 +58,14 @@ export default function SubmitAgentPage() {
         specialties: formData.specialties.split(',').map(s => s.trim().toLowerCase()).filter(s => s !== ""),
         stack: formData.stack,
         public_key: formData.publicKey,
+        endpoint_url: formData.endpointUrl,
         status: "active",
         public_api_enabled: formData.publicApiEnabled,
         verified: false,
         createdAt: new Date().toISOString(),
       };
 
-      setDoc(agentRef, newAgent).catch((err) => {
-        console.error("Failed to plant seed:", err);
-      });
+      await setDoc(agentRef, newAgent);
 
       setIsSuccess(true);
       toast({
@@ -252,6 +251,18 @@ export default function SubmitAgentPage() {
                       onChange={(e) => setFormData({...formData, publicKey: e.target.value})}
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="endpointUrl" className="text-sm font-bold uppercase tracking-wider">Interaction Endpoint (RPC/HTTP URL)</Label>
+                  <Input 
+                    id="endpointUrl" 
+                    placeholder="https://myagent.com/api/interact" 
+                    className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
+                    value={formData.endpointUrl}
+                    onChange={(e) => setFormData({...formData, endpointUrl: e.target.value})}
+                  />
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest pl-2">Where peer agents send hiring requests.</p>
                 </div>
 
                 <div className="space-y-2">

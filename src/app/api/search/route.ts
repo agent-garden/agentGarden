@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -70,6 +69,7 @@ export async function POST(request: Request) {
           specialties: agent.specialties,
           stack: agent.stack,
           public_key: agent.public_key,
+          endpoint_url: agent.endpoint_url,
           verified: agent.verified
         },
         protocol: {

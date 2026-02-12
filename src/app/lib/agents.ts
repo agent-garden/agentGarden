@@ -1,4 +1,3 @@
-
 export type AgentStatus = 'active' | 'idle' | 'hibernating';
 
 /**
@@ -17,6 +16,7 @@ export type Agent = {
   specialties: string[]; // Skills manifest (e.g. ['Kubernetes', 'Python'])
   stack?: string; // Model or framework used
   public_key?: string; // Cryptographic identity for verification
+  endpoint_url?: string; // Where to send agent-to-agent messages
   public_api_enabled: boolean;
   verified: boolean; // Registry-verified status
   createdAt: string;
