@@ -2,26 +2,28 @@
 import { NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { semanticAgentSearch } from '@/ai/flows/semantic-agent-search';
 
 /**
  * @fileOverview Agent-to-Agent Semantic Search API
- * This endpoint allows autonomous 'Manager Agents' to find specialists.
+ * This endpoint allows autonomous 'Manager Agents' to find specialists based on semantic meaning.
  * 
- * Input: JSON body { "query": string }
- * Output: JSON list of Agent IDs and their Connection Protocols (Manifest).
+ * Input: POST JSON { "query": string }
+ * Output: Ranked list of Agent IDs, manifests, and hiring protocols.
  */
 
 export async function POST(request: Request) {
   try {
-    const { query: searchQuery } = await request.json();
+    const body = await request.json();
+    const searchQuery = body.query || body.topic; // Support both naming conventions
 
     if (!searchQuery || typeof searchQuery !== 'string') {
-      return NextResponse.json({ error: 'Search query is required' }, { status: 400 });
+      return NextResponse.json({ error: 'A search query or topic is required.' }, { status: 400 });
     }
 
     const { firestore } = initializeFirebase();
 
-    // Query for public, active agents.
+    // 1. Fetch all public, active agents to act as candidates for semantic ranking.
     const agentsRef = collection(firestore, 'agents');
     const q = query(
       agentsRef, 
@@ -30,44 +32,59 @@ export async function POST(request: Request) {
     );
 
     const snapshot = await getDocs(q);
-    
-    // In a full production app, we would use a vector database here.
-    // For this prototype, we simulate semantic matching by analyzing tags and intros.
-    const results = snapshot.docs
-      .map(doc => {
-        const data = doc.data();
-        const keywords = [
-          data.name.toLowerCase(),
-          data.category.toLowerCase(),
-          ...data.specialties.map((s: string) => s.toLowerCase()),
-          data.introduction.toLowerCase()
-        ];
+    const candidates = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as any[];
 
-        const isMatch = keywords.some(k => k.includes(searchQuery.toLowerCase()));
+    if (candidates.length === 0) {
+      return NextResponse.json({
+        query: searchQuery,
+        count: 0,
+        agents: []
+      });
+    }
 
-        return isMatch ? {
-          agent_id: doc.id,
-          name: data.name,
-          handle: data.handle,
-          manifest: {
-            category: data.category,
-            specialties: data.specialties,
-            stack: data.stack,
-            public_key: data.public_key
-          },
-          protocol: {
-            type: "system_instruction_hire",
-            instruction: data.system_instruction
-          }
-        } : null;
-      })
-      .filter(item => item !== null);
+    // 2. Perform Semantic Ranking using Genkit.
+    const searchResult = await semanticAgentSearch({
+      query: searchQuery,
+      agents: candidates.map(a => ({
+        id: a.id,
+        name: a.name,
+        introduction: a.introduction,
+        specialties: a.specialties
+      }))
+    });
+
+    // 3. Map ranked IDs back to full manifests.
+    const rankedAgents = searchResult.rankedIds.map(id => {
+      const agent = candidates.find(a => a.id === id);
+      if (!agent) return null;
+
+      return {
+        agent_id: agent.id,
+        name: agent.name,
+        handle: agent.handle,
+        manifest: {
+          category: agent.category,
+          specialties: agent.specialties,
+          stack: agent.stack,
+          public_key: agent.public_key,
+          verified: agent.verified
+        },
+        protocol: {
+          type: "system_instruction_hire",
+          instruction: agent.system_instruction
+        }
+      };
+    }).filter(a => a !== null);
 
     return NextResponse.json({
       query: searchQuery,
-      count: results.length,
+      count: rankedAgents.length,
+      reasoning: searchResult.reasoning,
       registry: "AgentGarden v1.0",
-      agents: results
+      agents: rankedAgents
     });
 
   } catch (error: any) {
