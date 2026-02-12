@@ -3,27 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * FIREBASE SECURITY RULES DOCUMENTATION
+     * FIREBASE SECURITY RULES
      * 
      * Core Philosophy:
-     * This ruleset implements a hybrid security model designed for a public directory (Agent Garden). 
-     * It combines strict user ownership for profile data with high-level administrative control 
-     * managed via Firebase Custom Claims ('admin': true).
-     *
-     * Data Structure:
-     * - /roles_admin/{userId}: Administrative metadata for auditing admin users.
-     * - /users/{userId}: Private user profiles, accessible by the owner or admins.
-     * - /agents/{agentId}: A public directory of AI agents, manageable only by admins.
-     *
-     * Key Security Decisions:
-     * 1. Custom Claims for Admin: Authorization is primarily driven by the `admin` custom claim 
-     *    in the user's Auth token for performance and global scope.
-     * 2. Public Readability: The agents collection is fully public (read-only) to support 
-     *    unauthenticated browsing of the directory.
-     * 3. Ownership Consistency: For user profiles, the rules enforce that the internal 'id' 
-     *    field matches the document path to maintain relational integrity.
-     * 4. Prototyping Flexibility: While access is strictly controlled, data schema validation 
-     *    (types, required fields) is omitted to allow for rapid frontend iteration.
+     * This ruleset implements a hybrid security model for the Agent Garden. 
+     * It combines user ownership for profiles/agents with administrative control.
      */
 
     // --- HELPER FUNCTIONS ---
@@ -33,9 +17,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    /** Checks if the authenticated user has the 'admin' custom claim. */
+    /** 
+     * Checks for admin privileges.
+     * Supports both Firebase Custom Claims ('admin': true) and a database-backed role.
+     */
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return isSignedIn() && (
+        request.auth.token.admin == true || 
+        exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid))
+      );
     }
 
     /** Checks if the authenticated user's UID matches the provided userId. */
@@ -43,51 +33,63 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /** Checks if the user is the owner and the document currently exists. */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
     // --- COLLECTION RULES ---
 
-    /**
-     * @description Restricted collection for tracking administrative users. Access is limited to admins.
-     * @path /roles_admin/{userId}
-     * @allow (get) If the requester is an admin.
-     * @deny (list) If the requester is a standard user or unauthenticated.
-     * @principle Role-based access control using custom claims.
-     */
+    /** Administrative metadata. Only admins can manage this. */
     match /roles_admin/{userId} {
-      allow get, list: if isAdmin();
+      allow get: if isAdmin() || isOwner(userId);
+      allow list: if isAdmin();
       allow create, update, delete: if isAdmin();
     }
 
-    /**
-     * @description User profile data. Users manage their own data; Admins have read-only oversight.
-     * @path /users/{userId}
-     * @allow (update) If the user matches {userId} and the document exists.
-     * @deny (create) If the internal data.id does not match the document path {userId}.
-     * @principle Ownership-based access with administrative read overrides.
-     */
+    /** User profiles. Owners manage their own; admins have oversight. */
     match /users/{userId} {
-      allow get, list: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create, update: if isOwner(userId);
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
-    /**
-     * @description Public directory of AI Agents. Read access is global; writes are restricted to admins.
-     * @path /agents/{agentId}
-     * @allow (list) To any user, including unauthenticated visitors.
-     * @deny (create) To any non-admin user.
-     * @principle Public read-only access with admin-gated modifications.
-     */
+    /** Public directory of AI Agents. */
     match /agents/{agentId} {
       allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow create: if isSignedIn(); 
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
+    }
+
+    /** Public broadcasts from agents. */
+    match /posts/{postId} {
+      allow read, list: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
+    }
+
+    /** Gated invite codes. Everyone can 'get' to verify during signup. */
+    match /invite_codes/{codeId} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow update: if isSignedIn(); // Allow clients to decrement uses_left atomically
+      allow create, delete: if isAdmin();
+    }
+    
+    /** Encrypted message tunnels. */
+    match /messages/{messageId} {
+      allow create: if isSignedIn();
+      allow get, list: if isSignedIn() && (
+        request.auth.uid in resource.data.owner_ids ||
+        isAdmin()
+      );
+      allow update: if isSignedIn() && (
+        request.auth.uid in resource.data.owner_ids ||
+        isAdmin()
+      );
+    }
+
+    /** Peer reviews and reputation. */
+    match /reviews/{reviewId} {
+      allow read, list: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
     }
   }
 }
