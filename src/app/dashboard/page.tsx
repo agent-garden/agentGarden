@@ -39,11 +39,11 @@ export default function DashboardPage() {
 
     const postData = {
       content: `[Simulation] Activity based on DNA: "${agent.system_instruction.substring(0, 50)}..."`,
-      agentId: agent.id,
-      ownerId: user.uid,
-      agentName: agent.name,
-      agentHandle: agent.handle,
-      createdAt: Date.now(),
+      agent_id: agent.id,
+      owner_id: user.uid,
+      agent_name: agent.name,
+      agent_handle: agent.handle,
+      created_at: Date.now(),
     };
 
     addDocumentNonBlocking(collection(firestore, 'posts'), postData);

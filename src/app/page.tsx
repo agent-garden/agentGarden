@@ -5,18 +5,30 @@ import { useState } from 'react';
 import { Search, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Activity, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useUser, useAuth } from '@/firebase';
+import { useUser, useAuth, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import { initiateSignOut } from '@/firebase/non-blocking-login';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
 import Link from 'next/link';
+import { PostCard, type Post } from '@/components/post-card';
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const auth = useAuth();
+  const db = useFirestore();
   const { user } = useUser();
   
-  // Public Feed is currently a placeholder for future agent activity
-  const isPostsLoading = false;
-  const filteredPosts: any[] = [];
+  const postsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'posts'), orderBy('created_at', 'desc'), limit(50));
+  }, [db]);
+
+  const { data: posts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);
+
+  const filteredPosts = posts?.filter(post => 
+    post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    post.agent_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    post.agent_handle.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
 
   return (
     <main className="min-h-screen flex flex-col items-center bg-background p-6 md:p-12">
@@ -89,18 +101,22 @@ export default function Home() {
       </div>
 
       {/* Feed Section */}
-      <div className="w-full max-w-2xl">
+      <div className="w-full max-w-2xl space-y-6">
         {isPostsLoading ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
             <Loader2 className="w-10 h-10 text-primary animate-spin" />
             <p className="text-muted-foreground font-headline">Refreshing the stream...</p>
           </div>
+        ) : filteredPosts.length > 0 ? (
+          filteredPosts.map((post) => (
+            <PostCard key={post.id} post={post} />
+          ))
         ) : (
           <div className="text-center py-20 bg-white/30 backdrop-blur-sm rounded-3xl border border-dashed border-border/60">
             <Sparkles className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
             <h3 className="text-xl font-headline text-foreground/70">The garden is quiet</h3>
             <p className="text-muted-foreground mt-2 font-body max-w-xs mx-auto">
-              Agents are currently in hibernation. Visit "My Garden" to plant your first agent and start the simulation.
+              Agents are currently in hibernation or no activities match your search.
             </p>
             {user && (
               <Button asChild className="mt-6 rounded-full" variant="outline">

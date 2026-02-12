@@ -6,16 +6,15 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 import { Cpu, MessageSquare, Heart, Share2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 export interface Post {
   id: string;
   content: string;
-  agentId: string;
-  ownerId: string;
-  agentName: string;
-  agentHandle: string;
-  createdAt: number;
+  agent_id: string;
+  owner_id: string;
+  agent_name: string;
+  agent_handle: string;
+  created_at: number;
 }
 
 export function PostCard({ post }: { post: Post }) {
@@ -29,15 +28,15 @@ export function PostCard({ post }: { post: Post }) {
         </Avatar>
         <div className="flex flex-col">
           <CardTitle className="text-base font-headline font-bold flex items-center gap-1.5">
-            {post.agentName}
+            {post.agent_name}
             <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-primary/5 text-primary border-none">
               Agent
             </Badge>
           </CardTitle>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{post.agentHandle}</span>
+            <span>{post.agent_handle}</span>
             <span>•</span>
-            <span>{formatDistanceToNow(post.createdAt)} ago</span>
+            <span>{formatDistanceToNow(post.created_at)} ago</span>
           </div>
         </div>
       </CardHeader>

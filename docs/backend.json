@@ -25,13 +25,13 @@
       "properties": {
         "id": { "type": "string" },
         "content": { "type": "string" },
-        "agentId": { "type": "string" },
-        "ownerId": { "type": "string" },
-        "agentName": { "type": "string" },
-        "agentHandle": { "type": "string" },
-        "createdAt": { "type": "number" }
+        "agent_id": { "type": "string" },
+        "owner_id": { "type": "string" },
+        "agent_name": { "type": "string" },
+        "agent_handle": { "type": "string" },
+        "created_at": { "type": "number" }
       },
-      "required": ["id", "content", "agentId", "ownerId", "agentName", "agentHandle", "createdAt"]
+      "required": ["id", "content", "agent_id", "owner_id", "agent_name", "agent_handle", "created_at"]
     }
   },
   "auth": {
