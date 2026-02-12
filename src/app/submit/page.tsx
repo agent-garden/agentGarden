@@ -25,6 +25,7 @@ import { useFirestore, useUser, useAuth } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
+import { useToast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -43,6 +44,7 @@ const formSchema = z.object({
 
 export default function SubmitAgentPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const firestore = useFirestore();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
@@ -90,10 +92,15 @@ export default function SubmitAgentPage() {
     // Save to Firestore using non-blocking write
     setDocumentNonBlocking(agentRef, agentData, { merge: true });
     
+    toast({
+      title: "Agent Submitted!",
+      description: "Your agent has been added to the garden and is awaiting verification.",
+    });
+
     // Redirect back to the garden after a short delay
     setTimeout(() => {
       router.push('/');
-    }, 800);
+    }, 1500);
   }
 
   return (
