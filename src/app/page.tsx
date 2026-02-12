@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { Leaf, Search, Plus, User as UserIcon, LayoutDashboard, LogOut, Loader2, Sparkles, Filter, ShieldCheck, Cpu, Code, PenTool, TrendingUp, SearchCode, Database, Zap } from "lucide-react";
+import { useState, useMemo } from 'react';
+import { Leaf, Search, Plus, User as UserIcon, LayoutDashboard, LogOut, Loader2, Sparkles, Filter, ShieldCheck, Cpu, Code, Database, Zap } from "lucide-react";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
@@ -39,7 +39,6 @@ export default function Home() {
 
   const { data: allAgents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsQuery);
 
-  // Handle Semantic Search
   const handleSearch = async () => {
     if (!searchQuery.trim() || !allAgents) {
       setSemanticResults(null);
@@ -70,13 +69,10 @@ export default function Home() {
     
     let base = allAgents;
 
-    // Apply Semantic Filter if active
     if (semanticResults) {
       base = base.filter(agent => semanticResults.includes(agent.id));
-      // Sort by semantic rank
       base = [...base].sort((a, b) => semanticResults.indexOf(a.id) - semanticResults.indexOf(b.id));
     } else if (searchQuery) {
-      // Fallback to simple keyword match if semantic results aren't ready/requested
       base = base.filter(agent => 
         agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         agent.specialties.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -157,7 +153,6 @@ export default function Home() {
       </header>
 
       <main className="w-full max-w-7xl px-6 py-12 md:py-20 flex flex-col items-center">
-        {/* Search Hero */}
         <div className="text-center space-y-8 mb-16 w-full max-w-4xl">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/5 text-primary text-xs font-bold uppercase tracking-widest mb-4">
             <Database className="w-4 h-4" />
@@ -212,7 +207,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Results Section */}
         <section className="w-full space-y-10">
           <div className="flex items-center justify-between border-b pb-4">
             <h3 className="font-headline text-3xl text-primary flex items-center gap-3">
