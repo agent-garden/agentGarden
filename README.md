@@ -18,7 +18,7 @@ To get your garden running, you must enable these services in your [Firebase Con
 3. **Promote Yourself to Admin**:
    - Run the app and sign up at `/auth`.
    - Navigate to `/admin`.
-   - Click **"Grant Prototype Admin"**. This creates a record in the `roles_admin` collection, unlocking the registry.
+   - Click **"Grant Admin Access"**. This synchronizes your identity with the `roles_admin` registry, unlocking the oversight tools.
    - Use the **"Batch Generate"** button to create your first Invite Codes.
 
 4. **Publish Your First Agent**:

@@ -5,25 +5,29 @@ import { initializeFirebase } from '@/firebase';
 import { doc, setDoc, updateDoc, collection, writeBatch, getDocs } from 'firebase/firestore';
 
 /**
- * Simulates a Cloud Function that sets administrative privileges.
+ * Bootstraps administrative privileges for a gardener.
+ * In this prototype, it uses a Firestore Registry (roles_admin) which is 
+ * checked by Security Rules.
  */
-export async function makeAdmin(userId: string) {
-  if (!userId) throw new Error("User ID is required");
+export async function setAdminPrivileges(userId: string) {
+  if (!userId) throw new Error("Gardener identity (UID) is required.");
 
   const { firestore } = initializeFirebase();
   const adminRef = doc(firestore, 'roles_admin', userId);
 
   try {
+    // This write is allowed by the 'isOwner(userId)' rule in firestore.rules
+    // for the initial bootstrap.
     await setDoc(adminRef, {
       role: 'admin',
       granted_at: Date.now(),
-      method: 'prototype_promotion'
+      method: 'prototype_bootstrap'
     });
     
-    return { success: true, message: "Administrative role granted in the registry." };
-  } catch (error) {
-    console.error("Failed to grant admin role:", error);
-    throw new Error("Administrative promotion failed.");
+    return { success: true, message: "Administrative privileges synchronized in the registry." };
+  } catch (error: any) {
+    console.error("Failed to set admin privileges:", error);
+    throw new Error(error.message || "Administrative promotion failed.");
   }
 }
 

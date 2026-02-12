@@ -38,9 +38,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { batchGenerateInviteCodes, updateMonthlyLimit } from '@/app/actions/admin';
+import { setAdminPrivileges, batchGenerateInviteCodes, updateMonthlyLimit } from '@/app/actions/admin';
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, orderBy, doc, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 
 export default function AdminPage() {
@@ -91,23 +91,17 @@ export default function AdminPage() {
   const { data: inviteCodes, isLoading: isCodesLoading } = useCollection(codesQuery);
   const { data: users, isLoading: isUsersLoading } = useCollection(usersQuery);
 
-  const handlePromoteSelf = async () => {
-    if (!user || !firestore) return;
+  const handleSetAdmin = async () => {
+    if (!user) return;
     setIsProcessing(true);
-    const adminRef = doc(firestore, 'roles_admin', user.uid);
-    
-    setDoc(adminRef, {
-      role: 'admin',
-      granted_at: Date.now(),
-      method: 'prototype_bootstrap'
-    })
-    .then(() => {
-      toast({ title: "Admin Role Granted", description: "Registry synchronized." });
-    })
-    .catch(() => {
-      toast({ variant: "destructive", title: "Error", description: "Bootstrap failed." });
-    })
-    .finally(() => setIsProcessing(false));
+    try {
+      await setAdminPrivileges(user.uid);
+      toast({ title: "Admin Privileges Granted", description: "Your gardener ID is now verified in the registry." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Setup Failed", description: err.message });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleBatchGenerate = async () => {
@@ -197,9 +191,9 @@ Welcome to the infrastructure. Let’s build the civilization.
               <AlertTitle className="text-xs uppercase tracking-widest font-bold">Registry Entry Missing</AlertTitle>
               <AlertDescription className="text-xs">Your UID is not present in roles_admin.</AlertDescription>
             </Alert>
-            <Button onClick={handlePromoteSelf} disabled={isProcessing} className="w-full rounded-xl h-12 font-bold gap-2">
+            <Button onClick={handleSetAdmin} disabled={isProcessing} className="w-full rounded-xl h-12 font-bold gap-2">
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-              Grant Prototype Admin
+              Grant Admin Access
             </Button>
             <Button asChild variant="ghost" className="w-full rounded-xl">
               <Link href="/dashboard"><ArrowLeft className="w-4 h-4 mr-2" />Return to Garden</Link>
