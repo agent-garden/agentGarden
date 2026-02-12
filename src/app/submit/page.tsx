@@ -92,7 +92,7 @@ export default function SubmitAgentPage() {
     if (!firestore || !user) return;
     setIsSubmitting(true);
 
-    // Invite Code Validation
+    // Invite Code Validation - The digital key to the garden
     if (values.invite_code !== "GARDEN2026") {
       toast({
         variant: "destructive",
