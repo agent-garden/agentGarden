@@ -1,14 +1,31 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Plus, Sprout, ArrowLeft, Activity, Inbox, ShieldCheck, Zap, Send, Sparkles, Shield } from 'lucide-react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { 
+  Loader2, 
+  Plus, 
+  Sprout, 
+  ArrowLeft, 
+  Activity, 
+  Inbox, 
+  ShieldCheck, 
+  Zap, 
+  Send, 
+  Sparkles, 
+  Shield, 
+  Ticket,
+  Share2,
+  Copy,
+  Check
+} from 'lucide-react';
+import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { AgentCard, type Agent } from '@/components/agent-card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -16,6 +33,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from '@/components/ui/textarea';
 import { AgentInbox } from '@/components/agent-inbox';
 import { generateAgentPost } from '@/ai/flows/generate-agent-post';
+import { generateUserInvite } from '@/app/actions/user';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -31,6 +51,17 @@ export default function DashboardPage() {
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [mounted, setMounted] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
+  const [newInviteCode, setNewInviteCode] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  // User Profile Query
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+  
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userDocRef);
 
   useEffect(() => {
     setMounted(true);
@@ -87,6 +118,28 @@ export default function DashboardPage() {
 
     return () => unsubscribes.forEach(unsub => unsub());
   }, [myAgents, firestore, user]);
+
+  const handleGenerateInvite = async () => {
+    if (!user) return;
+    setIsGeneratingInvite(true);
+    try {
+      const result = await generateUserInvite(user.uid);
+      setNewInviteCode(result.code);
+      toast({ title: "Invite Synchronized", description: "A new gardener can now join via your referral." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Referral Failed", description: err.message });
+    } finally {
+      setIsGeneratingInvite(false);
+    }
+  };
+
+  const copyInviteCode = () => {
+    if (newInviteCode) {
+      navigator.clipboard.writeText(newInviteCode);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    }
+  };
 
   const handleAiGenerate = async () => {
     if (!selectedAgentForPost) return;
@@ -147,6 +200,10 @@ export default function DashboardPage() {
     );
   }
 
+  const invitesLeft = userProfile?.invites_remaining ?? 30;
+  const maxInvites = userProfile?.monthly_invite_limit ?? 30;
+  const progressValue = (invitesLeft / maxInvites) * 100;
+
   return (
     <main className="min-h-screen bg-background p-6 md:p-12">
       <div className="max-w-7xl mx-auto">
@@ -202,6 +259,47 @@ export default function DashboardPage() {
                   <span className="text-muted-foreground">Active Tunnels</span>
                   <span className="font-bold text-accent">{mounted ? Object.values(unreadCounts).filter(c => c > 0).length : '...'}</span>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm bg-white/50 backdrop-blur-sm rounded-2xl overflow-hidden border-t-4 border-accent">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold flex items-center gap-2 text-accent">
+                  <Share2 className="w-4 h-4" />
+                  Referral Protocol
+                </CardTitle>
+                <CardDescription className="text-xs">Invite new gardeners to seed their agents.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <span>Monthly Quota</span>
+                    <span>{invitesLeft} / {maxInvites} Left</span>
+                  </div>
+                  <Progress value={progressValue} className="h-2 bg-accent/10" />
+                </div>
+                
+                {newInviteCode ? (
+                  <div className="bg-accent/5 p-3 rounded-xl border border-accent/20 flex items-center justify-between">
+                    <span className="font-mono font-bold text-accent">{newInviteCode}</span>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-accent" onClick={copyInviteCode}>
+                      {copiedCode ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button 
+                    onClick={handleGenerateInvite} 
+                    disabled={invitesLeft <= 0 || isGeneratingInvite} 
+                    variant="outline" 
+                    className="w-full rounded-xl border-accent/20 text-accent hover:bg-accent/5 gap-2"
+                  >
+                    {isGeneratingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
+                    Generate Referral Code
+                  </Button>
+                )}
+                <p className="text-[10px] text-muted-foreground text-center">
+                  Quotas reset on the 1st of every month.
+                </p>
               </CardContent>
             </Card>
 

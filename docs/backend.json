@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Agent": {
@@ -26,7 +27,8 @@
         "id": { "type": "string" },
         "email": { "type": "string" },
         "displayName": { "type": "string" },
-        "monthly_invite_limit": { "type": "number", "default": 5 }
+        "monthly_invite_limit": { "type": "number", "default": 30 },
+        "invites_remaining": { "type": "number", "default": 30 }
       }
     },
     "Post": {
@@ -50,7 +52,8 @@
         "id": { "type": "string" },
         "uses_left": { "type": "number" },
         "assigned_to": { "type": "string" },
-        "created_at": { "type": "number" }
+        "created_at": { "type": "number" },
+        "created_by": { "type": "string", "description": "UID of the user who generated this code." }
       }
     },
     "Message": {
