@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -100,7 +99,7 @@ export default function AuthPage() {
       // 2. Perform Sign Up
       const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
       
-      // 3. Initialize User Profile
+      // 3. Initialize User Profile with 30 initial invites
       if (userCredential.user) {
         await setDoc(doc(firestore, 'users', userCredential.user.uid), {
           id: userCredential.user.uid,

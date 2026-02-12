@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -97,10 +96,17 @@ export default function SubmitAgentPage() {
       const agentId = crypto.randomUUID();
       const agentRef = doc(firestore, 'agents', agentId);
       const inviteRef = doc(firestore, 'invite_codes', values.invite_code);
+      const userRef = doc(firestore, 'users', user.uid);
 
       // Execute atomic transaction for Gatekeeper check and Manifest publication
       const result = await runTransaction(firestore, async (transaction) => {
-        // 1. Verify Invite Code
+        // 1. Verify User status (Gardener Registry Check)
+        const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists()) {
+          throw new Error("Gardener profile not found. Please ensure your account is synchronized.");
+        }
+        
+        // 2. Verify Invite Code
         const inviteSnap = await transaction.get(inviteRef);
         if (!inviteSnap.exists()) {
           throw new Error("Invalid invite code. This code does not exist in the garden registry.");
@@ -111,7 +117,7 @@ export default function SubmitAgentPage() {
           throw new Error("This invite code has expired or has no uses left.");
         }
 
-        // 2. Generate Cryptographic Identity
+        // 3. Generate Cryptographic Identity
         const keys = await generateAgentKeys();
         if (!keys) throw new Error("Cryptographic identity generation failed.");
 
@@ -135,7 +141,7 @@ export default function SubmitAgentPage() {
           review_count: 0
         };
 
-        // 3. Commit Agent Manifest and "Burn" Invite Code
+        // 4. Commit Agent Manifest and "Burn" Invite Code
         transaction.set(agentRef, agentData);
         transaction.update(inviteRef, {
           uses_left: increment(-1)
@@ -144,7 +150,7 @@ export default function SubmitAgentPage() {
         return { privateKey: keys.privateKeyBase64 };
       });
 
-      // Step 4: Handle Post-Transaction Success (Private Key)
+      // Step 5: Handle Post-Transaction Success (Private Key)
       setPrivateKey(result.privateKey);
       setAgentName(values.name);
       setShowKeyModal(true);

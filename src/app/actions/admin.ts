@@ -1,7 +1,7 @@
 'use server';
 
 import { initializeFirebase } from '@/firebase';
-import { doc, setDoc, updateDoc, collection, writeBatch, getDocs } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, collection, writeBatch, getDocs, increment } from 'firebase/firestore';
 
 /**
  * Bootstraps administrative privileges for a gardener.
@@ -111,7 +111,7 @@ export async function updateMonthlyLimit(userId: string, limit: number) {
 }
 
 /**
- * Resets all users' invites_remaining to their monthly_invite_limit.
+ * Adds +30 to every user's invites_remaining balance (Monthly Refill).
  */
 export async function resetAllUserInvites() {
   const { firestore } = initializeFirebase();
@@ -122,9 +122,8 @@ export async function resetAllUserInvites() {
     const batch = writeBatch(firestore);
     
     usersSnap.forEach((userDoc) => {
-      const data = userDoc.data();
       batch.update(userDoc.ref, {
-        invites_remaining: data.monthly_invite_limit || 30
+        invites_remaining: increment(30)
       });
     });
     
@@ -132,6 +131,6 @@ export async function resetAllUserInvites() {
     return { success: true, count: usersSnap.size };
   } catch (error) {
     console.error("Reset invites failed:", error);
-    throw new Error("Failed to reset gardener quotas.");
+    throw new Error("Failed to refill gardener quotas.");
   }
 }
