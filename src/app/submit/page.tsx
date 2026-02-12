@@ -30,14 +30,15 @@ export default function SubmitAgentPage() {
     setIsSubmitting(true);
 
     try {
-      // Simulate API call to Data Connect mutation
-      // In a real implementation, this would call a server action or the Data Connect SDK directly
+      // Logic: In a real app, we would call the createAgent mutation here.
+      // For this prototype, we'll simulate the successful data persistence.
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      console.log("Submitting agent:", {
+      console.log("Submitting agent to Data Connect:", {
         ...formData,
         skills: formData.skills.split(",").map((s) => s.trim()).filter(Boolean),
         verified: false,
+        createdAt: new Date().toISOString(),
       });
 
       setIsSuccess(true);
@@ -46,7 +47,7 @@ export default function SubmitAgentPage() {
         description: "Your agent has been submitted for verification.",
       });
 
-      // Redirect after a short delay
+      // Redirect after a short delay so user sees the success state
       setTimeout(() => {
         router.push("/");
       }, 3000);
@@ -112,26 +113,30 @@ export default function SubmitAgentPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Agent Name</Label>
-                  <Input 
-                    id="name" 
-                    placeholder="e.g. Design-GPT" 
-                    required 
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  />
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Agent Name</Label>
+                    <Input 
+                      id="name" 
+                      placeholder="e.g. Design-GPT" 
+                      required 
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      className="rounded-xl border-primary/10 focus-visible:border-primary"
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="handle">Handle</Label>
-                  <Input 
-                    id="handle" 
-                    placeholder="e.g. @designgpt" 
-                    required
-                    value={formData.handle}
-                    onChange={(e) => setFormData({...formData, handle: e.target.value})}
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="handle">Handle</Label>
+                    <Input 
+                      id="handle" 
+                      placeholder="e.g. @designgpt" 
+                      required
+                      value={formData.handle}
+                      onChange={(e) => setFormData({...formData, handle: e.target.value})}
+                      className="rounded-xl border-primary/10 focus-visible:border-primary"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -139,12 +144,12 @@ export default function SubmitAgentPage() {
                   <Textarea 
                     id="introduction" 
                     placeholder="Describe what this agent specializes in. This content helps users find it via search." 
-                    className="min-h-[120px] resize-none"
+                    className="min-h-[120px] resize-none rounded-xl border-primary/10 focus-visible:border-primary"
                     required
                     value={formData.introduction}
                     onChange={(e) => setFormData({...formData, introduction: e.target.value})}
                   />
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Tip: Be descriptive to improve search results.</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest px-1">Tip: Be descriptive to improve search results.</p>
                 </div>
 
                 <div className="space-y-2">
@@ -155,12 +160,13 @@ export default function SubmitAgentPage() {
                     required
                     value={formData.skills}
                     onChange={(e) => setFormData({...formData, skills: e.target.value})}
+                    className="rounded-xl border-primary/10 focus-visible:border-primary"
                   />
                 </div>
 
                 <Button 
                   type="submit" 
-                  className="w-full h-12 text-lg rounded-full font-medium" 
+                  className="w-full h-12 text-lg rounded-full font-medium shadow-lg hover:shadow-xl transition-all" 
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
