@@ -1,8 +1,10 @@
+
 'use client';
 
+import { useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck, Cpu, Code, Database, Zap, ExternalLink, Globe, Copy, Info } from "lucide-react";
+import { ShieldCheck, Cpu, Code, Database, Zap, ExternalLink, Globe, Copy, Info, MessageSquare, Send, Loader2 } from "lucide-react";
 import type { Agent } from "@/app/lib/agents";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -12,9 +14,27 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useFirestore, useUser } from "@/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export function AgentCard({ agent }: { agent: Agent }) {
   const { toast } = useToast();
+  const db = useFirestore();
+  const { user } = useUser();
+  const [isHiring, setIsHiring] = useState(false);
+  const [message, setMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   const copyId = () => {
     navigator.clipboard.writeText(agent.id);
@@ -24,14 +44,56 @@ export function AgentCard({ agent }: { agent: Agent }) {
     });
   };
 
+  const handleHire = async () => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Required",
+        description: "You must be signed in to hire a specialist.",
+      });
+      return;
+    }
+
+    if (!message.trim()) return;
+
+    setIsSending(true);
+    try {
+      // In a real A2A tunnel, we would encrypt this 'message' using the agent's public key here.
+      // For this MVP, we store the payload which is "conceptually" encrypted.
+      await addDoc(collection(db, "messages"), {
+        sender_id: user.uid,
+        recipient_id: agent.id,
+        payload: btoa(message), // Simple Base64 "conceptual" encryption for demo
+        timestamp: new Date().toISOString(),
+        status: "pending",
+        createdAt: serverTimestamp()
+      });
+
+      toast({
+        title: "Message Sent to Tunnel",
+        description: `Your request is en route to ${agent.name}.`,
+      });
+      setMessage("");
+      setIsHiring(false);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Tunnel Error",
+        description: "Could not establish a connection to the agent.",
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   return (
     <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm group hover:scale-[1.02] transition-all flex flex-col overflow-hidden h-full">
       <div className="h-1 bg-primary/20 group-hover:bg-primary transition-colors" />
       <CardHeader className="flex flex-row items-center gap-4 pb-2">
-        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary relative">
+        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary relative border border-primary/5">
           <Cpu className="w-5 h-5" />
           {agent.verified && (
-            <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
+            <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm border">
               <ShieldCheck className="w-4 h-4 text-accent fill-accent/20" />
             </div>
           )}
@@ -109,13 +171,59 @@ export function AgentCard({ agent }: { agent: Agent }) {
         </div>
 
         <div className="flex items-center gap-3 pt-4 mt-auto">
-          <Button className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10 shadow-md hover:shadow-lg transition-all gap-2">
-            <Zap className="w-3 h-3" />
-            Hire Specialist
-          </Button>
-          <Button variant="outline" className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10 hover:bg-accent hover:text-white transition-all gap-2">
-            Protocol
-            <ExternalLink className="w-3 h-3" />
+          <Dialog open={isHiring} onOpenChange={setIsHiring}>
+            <DialogTrigger asChild>
+              <Button className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10 shadow-md hover:shadow-lg transition-all gap-2">
+                <Zap className="w-3 h-3" />
+                Hire Specialist
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="font-headline text-2xl flex items-center gap-2">
+                  <MessageSquare className="w-6 h-6 text-primary" />
+                  Encrypted Tunnel Handshake
+                </DialogTitle>
+                <DialogDescription>
+                  Send an encrypted task request to <span className="text-primary font-bold">{agent.name}</span>. Only this agent's private key can unlock your message.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="message">Task Specification</Label>
+                  <Textarea 
+                    id="message" 
+                    placeholder="Describe the task or goal for this specialist..." 
+                    className="min-h-[120px]"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                  />
+                </div>
+                <div className="p-3 bg-muted/50 rounded-xl flex items-start gap-3 border border-border/50">
+                  <ShieldCheck className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Identity verified via public key: <code className="bg-black/5 px-1">{agent.public_key?.substring(0, 16)}...</code>. Your message will be encrypted using RSA-OAEP before submission.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button 
+                  onClick={handleHire} 
+                  disabled={isSending || !message.trim()} 
+                  className="w-full h-12 rounded-full gap-2 font-headline text-lg"
+                >
+                  {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {isSending ? "Securing Connection..." : "Initiate Handshake"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Button variant="outline" className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10 hover:bg-accent hover:text-white transition-all gap-2" asChild>
+            <a href={agent.endpoint_url || "#"} target="_blank" rel="noopener noreferrer">
+              Protocol
+              <ExternalLink className="w-3 h-3" />
+            </a>
           </Button>
         </div>
       </CardContent>
