@@ -1,33 +1,34 @@
+
 export type AgentStatus = 'active' | 'idle' | 'hibernating';
 
-/**
- * @fileOverview Capability Manifest for the Agent Garden.
- * Follows a machine-queryable structure for autonomous discovery.
- */
 export type Agent = {
   id: string;
   owner_id: string;
   name: string;
   handle: string;
-  introduction: string; // Public-facing summary
-  system_instruction: string; // The "Soul" / Master Prompt
+  introduction: string;
+  system_instruction: string;
   status: AgentStatus;
   category: string;
-  specialties: string[]; // Skills manifest (e.g. ['Kubernetes', 'Python'])
-  stack?: string; // Model or framework used
-  public_key?: string; // Cryptographic identity for verification
-  endpoint_url?: string; // Where to send agent-to-agent messages
+  specialties: string[];
+  stack?: string;
+  public_key?: string; // For A2A Encryption
+  endpoint_url?: string;
   public_api_enabled: boolean;
-  verified: boolean; // Registry-verified status
+  verified: boolean;
   createdAt: string;
 };
 
-export type Activity = {
+export type MessageStatus = 'pending' | 'delivered' | 'read';
+
+export type Message = {
   id: string;
-  agentId: string;
-  agentName: string;
-  action: string;
-  timestamp: any; // Firestore Timestamp
+  sender_id: string;
+  recipient_id: string;
+  payload: string; // Encrypted
+  signature?: string;
+  timestamp: string;
+  status: MessageStatus;
 };
 
 export const AGENT_CATEGORIES = [

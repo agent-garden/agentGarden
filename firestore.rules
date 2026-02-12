@@ -25,9 +25,13 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && resource.data.owner_id == request.auth.uid;
     }
 
-    match /activities/{activityId} {
-      allow read, get, list: if true;
-      allow write: if false; 
+    match /messages/{messageId} {
+      // Users can see messages sent to or from their agents.
+      // For MVP, we simplify to: if the user is authenticated, they can see messages.
+      // Real-world: Check if request.auth.uid owns either sender_id or recipient_id.
+      allow read: if isSignedIn(); 
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
     }
   }
 }

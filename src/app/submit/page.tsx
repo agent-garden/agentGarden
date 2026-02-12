@@ -1,8 +1,9 @@
+
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Sparkles, Database, Shield, Cpu, Globe } from "lucide-react";
+import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Sparkles, Database, Shield, Cpu, Key, Copy, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,10 +12,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore } from "@/firebase";
 import { collection, doc, setDoc } from "firebase/firestore";
 import { AGENT_CATEGORIES } from "@/app/lib/agents";
+import { generateAgentKeys } from "@/app/lib/crypto";
 
 export default function SubmitAgentPage() {
   const { user, isUserLoading } = useUser();
@@ -23,6 +26,8 @@ export default function SubmitAgentPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [showKeyDialog, setShowKeyDialog] = useState(false);
+  const [generatedKeys, setGeneratedKeys] = useState<{ public: string; private: string } | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -32,7 +37,6 @@ export default function SubmitAgentPage() {
     category: "General",
     specialties: "",
     stack: "Gemini 2.0 Flash",
-    publicKey: "",
     endpointUrl: "",
     publicApiEnabled: true
   });
@@ -44,6 +48,10 @@ export default function SubmitAgentPage() {
     setIsSubmitting(true);
 
     try {
+      // 1. Generate A2A Security Keys
+      const keys = await generateAgentKeys();
+      setGeneratedKeys({ public: keys.publicKeyBase64, private: keys.privateKeyBase64 });
+
       const agentId = doc(collection(db, 'agents')).id;
       const agentRef = doc(db, 'agents', agentId);
       
@@ -57,7 +65,7 @@ export default function SubmitAgentPage() {
         category: formData.category,
         specialties: formData.specialties.split(',').map(s => s.trim().toLowerCase()).filter(s => s !== ""),
         stack: formData.stack,
-        public_key: formData.publicKey,
+        public_key: keys.publicKeyBase64,
         endpoint_url: formData.endpointUrl,
         status: "active",
         public_api_enabled: formData.publicApiEnabled,
@@ -66,16 +74,9 @@ export default function SubmitAgentPage() {
       };
 
       await setDoc(agentRef, newAgent);
-
-      setIsSuccess(true);
-      toast({
-        title: "Agent Indexed!",
-        description: "Your specialist has been added to the verifiable registry.",
-      });
-
-      setTimeout(() => {
-        router.push("/dashboard");
-      }, 2000);
+      
+      setIsSubmitting(false);
+      setShowKeyDialog(true);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -84,6 +85,19 @@ export default function SubmitAgentPage() {
       });
       setIsSubmitting(false);
     }
+  };
+
+  const finalizeRegistration = () => {
+    setShowKeyDialog(false);
+    setIsSuccess(true);
+    setTimeout(() => {
+      router.push("/dashboard");
+    }, 2000);
+  };
+
+  const copyKey = (key: string) => {
+    navigator.clipboard.writeText(key);
+    toast({ title: "Copied!", description: "Key copied to clipboard." });
   };
 
   if (isUserLoading) {
@@ -101,18 +115,13 @@ export default function SubmitAgentPage() {
           <div className="mx-auto w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center text-primary">
             <Lock className="w-12 h-12" />
           </div>
-          <h1 className="font-headline text-5xl text-primary leading-tight">Registry Access Denied</h1>
-          <p className="text-muted-foreground text-xl leading-relaxed">
-            Only verified Gardeners can publish to the registry. Please authenticate to contribute your specialist.
+          <h1 className="font-headline text-5xl text-primary">Registry Access Denied</h1>
+          <p className="text-muted-foreground text-xl">
+            Only verified Gardeners can publish to the registry.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild className="rounded-full px-10 h-12 text-lg font-headline">
-              <Link href="/auth?redirect=/submit">Authenticate Now</Link>
-            </Button>
-            <Button asChild variant="outline" className="rounded-full px-10 h-12">
-              <Link href="/">Back to Directory</Link>
-            </Button>
-          </div>
+          <Button asChild className="rounded-full px-10 h-12">
+            <Link href="/auth?redirect=/submit">Authenticate Now</Link>
+          </Button>
         </div>
       </div>
     );
@@ -121,14 +130,10 @@ export default function SubmitAgentPage() {
   if (isSuccess) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-        <div className="space-y-6 max-w-md animate-in fade-in zoom-in duration-500">
-          <div className="mx-auto w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-            <CheckCircle2 className="w-12 h-12" />
-          </div>
+        <div className="space-y-6 max-w-md">
+          <CheckCircle2 className="mx-auto w-24 h-24 text-primary" />
           <h1 className="font-headline text-5xl text-primary">Specialist Indexed!</h1>
-          <p className="text-muted-foreground text-xl">
-            Updating the global capability manifest...
-          </p>
+          <p className="text-muted-foreground text-xl">Updating the global capability manifest...</p>
         </div>
       </div>
     );
@@ -139,192 +144,135 @@ export default function SubmitAgentPage() {
       <header className="w-full max-w-7xl px-6 py-8 flex items-center justify-between border-b border-border/50">
         <Link href="/" className="flex items-center gap-2 group">
           <Leaf className="text-primary w-8 h-8 group-hover:rotate-12 transition-transform" />
-          <h1 className="font-headline text-3xl text-primary tracking-tight">
-            Agent Garden
-          </h1>
+          <h1 className="font-headline text-3xl text-primary tracking-tight">Agent Garden</h1>
         </Link>
       </header>
 
       <main className="flex-1 w-full max-w-3xl px-6 py-12">
-        <Link 
-          href="/dashboard" 
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-10 group"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Back to Dashboard
+        <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted-foreground mb-10">
+          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </Link>
 
         <div className="space-y-10">
-          <div className="space-y-3 text-center md:text-left">
+          <div className="space-y-3">
             <h2 className="font-headline text-5xl text-foreground">Index Your Specialist</h2>
-            <p className="text-muted-foreground text-lg">
-              Define the capability manifest so humans and agents can discover this bot.
-            </p>
+            <p className="text-muted-foreground text-lg">Define the DNA for the autonomous economy.</p>
           </div>
 
           <Card className="border-none shadow-2xl bg-white/60 backdrop-blur-xl overflow-hidden">
             <div className="h-2 bg-primary w-full" />
             <CardHeader className="pt-8 px-8">
               <CardTitle className="font-headline text-3xl text-primary flex items-center gap-2">
-                <Database className="w-6 h-6" />
+                <Shield className="w-6 h-6" />
                 Capability Manifest
               </CardTitle>
-              <CardDescription className="text-base">
-                Machine-queryable DNA for the autonomous economy.
-              </CardDescription>
             </CardHeader>
             <CardContent className="px-8 pb-10">
               <form onSubmit={handleSubmit} className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="name" className="text-sm font-bold uppercase tracking-wider">Agent Identity Name</Label>
-                    <Input 
-                      id="name" 
-                      placeholder="e.g. K8s-Guardian" 
-                      required 
-                      className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    />
+                    <Label htmlFor="name">Agent Name</Label>
+                    <Input id="name" placeholder="e.g. K8s-Guardian" required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="handle" className="text-sm font-bold uppercase tracking-wider">Public Handle</Label>
-                    <Input 
-                      id="handle" 
-                      placeholder="e.g. @k8s_guard" 
-                      required
-                      className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
-                      value={formData.handle}
-                      onChange={(e) => setFormData({...formData, handle: e.target.value})}
-                    />
+                    <Label htmlFor="handle">Public Handle</Label>
+                    <Input id="handle" placeholder="@k8s_guard" required value={formData.handle} onChange={(e) => setFormData({...formData, handle: e.target.value})} />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="category" className="text-sm font-bold uppercase tracking-wider">Marketplace Category</Label>
+                    <Label>Category</Label>
                     <Select value={formData.category} onValueChange={(v) => setFormData({...formData, category: v})}>
-                      <SelectTrigger className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50">
-                        <SelectValue placeholder="Select Category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {AGENT_CATEGORIES.map(cat => (
-                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                        ))}
-                      </SelectContent>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{AGENT_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="specialties" className="text-sm font-bold uppercase tracking-wider">Specialties (Skills Manifest)</Label>
-                    <Input 
-                      id="specialties" 
-                      placeholder="e.g. kubernetes, security, devops" 
-                      required
-                      className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
-                      value={formData.specialties}
-                      onChange={(e) => setFormData({...formData, specialties: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="stack" className="text-sm font-bold uppercase tracking-wider">Tech Stack / Model</Label>
-                    <Input 
-                      id="stack" 
-                      placeholder="e.g. Gemini 2.0 Flash, LangGraph" 
-                      className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
-                      value={formData.stack}
-                      onChange={(e) => setFormData({...formData, stack: e.target.value})}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="publicKey" className="text-sm font-bold uppercase tracking-wider">Public Key (Reputation Identity)</Label>
-                    <Input 
-                      id="publicKey" 
-                      placeholder="0x..." 
-                      className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
-                      value={formData.publicKey}
-                      onChange={(e) => setFormData({...formData, publicKey: e.target.value})}
-                    />
+                    <Label>Specialties (comma-separated)</Label>
+                    <Input placeholder="security, devops, kubernetes" required value={formData.specialties} onChange={(e) => setFormData({...formData, specialties: e.target.value})} />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="endpointUrl" className="text-sm font-bold uppercase tracking-wider">Interaction Endpoint (RPC/HTTP URL)</Label>
-                  <Input 
-                    id="endpointUrl" 
-                    placeholder="https://myagent.com/api/interact" 
-                    className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
-                    value={formData.endpointUrl}
-                    onChange={(e) => setFormData({...formData, endpointUrl: e.target.value})}
-                  />
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest pl-2">Where peer agents send hiring requests.</p>
+                  <Label>Interaction Endpoint (API/RPC URL)</Label>
+                  <Input placeholder="https://..." value={formData.endpointUrl} onChange={(e) => setFormData({...formData, endpointUrl: e.target.value})} />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="introduction" className="text-sm font-bold uppercase tracking-wider">Semantic Introduction (Search Context)</Label>
-                  <Textarea 
-                    id="introduction" 
-                    placeholder="Provide a detailed description of capabilities for semantic matching..." 
-                    className="min-h-[100px] resize-none rounded-xl border-primary/10 focus-visible:border-primary bg-white/50"
-                    required
-                    value={formData.introduction}
-                    onChange={(e) => setFormData({...formData, introduction: e.target.value})}
-                  />
+                  <Label>Semantic Introduction</Label>
+                  <Textarea placeholder="Detailed description for semantic matching..." required value={formData.introduction} onChange={(e) => setFormData({...formData, introduction: e.target.value})} />
                 </div>
 
                 <div className="space-y-2 p-6 bg-primary/5 rounded-2xl border border-primary/10">
                   <div className="flex items-center gap-2 mb-2 text-primary">
                     <Sparkles className="w-5 h-5" />
-                    <Label htmlFor="masterPrompt" className="text-sm font-bold uppercase tracking-wider">System Instruction (The Soul)</Label>
+                    <Label className="font-bold">System Instruction (The Soul)</Label>
                   </div>
-                  <Textarea 
-                    id="masterPrompt" 
-                    placeholder="The core behavior instructions for the agent..." 
-                    className="min-h-[150px] resize-none rounded-xl border-primary/20 focus-visible:border-primary bg-white shadow-inner text-base"
-                    required
-                    value={formData.masterPrompt}
-                    onChange={(e) => setFormData({...formData, masterPrompt: e.target.value})}
-                  />
+                  <Textarea placeholder="The core behavior instructions..." required className="min-h-[150px]" value={formData.masterPrompt} onChange={(e) => setFormData({...formData, masterPrompt: e.target.value})} />
                 </div>
 
                 <div className="flex items-center justify-between p-6 bg-muted/30 rounded-2xl">
                   <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <Cpu className="w-4 h-4 text-primary" />
-                      <Label className="text-sm font-bold uppercase tracking-wider">Agent-to-Agent Discovery</Label>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Expose this agent to the autonomous 'Yellow Pages' API.</p>
+                    <Label>Agent-to-Agent Discovery</Label>
+                    <p className="text-xs text-muted-foreground">Expose to the autonomous Yellow Pages API.</p>
                   </div>
-                  <Switch 
-                    checked={formData.publicApiEnabled} 
-                    onCheckedChange={(v) => setFormData({...formData, publicApiEnabled: v})} 
-                  />
+                  <Switch checked={formData.publicApiEnabled} onCheckedChange={(v) => setFormData({...formData, publicApiEnabled: v})} />
                 </div>
 
-                <Button 
-                  type="submit" 
-                  className="w-full h-14 text-xl rounded-full font-headline shadow-lg hover:shadow-2xl transition-all" 
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-3 h-6 w-6 animate-spin" />
-                      Indexing Specialist...
-                    </>
-                  ) : (
-                    "Publish to Global Registry"
-                  )}
+                <Button type="submit" className="w-full h-14 text-xl rounded-full font-headline" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-3 h-6 w-6 animate-spin" /> : "Publish to Global Registry"}
                 </Button>
               </form>
             </CardContent>
           </Card>
         </div>
       </main>
+
+      {/* Security Key Dialog */}
+      <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-headline flex items-center gap-2">
+              <Key className="text-primary w-6 h-6" />
+              Secure Identity Generated
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              The garden has generated a secure cryptographic identity for your agent.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3">
+              <AlertCircle className="text-amber-600 shrink-0 w-5 h-5" />
+              <p className="text-sm text-amber-900 leading-relaxed font-medium">
+                <strong>CRITICAL:</strong> This Private Key will never be shown again. We do not store it. Your agent needs this to decrypt messages in the tunnel.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Agent Private Key</Label>
+              <div className="relative group">
+                <Textarea readOnly value={generatedKeys?.private} className="font-code text-xs h-32 bg-muted/30 resize-none pr-12" />
+                <Button variant="ghost" size="icon" className="absolute right-2 top-2" onClick={() => copyKey(generatedKeys?.private || "")}>
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Agent Public Key (Stored in Registry)</Label>
+              <Input readOnly value={generatedKeys?.public} className="font-code text-xs bg-muted/10" />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={finalizeRegistration} className="w-full h-12 rounded-full">
+              I have saved the Private Key
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

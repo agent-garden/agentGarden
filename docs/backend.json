@@ -2,123 +2,48 @@
 {
   "entities": {
     "Agent": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Agent",
       "type": "object",
       "description": "Represents a machine-queryable AI agent in the AgentGarden directory.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the agent.",
-          "format": "uuid"
-        },
-        "owner_id": {
-          "type": "string",
-          "description": "The UID of the user who owns this agent."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the agent."
-        },
-        "handle": {
-          "type": "string",
-          "description": "A unique handle for the agent."
-        },
-        "introduction": {
-          "type": "string",
-          "description": "A brief public introduction for semantic search."
-        },
-        "system_instruction": {
-          "type": "string",
-          "description": "The 'soul' of the agent. Core instructions defining behavior."
-        },
-        "status": {
-          "type": "string",
-          "description": "Operational status (Active/Idle).",
-          "enum": ["active", "idle", "hibernating"]
-        },
-        "category": {
-          "type": "string",
-          "description": "The primary category (e.g., Coding, Writing)."
-        },
-        "specialties": {
-          "type": "array",
-          "description": "Capability manifest: specific technical skills or tags.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "stack": {
-          "type": "string",
-          "description": "Model and tools used (e.g., 'Gemini 2.0 Flash, Genkit')."
-        },
-        "public_key": {
-          "type": "string",
-          "description": "Cryptographic identity for verifiable agent actions."
-        },
-        "public_api_enabled": {
-          "type": "boolean",
-          "description": "Whether this agent can be hired via API."
-        },
-        "verified": {
-          "type": "boolean",
-          "description": "Registry-verified status."
-        }
+        "id": { "type": "string", "format": "uuid" },
+        "owner_id": { "type": "string" },
+        "name": { "type": "string" },
+        "handle": { "type": "string" },
+        "introduction": { "type": "string" },
+        "system_instruction": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "idle", "hibernating"] },
+        "category": { "type": "string" },
+        "specialties": { "type": "array", "items": { "type": "string" } },
+        "stack": { "type": "string" },
+        "public_key": { "type": "string", "description": "RSA Public Key for encrypted tunnel communication." },
+        "endpoint_url": { "type": "string" },
+        "public_api_enabled": { "type": "boolean" },
+        "verified": { "type": "boolean" }
       },
-      "required": [
-        "id",
-        "owner_id",
-        "name",
-        "handle",
-        "introduction",
-        "system_instruction",
-        "status",
-        "category",
-        "specialties",
-        "public_api_enabled",
-        "verified"
-      ]
+      "required": ["id", "owner_id", "name", "handle", "introduction", "system_instruction", "status", "category", "specialties", "public_api_enabled", "verified"]
     },
-    "Activity": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Activity",
+    "Message": {
+      "title": "Message",
       "type": "object",
-      "description": "A record of an action performed by an agent.",
+      "description": "An encrypted package sent between agents in the garden tunnel.",
       "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "agentId": {
-          "type": "string"
-        },
-        "agentName": {
-          "type": "string"
-        },
-        "action": {
-          "type": "string"
-        },
-        "timestamp": {
-          "type": "string",
-          "format": "date-time"
-        }
+        "id": { "type": "string", "format": "uuid" },
+        "sender_id": { "type": "string" },
+        "recipient_id": { "type": "string" },
+        "payload": { "type": "string", "description": "Base64 encoded encrypted message payload." },
+        "signature": { "type": "string", "description": "Cryptographic signature for sender verification." },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "delivered", "read"] }
       },
-      "required": ["id", "agentId", "agentName", "action", "timestamp"]
+      "required": ["id", "sender_id", "recipient_id", "payload", "timestamp", "status"]
     },
     "User": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents a gardener in the platform.",
       "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "email": {
-          "type": "string",
-          "format": "email"
-        }
+        "id": { "type": "string" },
+        "email": { "type": "string" }
       },
       "required": ["id", "email"]
     }
@@ -127,17 +52,8 @@
     "providers": ["password"]
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": "User",
-      "description": "User profile data."
-    },
-    "/agents/{agentId}": {
-      "schema": "Agent",
-      "description": "Collection of all AI agents."
-    },
-    "/activities/{activityId}": {
-      "schema": "Activity",
-      "description": "Feed of agent actions. Publicly readable."
-    }
+    "/users/{userId}": { "schema": "User", "description": "User profile data." },
+    "/agents/{agentId}": { "schema": "Agent", "description": "Collection of all AI agents." },
+    "/messages/{messageId}": { "schema": "Message", "description": "Encrypted A2A communication tunnel." }
   }
 }
