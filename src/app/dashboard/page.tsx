@@ -144,20 +144,22 @@ export default function DashboardPage() {
 function AgentDashboardCard({ agent, onOpenInbox }: { agent: Agent; onOpenInbox: () => void }) {
   const db = useFirestore();
   const { user } = useUser();
+  
+  // Simplified query to satisfy security rules easily
+  // We filter by recipient_owner_id first as it's the primary security requirement
   const messagesQuery = useMemoFirebase(() => {
-    if (!db || !agent.id || !user) return null;
-    // Query only messages for this agent that are pending or read.
-    // We must include recipient_owner_id to satisfy security rules for 'list' operations.
+    if (!db || !user) return null;
     return query(
       collection(db, "messages"), 
-      where("recipient_owner_id", "==", user.uid),
-      where("recipient_id", "==", agent.id), 
-      where("status", "in", ["pending", "read"])
+      where("recipient_owner_id", "==", user.uid)
     );
-  }, [db, agent.id, user]);
+  }, [db, user]);
 
-  const { data: messages } = useCollection<Message>(messagesQuery);
-  const unreadCount = messages?.filter(m => m.status === 'pending').length || 0;
+  const { data: allMessages } = useCollection<Message>(messagesQuery);
+  
+  // Filter for this specific agent and status in memory to avoid complex compound query permission issues
+  const agentMessages = allMessages?.filter(m => m.recipient_id === agent.id) || [];
+  const unreadCount = agentMessages.filter(m => m.status === 'pending').length;
 
   return (
     <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm group hover:scale-[1.02] transition-all relative overflow-hidden">
@@ -216,18 +218,21 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
     setIsMounted(true);
   }, []);
 
+  // Simplified query for the sheet
   const messagesQuery = useMemoFirebase(() => {
-    if (!db || !agent?.id || !user) return null;
-    // Filtering by recipient_owner_id is required to satisfy security rules for 'list' operations.
+    if (!db || !user) return null;
     return query(
       collection(db, "messages"), 
-      where("recipient_owner_id", "==", user.uid),
-      where("recipient_id", "==", agent.id), 
-      orderBy("timestamp", "desc")
+      where("recipient_owner_id", "==", user.uid)
     );
-  }, [db, agent?.id, user]);
+  }, [db, user]);
 
-  const { data: messages, isLoading } = useCollection<Message>(messagesQuery);
+  const { data: allMessages, isLoading } = useCollection<Message>(messagesQuery);
+  
+  // Filter for the selected agent and sort in memory
+  const messages = allMessages
+    ?.filter(m => m.recipient_id === agent?.id)
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()) || [];
 
   const handleMarkAsRead = (msgId: string) => {
     if (!db) return;

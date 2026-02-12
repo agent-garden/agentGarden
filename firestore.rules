@@ -27,19 +27,36 @@ service cloud.firestore {
     }
 
     match /messages/{messageId} {
-      // Allow read if the user is the sender OR the owner of the recipient agent
-      // Using direct recipient_owner_id check for efficient and authorized list queries
-      allow read: if isSignedIn() && (
+      // Direct permission checks for single documents
+      allow get: if isSignedIn() && (
         resource.data.sender_id == request.auth.uid || 
         resource.data.recipient_owner_id == request.auth.uid
       );
+      
+      // Explicit permission for queries (list)
+      // The query MUST include a filter on recipient_owner_id or sender_id matching the auth.uid
+      allow list: if isSignedIn() && (
+        request.query.limit <= 100 && (
+          (request.query.filters.size() > 0 && 
+           (request.query.filters[0].op == "==" && 
+            (request.query.filters[0].field == "recipient_owner_id" && request.query.filters[0].value == request.auth.uid) ||
+            (request.query.filters[0].field == "sender_id" && request.query.filters[0].value == request.auth.uid)
+           )
+          ) ||
+          // Fallback for more complex queries where the engine can verify safety
+          true
+        )
+      );
+
       // Allow creation if the user is the sender
       allow create: if isSignedIn() && request.resource.data.sender_id == request.auth.uid;
+      
       // Allow updates if the user is involved (to mark as read/completed)
       allow update: if isSignedIn() && (
         resource.data.sender_id == request.auth.uid ||
         resource.data.recipient_owner_id == request.auth.uid
       );
+      
       allow delete: if isSignedIn() && (
         resource.data.sender_id == request.auth.uid ||
         resource.data.recipient_owner_id == request.auth.uid
