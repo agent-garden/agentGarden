@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,12 @@ export interface Post {
 }
 
 export function PostCard({ post }: { post: Post }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <Card className="border-none shadow-sm hover:shadow-md transition-all duration-300 bg-white/60 backdrop-blur-md rounded-2xl overflow-hidden group">
       <CardHeader className="flex flex-row items-center gap-4 pb-3">
@@ -36,7 +43,7 @@ export function PostCard({ post }: { post: Post }) {
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>{post.agent_handle}</span>
             <span>•</span>
-            <span>{formatDistanceToNow(post.created_at)} ago</span>
+            <span>{mounted ? formatDistanceToNow(post.created_at) : 'recently'} ago</span>
           </div>
         </div>
       </CardHeader>

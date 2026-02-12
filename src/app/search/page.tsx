@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Filter, Cpu, Activity, ArrowRight } from 'lucide-react';
+import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Filter, Cpu, Activity, ArrowRight, FileJson, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import { AgentCard, type Agent } from '@/components/agent-card';
 import { cn } from '@/lib/utils';
 import { performAgentVectorSearch } from '@/ai/flows/perform-agent-vector-search';
 import { useToast } from '@/hooks/use-toast';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const categories = ["All", "Coding", "Writing", "Finance", "Research", "Creative", "Other"];
 
@@ -23,6 +24,7 @@ export default function SearchPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [semanticResults, setSemanticResults] = useState<Agent[] | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [viewMode, setViewMode] = useState<'human' | 'agent'>('human');
   
   const auth = useAuth();
   const db = useFirestore();
@@ -166,17 +168,40 @@ export default function SearchPage() {
       {/* Results Section */}
       <div className="w-full max-w-7xl">
         <div className="flex items-center justify-between mb-8 border-b border-primary/5 pb-4">
-          <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
-            <Filter className="w-5 h-5 text-accent" />
-            {mounted ? (
-              semanticResults ? 'Semantic Matches' : (activeCategory === 'All' ? 'Verified Directory' : `${activeCategory} Residents`)
-            ) : 'Scanning Garden...'}
-            {mounted && (
-              <span className="text-muted-foreground text-sm font-normal ml-2 bg-primary/5 px-2 py-0.5 rounded-md">
-                ({displayAgents.length} results)
-              </span>
-            )}
-          </h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
+              <Filter className="w-5 h-5 text-accent" />
+              {mounted ? (
+                semanticResults ? 'Semantic Matches' : (activeCategory === 'All' ? 'Verified Directory' : `${activeCategory} Residents`)
+              ) : 'Scanning Garden...'}
+              {mounted && (
+                <span className="text-muted-foreground text-sm font-normal ml-2 bg-primary/5 px-2 py-0.5 rounded-md">
+                  ({displayAgents.length} results)
+                </span>
+              )}
+            </h2>
+          </div>
+          
+          <div className="flex bg-white/50 p-1 rounded-xl border border-primary/10">
+            <Button 
+              variant={viewMode === 'human' ? 'default' : 'ghost'} 
+              size="sm" 
+              className="rounded-lg gap-2"
+              onClick={() => setViewMode('human')}
+            >
+              <User className="w-4 h-4" />
+              Human
+            </Button>
+            <Button 
+              variant={viewMode === 'agent' ? 'default' : 'ghost'} 
+              size="sm" 
+              className="rounded-lg gap-2"
+              onClick={() => setViewMode('agent')}
+            >
+              <FileJson className="w-4 h-4" />
+              Agent
+            </Button>
+          </div>
         </div>
 
         {(isAgentsLoading || isSearching) ? (
@@ -187,11 +212,37 @@ export default function SearchPage() {
             </p>
           </div>
         ) : displayAgents.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {displayAgents.map((agent) => (
-              <AgentCard key={agent.id} agent={agent} />
-            ))}
-          </div>
+          viewMode === 'human' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {displayAgents.map((agent) => (
+                <AgentCard key={agent.id} agent={agent} />
+              ))}
+            </div>
+          ) : (
+            <Card className="border-none shadow-xl bg-slate-900 rounded-3xl overflow-hidden">
+              <ScrollArea className="h-[600px] w-full p-6">
+                <pre className="text-green-400 font-mono text-xs leading-relaxed">
+                  {JSON.stringify({ 
+                    discovery_protocol: "garden-v1-manifest-json",
+                    query_metadata: {
+                      intent: searchQuery || "browse",
+                      category: activeCategory,
+                      timestamp: Date.now()
+                    },
+                    results: displayAgents.map(a => ({
+                      id: a.id,
+                      name: a.name,
+                      handle: a.handle,
+                      specialties: a.specialties,
+                      public_key: a.public_key,
+                      availability: a.availability,
+                      manifest_dna: a.system_instruction.substring(0, 100) + "..."
+                    })) 
+                  }, null, 2)}
+                </pre>
+              </ScrollArea>
+            </Card>
+          )
         ) : (
           <div className="text-center py-32 bg-white/50 backdrop-blur-sm rounded-3xl border border-dashed border-primary/20">
             <Sparkles className="w-16 h-16 text-primary/20 mx-auto mb-4" />

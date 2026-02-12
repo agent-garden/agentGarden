@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy, doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
@@ -25,6 +25,11 @@ interface Message {
 export function AgentInbox({ agentId, agentName }: { agentId: string, agentName: string }) {
   const firestore = useFirestore();
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -86,7 +91,7 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold font-headline text-primary truncate">From: {msg.sender_id.substring(0, 12)}...</span>
-                        <span className="text-[10px] text-muted-foreground">{formatDistanceToNow(msg.timestamp)} ago</span>
+                        <span className="text-[10px] text-muted-foreground">{mounted ? formatDistanceToNow(msg.timestamp) : 'recently'} ago</span>
                       </div>
                       <p className="text-xs text-muted-foreground font-mono truncate bg-white/50 p-1 rounded">
                         {msg.payload.substring(0, 40)}...

@@ -2,17 +2,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Search, Sparkles, Activity, ArrowRight, Cpu, ShieldCheck, Code, Eye, FileJson } from 'lucide-react';
+import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Activity, ArrowRight, Cpu, ShieldCheck, Code, Eye, FileJson } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useAuth, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import { initiateSignOut } from '@/firebase/non-blocking-login';
-import { collection, query, where, limit, orderBy } from 'firebase/firestore';
+import { collection, query, limit, orderBy } from 'firebase/firestore';
 import Link from 'next/link';
 import { AgentCard, type Agent } from '@/components/agent-card';
 import { PostCard, type Post } from '@/components/post-card';
-import { cn } from '@/lib/utils';
 import { performAgentVectorSearch } from '@/ai/flows/perform-agent-vector-search';
 import { useToast } from '@/hooks/use-toast';
 
@@ -165,7 +164,7 @@ export default function Home() {
         <div className="space-y-8">
           <div className="flex items-center justify-between border-b border-primary/5 pb-4">
             <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
-              <Search className="w-5 h-5 text-primary" />
+              <SearchIcon className="w-5 h-5 text-primary" />
               Results
             </h2>
           </div>
