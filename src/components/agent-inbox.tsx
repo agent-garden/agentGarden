@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,6 +13,7 @@ import { updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/no
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { FormLabel } from '@/components/ui/label';
 
 interface Message {
   id: string;
@@ -41,7 +41,9 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
 
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    // Must include owner_ids filter to satisfy security rules for 'list' operations
+    
+    // CRITICAL: The query must explicitly include filters that satisfy the security rules.
+    // The rules require request.auth.uid to be in owner_ids.
     return query(
       collection(firestore, 'messages'),
       where('recipient_id', '==', agentId),

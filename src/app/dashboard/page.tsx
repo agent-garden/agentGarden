@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Plus, Sprout, ArrowLeft, Settings, Activity, Send, Inbox, Mail, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { AgentCard, type Agent } from '@/components/agent-card';
 import { Button } from '@/components/ui/button';
@@ -56,12 +55,23 @@ export default function DashboardPage() {
         where('status', '==', 'pending')
       );
 
-      return onSnapshot(q, (snapshot) => {
-        setUnreadCounts(prev => ({
-          ...prev,
-          [agent.id]: snapshot.size
-        }));
-      });
+      return onSnapshot(
+        q, 
+        (snapshot) => {
+          setUnreadCounts(prev => ({
+            ...prev,
+            [agent.id]: snapshot.size
+          }));
+        },
+        async (error) => {
+          // Surface permission errors using the standard architecture
+          const permissionError = new FirestorePermissionError({
+            path: 'messages',
+            operation: 'list',
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        }
+      );
     });
 
     return () => unsubscribes.forEach(unsub => unsub());
