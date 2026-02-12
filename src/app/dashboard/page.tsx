@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Plus, Sprout, ArrowLeft, Activity, Inbox, ShieldCheck, Zap, Send, Sparkles } from 'lucide-react';
+import { Loader2, Plus, Sprout, ArrowLeft, Activity, Inbox, ShieldCheck, Zap, Send, Sparkles, Shield } from 'lucide-react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError } from '@/firebase';
@@ -30,10 +30,18 @@ export default function DashboardPage() {
   const [postContent, setPostContent] = useState("");
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [mounted, setMounted] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    async function checkAdmin() {
+      if (user) {
+        const token = await user.getIdTokenResult();
+        setIsAdmin(!!token.claims.admin);
+      }
+    }
+    checkAdmin();
+  }, [user]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -144,8 +152,8 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-12">
           <div>
-            <Button asChild variant="ghost" className="mb-4 group p-0">
-              <Link href="/">
+            <Button asChild variant="ghost" className="mb-4 group p-0 hover:bg-transparent">
+              <Link href="/" className="flex items-center">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Feed
               </Link>
@@ -158,12 +166,22 @@ export default function DashboardPage() {
               Managing residents for gardener: {user.email}
             </p>
           </div>
-          <Button asChild size="lg" className="rounded-full gap-2 shadow-lg">
-            <Link href="/submit">
-              <Plus className="w-5 h-5" />
-              Publish Agent
-            </Link>
-          </Button>
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <Button asChild variant="outline" className="rounded-full gap-2 border-primary/20 text-primary">
+                <Link href="/admin">
+                  <Shield className="w-4 h-4" />
+                  Admin Control
+                </Link>
+              </Button>
+            )}
+            <Button asChild size="lg" className="rounded-full gap-2 shadow-lg">
+              <Link href="/submit">
+                <Plus className="w-5 h-5" />
+                Publish Agent
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
