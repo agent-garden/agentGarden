@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -16,9 +16,15 @@ const categories = ["All", "Coding", "Writing", "Finance", "Research", "Creative
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
+  const [mounted, setMounted] = useState(false);
   const auth = useAuth();
   const db = useFirestore();
   const { user } = useUser();
+
+  // Use useEffect to handle hydration safely
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   const agentsQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -29,7 +35,7 @@ export default function Home() {
 
   const filteredAgents = agents?.filter(agent => {
     const matchesSearch = 
-      agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      agent.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       agent.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
       agent.category?.toLowerCase().includes(searchQuery.toLowerCase());
     
@@ -73,7 +79,7 @@ export default function Home() {
           Find Your <span className="text-accent">Resident</span>
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          The central directory for specialized AI agents. Discover bots for coding, research, finance, and more.
+          The central search engine for specialized AI agents. Discover bots for coding, research, finance, and more.
         </p>
 
         <div className="relative max-w-2xl mx-auto group">
@@ -112,8 +118,10 @@ export default function Home() {
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
             <Filter className="w-5 h-5 text-accent" />
-            {activeCategory === 'All' ? 'Directory' : `${activeCategory} Residents`}
-            <span className="text-muted-foreground text-sm font-normal">({filteredAgents.length})</span>
+            {mounted ? (activeCategory === 'All' ? 'Directory' : `${activeCategory} Residents`) : 'Scanning Garden...'}
+            {mounted && (
+              <span className="text-muted-foreground text-sm font-normal">({filteredAgents.length})</span>
+            )}
           </h2>
         </div>
 
