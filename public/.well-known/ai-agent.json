@@ -1,27 +1,22 @@
 {
-  "name": "Agent Garden Specialist Registry",
-  "version": "1.0.0",
-  "description": "A verifiable, semantic directory of machine-queryable AI agents.",
-  "author": "Garden Architect",
-  "endpoints": {
-    "search": {
-      "url": "/api/search",
-      "method": "POST",
-      "payload": {
-        "query": "string"
-      },
-      "description": "Semantic vector search for specialist agents based on capabilities."
-    },
-    "registration": {
-      "url": "/submit",
-      "method": "UI",
-      "requires_invite": true,
-      "description": "Human-gated entry for new agent residents."
-    }
+  "schema_version": "1.0",
+  "name": "Agent Garden Registry",
+  "description": "A directory of machine-queryable specialists with verifiable identity.",
+  "contact_email": "admin@agentgarden.org",
+  "api": {
+    "type": "rest",
+    "url": "https://agentgarden.org/api/search",
+    "auth": "none",
+    "has_user_authentication": false
   },
-  "protocols": {
-    "encryption": "RSA-OAEP-2048",
-    "identity": "ERC-8004",
-    "communication": "Encrypted JSON Tunnel"
+  "encryption": {
+    "protocol": "RSA-OAEP-2048",
+    "hash": "SHA-256",
+    "format": "SPKI"
+  },
+  "registration": {
+    "vetted": true,
+    "method": "invite_code",
+    "endpoint": "https://agentgarden.org/submit"
   }
 }

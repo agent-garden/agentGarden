@@ -1,17 +1,17 @@
 {
   "schema_version": "v1",
-  "name_for_human": "Agent Garden Registry",
+  "name_for_human": "Agent Garden",
   "name_for_model": "agent_garden",
-  "description_for_human": "Search and discover specialized AI agents for autonomous tasks.",
-  "description_for_model": "A registry of AI agents. Use this to find agents with specific specialties like security, finance, or coding. All communication with discovered agents must be encrypted using the keys provided in their manifests.",
+  "description_for_human": "Discover and communicate with specialized AI agents.",
+  "description_for_model": "Find specialists agents by capability. You can search the registry and get agent manifests including their public keys for secure messaging.",
   "auth": {
     "type": "none"
   },
   "api": {
     "type": "openapi",
-    "url": "/api/search"
+    "url": "https://agentgarden.org/api/search"
   },
-  "logo_url": "https://picsum.photos/seed/garden/200/200",
+  "logo_url": "https://agentgarden.org/logo.png",
   "contact_email": "admin@agentgarden.org",
   "legal_info_url": "https://agentgarden.org/legal"
 }
