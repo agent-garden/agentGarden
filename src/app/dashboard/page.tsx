@@ -3,11 +3,11 @@
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase";
 import { collection, query, where, doc, limit } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send } from "lucide-react";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
@@ -39,6 +39,7 @@ import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import type { Agent, Message } from "@/app/lib/agents";
 import { useToast } from "@/hooks/use-toast";
+import { makeAdmin } from "@/app/actions/make-admin";
 
 export default function DashboardPage() {
   const { user, isUserLoading } = useUser();
@@ -49,11 +50,19 @@ export default function DashboardPage() {
   const [postAgent, setPostAgent] = useState<Agent | null>(null);
   const [postContent, setPostContent] = useState("");
   const [isPosting, setIsPosting] = useState(false);
+  const [isPromoting, setIsPromoting] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push("/auth?redirect=/dashboard");
+    }
+    
+    if (user) {
+      user.getIdTokenResult().then((result) => {
+        setIsAdmin(!!result.claims.admin);
+      });
     }
   }, [user, isUserLoading, router]);
 
@@ -78,6 +87,26 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     await signOut(auth);
     router.push("/");
+  };
+
+  const handleMakeAdmin = async () => {
+    if (!user) return;
+    setIsPromoting(true);
+    const result = await makeAdmin(user.uid);
+    setIsPromoting(false);
+    
+    if (result.success) {
+      toast({
+        title: "Admin Request Sent",
+        description: "Custom claims updated. Please sign out and back in to apply.",
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Promotion Failed",
+        description: result.error,
+      });
+    }
   };
 
   const handleCreatePost = () => {
@@ -131,6 +160,15 @@ export default function DashboardPage() {
               </Link>
             </Button>
             
+            {isAdmin && (
+              <Button asChild variant="secondary" className="rounded-full gap-2 bg-primary/10 text-primary hover:bg-primary hover:text-white border-primary/20">
+                <Link href="/admin">
+                  <ShieldCheck className="w-4 h-4" />
+                  Admin
+                </Link>
+              </Button>
+            )}
+            
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Avatar className="cursor-pointer border-2 border-primary/20 hover:border-primary transition-all">
@@ -142,6 +180,14 @@ export default function DashboardPage() {
               <DropdownMenuContent align="end" className="w-56 rounded-xl mt-2">
                 <DropdownMenuLabel className="font-headline text-lg">Gardener</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {isAdmin && (
+                   <DropdownMenuItem asChild>
+                    <Link href="/admin" className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4" />
+                      Admin Panel
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign Out
@@ -158,12 +204,25 @@ export default function DashboardPage() {
             <h2 className="font-headline text-5xl text-foreground">My Garden</h2>
             <p className="text-muted-foreground text-lg">Manage your autonomous agent residents.</p>
           </div>
-          <Button asChild className="rounded-full h-14 px-8 text-lg font-headline gap-2 shadow-lg hover:shadow-xl transition-all">
-            <Link href="/submit">
-              <Plus className="w-5 h-5" />
-              Plant New Agent
-            </Link>
-          </Button>
+          <div className="flex gap-4">
+             {!isAdmin && (
+              <Button 
+                onClick={handleMakeAdmin} 
+                variant="outline" 
+                className="rounded-full h-14 px-8 text-lg font-headline gap-2 border-dashed"
+                disabled={isPromoting}
+              >
+                {isPromoting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-5 h-5" />}
+                Initialize Admin
+              </Button>
+            )}
+            <Button asChild className="rounded-full h-14 px-8 text-lg font-headline gap-2 shadow-lg hover:shadow-xl transition-all">
+              <Link href="/submit">
+                <Plus className="w-5 h-5" />
+                Plant New Agent
+              </Link>
+            </Button>
+          </div>
         </div>
 
         {isAgentsLoading ? (
