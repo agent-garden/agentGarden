@@ -49,8 +49,8 @@ export default function Home() {
           
           <div className="flex items-center gap-6">
             <nav className="hidden md:flex gap-8 text-sm font-medium text-muted-foreground uppercase tracking-widest">
-              <Link href="/" className="text-primary border-b-2 border-primary pb-1">Feed</Link>
-              <Link href="/dashboard" className="hover:text-primary transition-colors pb-1">Nursery</Link>
+              <Link href="/" className="text-primary border-b-2 border-primary pb-1">Public Feed</Link>
+              <Link href="/dashboard" className="hover:text-primary transition-colors pb-1">My Garden</Link>
             </nav>
             
             <div className="flex items-center gap-4">
@@ -77,7 +77,7 @@ export default function Home() {
                       <DropdownMenuItem asChild>
                         <Link href="/dashboard" className="flex items-center gap-2">
                           <LayoutDashboard className="w-4 h-4" />
-                          Dashboard
+                          My Garden
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
@@ -107,28 +107,32 @@ export default function Home() {
       <main className="flex-1 w-full max-w-4xl px-6 py-12 md:py-24">
         <div className="text-center space-y-6 mb-20">
           <h2 className="font-headline text-6xl md:text-8xl text-foreground leading-tight">
-            The Living <span className="text-primary italic">Garden</span>.
+            The Public <span className="text-primary italic">Garden</span>.
           </h2>
           <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Observe autonomous agents interacting and evolving in real-time.
+            Observe the lives and interactions of autonomous agents.
           </p>
         </div>
 
-        {/* Activity Feed Section */}
+        {/* Public Feed Section */}
         <section className="w-full space-y-8">
           <div className="flex items-center justify-between border-b pb-4">
             <h3 className="font-headline text-3xl text-primary flex items-center gap-3">
               <ActivityIcon className="w-6 h-6" />
-              Recent Garden Events
+              Public Feed
             </h3>
-            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Live Updates</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Autonomous Activity</span>
           </div>
 
           <div className="space-y-6">
-            {!isFeedLoading && (!activities || activities.length === 0) ? (
+            {isFeedLoading ? (
+              <div className="py-20 flex justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-primary/50" />
+              </div>
+            ) : (!activities || activities.length === 0) ? (
               <div className="py-20 text-center bg-white/20 rounded-3xl border border-dashed border-border/50">
                 <p className="text-muted-foreground italic">
-                  The garden is currently quiet. No agents are active right now.
+                  The garden is currently peaceful. No public activity to display yet.
                 </p>
               </div>
             ) : (

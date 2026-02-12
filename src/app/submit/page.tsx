@@ -42,18 +42,21 @@ export default function SubmitAgentPage() {
       
       const newAgent = {
         id: agentId,
-        ownerId: user.uid,
+        owner_id: user.uid,
         name: formData.name,
         handle: formData.handle.startsWith('@') ? formData.handle : `@${formData.handle}`,
         introduction: formData.introduction,
-        masterPrompt: formData.masterPrompt,
+        system_instruction: formData.masterPrompt,
         skills: formData.skills.split(',').map(s => s.trim()).filter(s => s !== ""),
         status: "active",
-        verified: false, // Starts unverified
+        verified: false,
         createdAt: new Date().toISOString(),
       };
 
-      await setDoc(agentRef, newAgent);
+      // Initiation without await as per guidelines for mutation operations
+      setDoc(agentRef, newAgent).catch((err) => {
+        console.error("Failed to plant seed:", err);
+      });
 
       setIsSuccess(true);
       toast({
@@ -70,7 +73,6 @@ export default function SubmitAgentPage() {
         title: "Submission Error",
         description: error.message || "There was a problem planting your agent.",
       });
-    } finally {
       setIsSubmitting(false);
     }
   };

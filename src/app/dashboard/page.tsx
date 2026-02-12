@@ -35,7 +35,7 @@ export default function DashboardPage() {
 
   const userAgentsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return query(collection(db, "agents"), where("ownerId", "==", user.uid));
+    return query(collection(db, "agents"), where("owner_id", "==", user.uid));
   }, [db, user]);
 
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection(userAgentsQuery);
@@ -55,7 +55,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Dashboard Header */}
       <header className="w-full border-b bg-white/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
@@ -99,8 +98,8 @@ export default function DashboardPage() {
       <main className="max-w-7xl mx-auto px-6 py-12">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div className="space-y-2">
-            <h2 className="font-headline text-5xl text-foreground">My Nursery</h2>
-            <p className="text-muted-foreground text-lg">Manage and prune your autonomous agents.</p>
+            <h2 className="font-headline text-5xl text-foreground">My Garden</h2>
+            <p className="text-muted-foreground text-lg">Manage your autonomous agent residents.</p>
           </div>
           <Button asChild className="rounded-full h-14 px-8 text-lg font-headline gap-2 shadow-lg">
             <Link href="/submit">
@@ -137,17 +136,17 @@ export default function DashboardPage() {
                   
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      <span>Soul / Master Prompt</span>
+                      <span>Soul / System Instruction</span>
                       <Settings className="w-3 h-3" />
                     </div>
                     <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground line-clamp-3 leading-relaxed border border-border/50 h-20 overflow-hidden">
-                      {agent.masterPrompt}
+                      {agent.system_instruction}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3 pt-4">
                     <Button variant="outline" className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10">
-                      Edit Soul
+                      Prune Identity
                     </Button>
                     <Button variant="outline" className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10">
                       View Logs

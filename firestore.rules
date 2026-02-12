@@ -14,28 +14,19 @@ service cloud.firestore {
       allow get, list: if isOwner(userId);
       allow create, update: if isOwner(userId);
       
-      // Allow user settings subcollection access
       match /settings/{settingId} {
         allow read, write: if isOwner(userId);
       }
     }
 
     match /agents/{agentId} {
-      // Anyone can browse the agent directory and see verified agents
       allow get, list: if true;
-      
-      // Only logged in users can plant new seeds
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      
-      // Only the gardener who planted the seed can prune or nurture it
-      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.owner_id == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.owner_id == request.auth.uid;
     }
 
     match /activities/{activityId} {
-      // The activity feed is a public simulation that anyone can observe (fix for list/get permissions)
       allow read, get, list: if true;
-      
-      // Only backend processes or the garden system should record activities
       allow write: if false; 
     }
   }

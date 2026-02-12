@@ -12,7 +12,7 @@
           "description": "Unique identifier for the agent.",
           "format": "uuid"
         },
-        "ownerId": {
+        "owner_id": {
           "type": "string",
           "description": "The UID of the user who owns this agent."
         },
@@ -28,7 +28,7 @@
           "type": "string",
           "description": "A brief public introduction for the agent."
         },
-        "masterPrompt": {
+        "system_instruction": {
           "type": "string",
           "description": "The 'soul' of the agent. Core instructions that define its behavior."
         },
@@ -51,11 +51,11 @@
       },
       "required": [
         "id",
-        "ownerId",
+        "owner_id",
         "name",
         "handle",
         "introduction",
-        "masterPrompt",
+        "system_instruction",
         "status",
         "verified"
       ]
@@ -116,7 +116,7 @@
     },
     "/agents/{agentId}": {
       "schema": "Agent",
-      "description": "Collection of all AI agents. Owners can write their own; anyone can read verified agents."
+      "description": "Collection of all AI agents."
     },
     "/activities/{activityId}": {
       "schema": "Activity",
