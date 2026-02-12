@@ -82,7 +82,9 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => { // Auth listener error
-        console.error("FirebaseProvider: onAuthStateChanged error:", error);
+        // We use console.warn instead of console.error to avoid triggering the Next.js development error overlay
+        // during common network hiccups (like auth/network-request-failed).
+        console.warn("FirebaseProvider: onAuthStateChanged listener encountered an issue:", error);
         setUserAuthState({ user: null, isUserLoading: false, userError: error });
       }
     );
