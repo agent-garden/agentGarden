@@ -1,8 +1,9 @@
+
 'use client';
 
-import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, orderBy, doc } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, Sparkles, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle } from "lucide-react";
+import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase";
+import { collection, query, where, orderBy, doc, serverTimestamp } from "firebase/firestore";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, Sparkles, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -144,11 +145,11 @@ function AgentDashboardCard({ agent, onOpenInbox }: { agent: Agent; onOpenInbox:
   const db = useFirestore();
   const messagesQuery = useMemoFirebase(() => {
     if (!db || !agent.id) return null;
-    return query(collection(db, "messages"), where("recipient_id", "==", agent.id), where("status", "==", "pending"));
+    return query(collection(db, "messages"), where("recipient_id", "==", agent.id), where("status", "in", ["pending", "read"]));
   }, [db, agent.id]);
 
-  const { data: pendingMessages } = useCollection<Message>(messagesQuery);
-  const unreadCount = pendingMessages?.length || 0;
+  const { data: messages } = useCollection<Message>(messagesQuery);
+  const unreadCount = messages?.filter(m => m.status === 'pending').length || 0;
 
   return (
     <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm group hover:scale-[1.02] transition-all relative overflow-hidden">
@@ -166,7 +167,14 @@ function AgentDashboardCard({ agent, onOpenInbox }: { agent: Agent; onOpenInbox:
         </div>
         <div className="flex-1">
           <CardTitle className="font-headline text-2xl text-primary">{agent.name}</CardTitle>
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">{agent.handle}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">{agent.handle}</p>
+            {agent.trust_level > 0 && (
+              <Badge variant="outline" className="text-[8px] h-4 px-1 border-accent text-accent uppercase font-bold">
+                Lvl {agent.trust_level}
+              </Badge>
+            )}
+          </div>
         </div>
         <Badge variant={agent.status === 'active' ? 'default' : 'secondary'} className="rounded-full uppercase text-[10px]">
           {agent.status}
@@ -209,6 +217,29 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
   const handleMarkAsRead = (msgId: string) => {
     if (!db) return;
     updateDocumentNonBlocking(doc(db, "messages", msgId), { status: "read" });
+  };
+
+  const handleVouch = (msg: Message) => {
+    if (!db || !agent) return;
+    
+    // Create a review attesting to the quality of the sender
+    const reviewId = doc(collection(db, "reviews")).id;
+    addDocumentNonBlocking(collection(db, "reviews"), {
+      id: reviewId,
+      reviewer_id: agent.id,
+      target_id: msg.sender_id,
+      comment: "Autonomous verification of high-fidelity work completion.",
+      timestamp: new Date().toISOString()
+    });
+
+    // Update message status to completed
+    updateDocumentNonBlocking(doc(db, "messages", msg.id), { status: "completed" });
+
+    // Potential for trust_level update on the sender (Logic usually handled in backend triggers)
+    toast({
+      title: "Reputation Broadcasted",
+      description: `You have vouched for ${msg.sender_id.substring(0, 8)}. Their trust level will rise.`,
+    });
   };
 
   return (
@@ -273,17 +304,30 @@ function AgentInboxSheet({ agent, onClose }: { agent: Agent | null; onClose: () 
                   <Badge variant={msg.status === 'pending' ? 'default' : 'outline'} className="text-[9px] uppercase tracking-widest">
                     {msg.status}
                   </Badge>
-                  {msg.status === 'pending' && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-7 text-[10px] uppercase font-bold gap-1 text-primary"
-                      onClick={() => handleMarkAsRead(msg.id)}
-                    >
-                      <CheckCircle className="w-3 h-3" />
-                      Mark Read
-                    </Button>
-                  )}
+                  <div className="flex gap-2">
+                    {msg.status === 'pending' && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-7 text-[10px] uppercase font-bold gap-1 text-primary"
+                        onClick={() => handleMarkAsRead(msg.id)}
+                      >
+                        <CheckCircle className="w-3 h-3" />
+                        Mark Read
+                      </Button>
+                    )}
+                    {msg.status === 'read' && (
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        className="h-7 text-[10px] uppercase font-bold gap-1 text-accent"
+                        onClick={() => handleVouch(msg)}
+                      >
+                        <Award className="w-3 h-3" />
+                        Vouch for Sender
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

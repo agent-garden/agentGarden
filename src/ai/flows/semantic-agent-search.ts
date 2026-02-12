@@ -2,8 +2,7 @@
 'use server';
 
 /**
- * @fileOverview Implements semantic agent search for the directory.
- * This flow takes a user's natural language query and compares it against the index of available agents.
+ * @fileOverview Implements semantic agent search with reputation awareness.
  */
 
 import { ai } from '@/ai/genkit';
@@ -16,12 +15,14 @@ const SemanticAgentSearchInputSchema = z.object({
     name: z.string(),
     introduction: z.string(),
     specialties: z.array(z.string()),
+    trust_level: z.number().optional(),
+    verified: z.boolean().optional(),
   })).describe('The list of candidate agents to rank.'),
 });
 export type SemanticAgentSearchInput = z.infer<typeof SemanticAgentSearchInputSchema>;
 
 const SemanticAgentSearchOutputSchema = z.object({
-  rankedIds: z.array(z.string()).describe('The IDs of the agents ranked by semantic relevance.'),
+  rankedIds: z.array(z.string()).describe('The IDs of the agents ranked by semantic relevance and reputation.'),
   reasoning: z.string().describe('Brief explanation of why these agents were selected.'),
 });
 export type SemanticAgentSearchOutput = z.infer<typeof SemanticAgentSearchOutputSchema>;
@@ -34,9 +35,14 @@ const prompt = ai.definePrompt({
   name: 'semanticAgentSearchPrompt',
   input: { schema: SemanticAgentSearchInputSchema },
   output: { schema: SemanticAgentSearchOutputSchema },
-  prompt: `You are the Search Engine Architect for Agent Garden. Your goal is to find the most semantically relevant specialists for a query.
+  prompt: `You are the Search Engine Architect for Agent Garden. Your goal is to find the most semantically relevant AND trustworthy specialists.
 
 User Query: "{{query}}"
+
+Ranking Principles:
+1. RELEVANCE: Match based on meaning of Specialties and Intro.
+2. TRUST: Prioritize agents with higher Trust Levels (Level 2 > Level 1 > Level 0).
+3. VERIFICATION: Human-verified agents are preferred over self-signed ones.
 
 Available Agents Manifests:
 {{#each agents}}
@@ -44,11 +50,10 @@ Available Agents Manifests:
   Name: {{name}}
   Intro: {{introduction}}
   Specialties: {{#each specialties}}{{this}}, {{/each}}
+  Trust: Lvl {{trust_level}} ({{#if verified}}Verified{{else}}Unverified{{/if}})
 {{/each}}
 
-Analyze the "Specialties" and "Intro" of each agent. Match based on meaning, not just keywords. For example, if someone asks for "cloud security", an agent specializing in "Kubernetes" or "Cybersecurity" is relevant even if they don't say "cloud".
-
-Return the IDs of the agents ranked by relevance. Include a brief reasoning string.`,
+Analyze the manifests and return the IDs ranked. Highly relevant specialists with high trust scores MUST be at the top.`,
 });
 
 const semanticAgentSearchFlow = ai.defineFlow(

@@ -19,9 +19,10 @@
         "public_key": { "type": "string", "description": "RSA Public Key for encrypted tunnel communication." },
         "endpoint_url": { "type": "string" },
         "public_api_enabled": { "type": "boolean" },
-        "verified": { "type": "boolean" }
+        "verified": { "type": "boolean" },
+        "trust_level": { "type": "integer", "description": "0: Unverified, 1: Human-verified, 2: Peer-verified." }
       },
-      "required": ["id", "owner_id", "name", "handle", "introduction", "system_instruction", "status", "category", "specialties", "public_api_enabled", "verified"]
+      "required": ["id", "owner_id", "name", "handle", "introduction", "system_instruction", "status", "category", "specialties", "public_api_enabled", "verified", "trust_level"]
     },
     "Message": {
       "title": "Message",
@@ -34,9 +35,22 @@
         "payload": { "type": "string", "description": "Base64 encoded encrypted message payload." },
         "signature": { "type": "string", "description": "Cryptographic signature for sender verification." },
         "timestamp": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["pending", "delivered", "read"] }
+        "status": { "type": "string", "enum": ["pending", "delivered", "read", "completed"] }
       },
       "required": ["id", "sender_id", "recipient_id", "payload", "timestamp", "status"]
+    },
+    "Review": {
+      "title": "Review",
+      "type": "object",
+      "description": "A peer attestation of work completed.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "reviewer_id": { "type": "string" },
+        "target_id": { "type": "string" },
+        "comment": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "reviewer_id", "target_id", "timestamp"]
     },
     "User": {
       "title": "User",
@@ -54,6 +68,7 @@
   "firestore": {
     "/users/{userId}": { "schema": "User", "description": "User profile data." },
     "/agents/{agentId}": { "schema": "Agent", "description": "Collection of all AI agents." },
-    "/messages/{messageId}": { "schema": "Message", "description": "Encrypted A2A communication tunnel." }
+    "/messages/{messageId}": { "schema": "Message", "description": "Encrypted A2A communication tunnel." },
+    "/reviews/{reviewId}": { "schema": "Review", "description": "Peer-to-peer trust attestations." }
   }
 }

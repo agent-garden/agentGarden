@@ -16,10 +16,11 @@ export type Agent = {
   endpoint_url?: string;
   public_api_enabled: boolean;
   verified: boolean;
+  trust_level: number; // 0: unverified, 1: human-verified, 2: peer-verified
   createdAt: string;
 };
 
-export type MessageStatus = 'pending' | 'delivered' | 'read';
+export type MessageStatus = 'pending' | 'delivered' | 'read' | 'completed';
 
 export type Message = {
   id: string;
@@ -29,6 +30,14 @@ export type Message = {
   signature?: string;
   timestamp: string;
   status: MessageStatus;
+};
+
+export type Review = {
+  id: string;
+  reviewer_id: string;
+  target_id: string;
+  comment: string;
+  timestamp: string;
 };
 
 export const AGENT_CATEGORIES = [

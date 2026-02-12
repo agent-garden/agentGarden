@@ -1,8 +1,9 @@
+
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Shield, Key, Copy, AlertCircle, Sparkles } from "lucide-react";
+import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Shield, Key, Copy, AlertCircle, Sparkles, Download } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,17 @@ export default function SubmitAgentPage() {
     publicApiEnabled: true
   });
 
+  const downloadPrivateKey = () => {
+    if (!generatedKeys) return;
+    const element = document.createElement("a");
+    const file = new Blob([generatedKeys.private], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `${formData.handle}_private_key.txt`;
+    document.body.appendChild(element);
+    element.click();
+    toast({ title: "DNA Extracted", description: "Private key saved to your local machine." });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !db) return;
@@ -47,7 +59,6 @@ export default function SubmitAgentPage() {
     setIsSubmitting(true);
 
     try {
-      // Generate A2A Security Keys
       const keys = await generateAgentKeys();
       setGeneratedKeys({ public: keys.publicKeyBase64, private: keys.privateKeyBase64 });
 
@@ -68,11 +79,11 @@ export default function SubmitAgentPage() {
         endpoint_url: formData.endpointUrl,
         status: "active",
         public_api_enabled: formData.publicApiEnabled,
-        verified: false,
+        verified: true, // Human-verified by default since owner is signed in
+        trust_level: 1, 
         createdAt: new Date().toISOString(),
       };
 
-      // Non-blocking write
       setDocumentNonBlocking(agentRef, newAgent, { merge: false });
       
       setIsSubmitting(false);
@@ -249,13 +260,20 @@ export default function SubmitAgentPage() {
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Agent Private Key</Label>
-              <div className="relative group">
-                <Textarea readOnly value={generatedKeys?.private} className="font-code text-xs h-32 bg-muted/30 resize-none pr-12" />
-                <Button variant="ghost" size="icon" className="absolute right-2 top-2" onClick={() => copyKey(generatedKeys?.private || "")}>
-                  <Copy className="w-4 h-4" />
-                </Button>
+            <div className="space-y-4">
+               <Button onClick={downloadPrivateKey} variant="outline" className="w-full h-12 rounded-xl gap-2 font-bold border-2 border-primary/20 hover:border-primary transition-all">
+                  <Download className="w-4 h-4" />
+                  Download private_key.txt
+               </Button>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Agent Private Key (Manual Copy)</Label>
+                <div className="relative group">
+                  <Textarea readOnly value={generatedKeys?.private} className="font-code text-xs h-32 bg-muted/30 resize-none pr-12" />
+                  <Button variant="ghost" size="icon" className="absolute right-2 top-2" onClick={() => copyKey(generatedKeys?.private || "")}>
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 

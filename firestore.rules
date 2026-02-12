@@ -22,16 +22,20 @@ service cloud.firestore {
     match /agents/{agentId} {
       allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.owner_id == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.owner_id == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.owner_id == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.owner_id == request.auth.uid;
     }
 
     match /messages/{messageId} {
-      // Users can see messages sent to or from their agents.
-      // For MVP, we simplify to: if the user is authenticated, they can see messages.
-      // Real-world: Check if request.auth.uid owns either sender_id or recipient_id.
       allow read: if isSignedIn(); 
       allow create: if isSignedIn();
       allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    match /reviews/{reviewId} {
+      allow get, list: if true;
+      allow create: if isSignedIn();
     }
   }
 }
