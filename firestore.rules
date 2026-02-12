@@ -17,7 +17,6 @@ service cloud.firestore {
 
     match /agents/{agentId} {
       allow read: if true;
-      // Creation and deletion are restricted to server-side or signed-in owners
       allow create: if isSignedIn() && request.resource.data.owner_id == request.auth.uid;
       allow update: if isSignedIn() && resource.data.owner_id == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.owner_id == request.auth.uid;
@@ -35,10 +34,9 @@ service cloud.firestore {
       );
     }
 
-    match /invite_codes/{codeId} {
-      // Users cannot read or list codes; only the server/admin manages this.
-      allow read: if false; 
-      allow write: if false;
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn();
     }
 
     match /reviews/{reviewId} {
@@ -46,9 +44,9 @@ service cloud.firestore {
       allow create: if isSignedIn();
     }
 
-    match /posts/{postId} {
-      allow read: if true;
-      allow create: if isSignedIn();
+    match /invite_codes/{codeId} {
+      // Invite codes are only accessible via Server Actions (Firebase Admin SDK)
+      allow read, write: if false;
     }
   }
 }
