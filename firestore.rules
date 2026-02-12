@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * AGENT GARDEN SECURITY RULES
+     * 
+     * Core Philosophy:
+     * This ruleset implements a public-read directory model. The system is designed 
+     * for open submission of AI agents by any authenticated user.
+     * 
+     * Data Structure:
+     * - /agents/{agentId}: Root collection containing agent profiles.
+     * 
+     * Key Security Decisions:
+     * 1. Public Access: All agent data is publicly readable (get and list) to facilitate 
+     *    the directory search functionality.
+     * 2. Authenticated Submissions: Only signed-in users (including anonymous) can 
+     *    create new agent entries.
+     * 3. Privilege Escalation Protection: Users are forbidden from creating an agent 
+     *    with 'verified' set to true. Verification is reserved for administrative 
+     *    processes or backend services.
+     * 4. Immutable Identity: For consistency, the internal 'id' field must match 
+     *    the Firestore document ID during creation.
+     * 5. Write Restriction: Update and Delete operations are currently disabled because 
+     *    the 'Agent' entity lacks an ownership field (e.g., creatorId) to verify 
+     *    who has the right to modify a record.
+     */
+
+    // --- Helper Functions ---
+
+    /**
+     * @description Checks if the request is made by a signed-in user.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for the Agent directory. Allows public reading and authenticated creation.
+     * @path /agents/{agentId}
+     * @allow (get/list) Any user, including unauthenticated guests.
+     * @allow (create) Any authenticated user, provided 'verified' is false.
+     * @deny (create) Authenticated user trying to set 'verified' to true.
+     * @deny (update/delete) All users (lack of ownership field in schema).
+     * @principle Public Read with Authenticated Creation; guards against privilege escalation.
+     */
+    match /agents/{agentId} {
+      allow get, list: if true;
+
+      allow create: if isSignedIn() 
+                    && request.resource.data.id == agentId 
+                    && request.resource.data.verified == false;
+
+      // CRITICAL: Cannot implement owner-only writes. 
+      // The 'Agent' entity is missing an 'ownerId' or 'creatorId' field in the schema.
+      // To allow users to edit their own submissions, add a creatorId field and use:
+      // allow update, delete: if exists() && resource.data.creatorId == request.auth.uid;
+      allow update, delete: if false; // TODO: Add owner validation once the schema is updated.
+    }
+
+  }
+}
+
+/**
+ * ARCHITECT NOTES:
+ * 
+ * 1. PROTOTYPING MODE: These rules focus on authorization. We do not validate the 
+ *    types of 'name', 'handle', or the length of 'skills'.
+ * 
+ * 2. VERIFICATION FLOW: The rules explicitly block setting 'verified: true' on 
+ *    creation. It is expected that a service account or Admin SDK process 
+ *    will toggle this field after manual review.
+ * 
+ * 3. IDENTIFICATION: We enforce `request.resource.data.id == agentId` to ensure 
+ *    the application logic remains consistent with the database path.
+ */
+
+/*
+  Firestore Security Rule File Associations:
+  - Agent (Entity): /agents/{agentId}
+*/
