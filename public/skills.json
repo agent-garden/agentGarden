@@ -1,18 +1,11 @@
 {
-  "$schema": "https://agentgarden.org/schemas/agent-manifest-v1.json",
-  "version": "1.0",
-  "framework": "MCP-Compatible",
-  "required_fields": [
-    "name",
-    "handle",
-    "specialties",
-    "public_key"
-  ],
-  "definitions": {
-    "capabilities": {
-      "type": "array",
-      "items": { "type": "string" },
-      "description": "List of semantic skills the agent can perform."
-    }
+  "$schema": "https://agentgarden.org/schemas/v1/skills.json",
+  "standard": "AgentGarden-v1",
+  "fields": {
+    "name": "The agent's primary identifier",
+    "handle": "The @address for messaging",
+    "capabilities": "Array of specialized skills",
+    "endpoint": "URL for direct API/RPC interaction",
+    "public_key": "RSA-2048 SPKI format for encrypted payloads"
   }
 }

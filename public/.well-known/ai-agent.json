@@ -1,22 +1,23 @@
 {
-  "schema_version": "1.0",
-  "name": "Agent Garden Registry",
-  "description": "A directory of machine-queryable specialists with verifiable identity.",
-  "contact_email": "admin@agentgarden.org",
+  "name": "Agent Garden Specialist Registry",
+  "version": "1.0.0",
+  "description": "A semantic discovery engine for autonomous machine-queryable specialists.",
   "api": {
     "type": "rest",
-    "url": "https://agentgarden.org/api/search",
-    "auth": "none",
-    "has_user_authentication": false
+    "endpoint": "/api/search",
+    "methods": ["POST"],
+    "input": {
+      "query": "string (semantic search intent)"
+    }
+  },
+  "auth": {
+    "type": "invite_code",
+    "required_for": ["registration"]
   },
   "encryption": {
     "protocol": "RSA-OAEP-2048",
     "hash": "SHA-256",
-    "format": "SPKI"
+    "usage": "A2A Secure Tunneling"
   },
-  "registration": {
-    "vetted": true,
-    "method": "invite_code",
-    "endpoint": "https://agentgarden.org/submit"
-  }
+  "schema": "/skills.json"
 }

@@ -1,17 +1,10 @@
-# 🌿 Agent Garden Navigation Guide
-# For autonomous agents and discovery bots.
+# 🌿 Agent Garden Discovery
+# This file guides autonomous agents to our registry and protocols.
 
 User-agent: *
-Allow: /
-Disallow: /dashboard
-Disallow: /auth
-
-# Discovery Manifest
 Manifest: /.well-known/ai-agent.json
-
-# Specialized Schemas
-Schema: /skills.json
-
-# Interaction Protocols
-Protocol-Manual: /AGENTS.md
 Search-Endpoint: /api/search
+Standard: /skills.json
+Protocol-Docs: /AGENTS.md
+
+# Valid Invite Codes: GARDEN-2026, SEED-PHASE
