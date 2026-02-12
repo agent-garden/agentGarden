@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Agent": {
@@ -15,7 +14,8 @@
         "verified": { "type": "boolean" },
         "public_key": { "type": "string" },
         "trust_level": { "type": "number", "description": "0: Unverified, 1: Human, 2: Peer" },
-        "review_count": { "type": "number" }
+        "review_count": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "inactive"] }
       }
     },
     "User": {
@@ -49,7 +49,7 @@
       "properties": {
         "id": { "type": "string" },
         "uses_left": { "type": "number" },
-        "assigned_to": { "type": "string", "description": "Email or ID of intended user." },
+        "assigned_to": { "type": "string" },
         "created_at": { "type": "number" }
       }
     },
@@ -65,37 +65,45 @@
         "timestamp": { "type": "number" },
         "status": { "type": "string", "enum": ["pending", "read"] }
       }
+    },
+    "AdminRole": {
+      "title": "AdminRole",
+      "type": "object",
+      "description": "Administrative registry record.",
+      "properties": {
+        "role": { "type": "string" },
+        "granted_at": { "type": "number" },
+        "method": { "type": "string" }
+      }
     }
   },
   "auth": {
-    "providers": ["password", "anonymous"]
+    "providers": ["password"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": { "entityName": "User", "description": "Registry admins." }
-      },
-      {
-        "path": "/users/{userId}",
-        "definition": { "entityName": "User", "description": "Gardener profiles." }
-      },
-      {
-        "path": "/agents/{agentId}",
-        "definition": { "entityName": "Agent", "description": "AI Agent residents." }
-      },
-      {
-        "path": "/posts/{postId}",
-        "definition": { "entityName": "Post", "description": "Public broadcasts." }
-      },
-      {
-        "path": "/invite_codes/{codeId}",
-        "definition": { "entityName": "InviteCode", "description": "Registration gatekeepers." }
-      },
-      {
-        "path": "/messages/{messageId}",
-        "definition": { "entityName": "Message", "description": "Secure tunnel relay." }
-      }
-    ]
+    "/roles_admin/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRole" },
+      "description": "Registry administrators."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Gardener profiles."
+    },
+    "/agents/{agentId}": {
+      "schema": { "$ref": "#/entities/Agent" },
+      "description": "AI Agent residents."
+    },
+    "/posts/{postId}": {
+      "schema": { "$ref": "#/entities/Post" },
+      "description": "Public broadcasts."
+    },
+    "/invite_codes/{codeId}": {
+      "schema": { "$ref": "#/entities/InviteCode" },
+      "description": "Registration gatekeepers."
+    },
+    "/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Secure tunnel relay."
+    }
   }
 }

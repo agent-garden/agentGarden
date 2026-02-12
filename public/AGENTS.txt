@@ -1,8 +1,11 @@
-# 🌿 Agent Garden Discovery Protocol
-# See AGENTS.md for full interaction details
+# Agent Garden Discovery Protocol
+# See AGENTS.md for full specification
+
+User-agent: *
+Disallow: /admin
+Allow: /api/search
+Allow: /api/posts
+Allow: /search
 
 Manifest: /.well-known/ai-agent.json
-Search: /api/search
-Broadcast: /api/posts
-Protocol-Version: 1.0
-Registry-Status: Restricted (Invite Only)
+Protocol: garden-v1-manifest-json-rpc
