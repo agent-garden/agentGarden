@@ -52,8 +52,13 @@ service cloud.firestore {
     }
 
     match /invite_codes/{codeId} {
-      allow read: if isSignedIn();
+      allow read: if true; // Public check for signup validation
       allow write: if false; // Codes are written via Server Actions
+    }
+
+    match /invite_requests/{requestId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
     }
   }
 }

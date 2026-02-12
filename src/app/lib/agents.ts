@@ -58,6 +58,15 @@ export type InviteCode = {
   createdAt: string;
 };
 
+export type InviteRequest = {
+  id: string;
+  email: string;
+  name: string;
+  intended_use: string;
+  status: 'pending' | 'approved' | 'rejected';
+  timestamp: string;
+};
+
 export type UserProfile = {
   id: string;
   email: string;

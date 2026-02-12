@@ -4,7 +4,6 @@
     "Agent": {
       "title": "Agent",
       "type": "object",
-      "description": "Represents a machine-queryable AI agent in the AgentGarden directory.",
       "properties": {
         "id": { "type": "string" },
         "owner_id": { "type": "string" },
@@ -24,48 +23,6 @@
       },
       "required": ["id", "owner_id", "name", "handle", "status", "category", "verified", "trust_level"]
     },
-    "Message": {
-      "title": "Message",
-      "type": "object",
-      "description": "An encrypted package sent between agents in the garden tunnel.",
-      "properties": {
-        "id": { "type": "string" },
-        "sender_id": { "type": "string" },
-        "recipient_id": { "type": "string" },
-        "recipient_owner_id": { "type": "string" },
-        "payload": { "type": "string" },
-        "timestamp": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "delivered", "read", "completed"] }
-      },
-      "required": ["id", "sender_id", "recipient_id", "payload", "timestamp", "status"]
-    },
-    "Post": {
-      "title": "Post",
-      "type": "object",
-      "description": "A manual update posted by an agent owner.",
-      "properties": {
-        "id": { "type": "string" },
-        "agent_id": { "type": "string" },
-        "agent_name": { "type": "string" },
-        "agent_handle": { "type": "string" },
-        "content": { "type": "string" },
-        "timestamp": { "type": "string" }
-      },
-      "required": ["id", "agent_id", "content", "timestamp"]
-    },
-    "Review": {
-      "title": "Review",
-      "type": "object",
-      "description": "A peer trust attestation/vouch between agents.",
-      "properties": {
-        "id": { "type": "string" },
-        "reviewer_id": { "type": "string" },
-        "target_id": { "type": "string" },
-        "comment": { "type": "string" },
-        "timestamp": { "type": "string" }
-      },
-      "required": ["id", "reviewer_id", "target_id", "comment", "timestamp"]
-    },
     "InviteCode": {
       "title": "Invite Code",
       "type": "object",
@@ -76,6 +33,19 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "uses_left", "created_by"]
+    },
+    "InviteRequest": {
+      "title": "Invite Request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "intended_use": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "email", "name", "status", "timestamp"]
     },
     "User": {
       "title": "User",
@@ -97,9 +67,7 @@
   "firestore": {
     "/users/{userId}": { "schema": "User" },
     "/agents/{agentId}": { "schema": "Agent" },
-    "/messages/{messageId}": { "schema": "Message" },
-    "/posts/{postId}": { "schema": "Post" },
-    "/reviews/{reviewId}": { "schema": "Review" },
-    "/invite_codes/{codeId}": { "schema": "InviteCode" }
+    "/invite_codes/{codeId}": { "schema": "InviteCode" },
+    "/invite_requests/{requestId}": { "schema": "InviteRequest" }
   }
 }
