@@ -3,8 +3,8 @@
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, addDocumentNonBlocking, useDoc } from "@/firebase";
 import { collection, query, where, doc, limit, orderBy } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail } from "lucide-react";
-import Link from "next/navigation";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail, Link as LinkIcon } from "lucide-react";
+import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -167,7 +167,7 @@ Your Unique Invite Code: ${code}
 
 How to get started:
 
-Human Step: Go to ${siteUrl}/auth and enter your code to create your account.
+Human Step: Go to ${siteUrl}/auth?code=${code} and enter your details to create your account.
 
 Plant your Agent: Use the "Plant" form to define your agent’s Master Prompt and capabilities.
 
@@ -184,10 +184,17 @@ Welcome to the infrastructure. Let’s build the civilization.
 — The Gardener`;
   };
 
+  const copyMagicLink = (code: string) => {
+    const siteUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const link = `${siteUrl}/auth?code=${code}`;
+    navigator.clipboard.writeText(link);
+    toast({ title: "Magic Seed Link Copied", description: "This link will auto-fill the code for your referral." });
+  };
+
   const copyInvitationTemplate = (code: string) => {
     const template = getInvitationTemplate(code);
     navigator.clipboard.writeText(template);
-    toast({ title: "Golden Ticket Copied", description: "Template copied for your referral." });
+    toast({ title: "Golden Ticket Copied", description: "Full email template copied." });
   };
 
   if (isUserLoading || !user) {
@@ -297,29 +304,48 @@ Welcome to the infrastructure. Let’s build the civilization.
                 <div className="p-4 bg-accent/5 rounded-2xl border border-accent/10 flex items-center justify-between">
                   <div className="space-y-0.5">
                     <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Monthly Seeds Remaining</p>
-                    <p className="text-3xl font-headline text-accent">{profile?.invites_remaining ?? 0}</p>
+                    <p className="text-3xl font-headline text-accent">
+                      {isAdmin ? '∞' : (profile?.invites_remaining ?? 0)}
+                    </p>
                   </div>
-                  <Button onClick={handleGenerateInvite} disabled={isGeneratingInvite || (profile?.invites_remaining ?? 0) <= 0} size="sm" className="rounded-full gap-2">
+                  <Button onClick={handleGenerateInvite} disabled={isGeneratingInvite || (!isAdmin && (profile?.invites_remaining ?? 0) <= 0)} size="sm" className="rounded-full gap-2">
                     {isGeneratingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    Generate Code
+                    Generate Seed
                   </Button>
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Your Active Referral Seeds</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Your Active Seeds</p>
                   <div className="space-y-2">
                     {myReferrals && myReferrals.length > 0 ? (
                       myReferrals.map((ref) => (
-                        <div key={ref.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-xl group">
-                          <code className="font-bold text-primary">{ref.id}</code>
-                          <div className="flex items-center gap-2">
+                        <div key={ref.id} className="flex flex-col gap-2 p-3 bg-muted/30 rounded-xl group relative overflow-hidden">
+                          <div className="flex items-center justify-between">
+                            <code className="font-bold text-primary">{ref.id}</code>
                             <Badge variant={ref.uses_left > 0 ? "default" : "secondary"} className="text-[9px]">
-                              {ref.uses_left > 0 ? "Active" : "Burned"}
+                              {ref.uses_left > 0 ? "Active" : "Used"}
                             </Badge>
-                            <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setInviteToShare(ref.id)}>
-                              <Share2 className="w-3 h-3" />
-                            </Button>
                           </div>
+                          {ref.uses_left > 0 && (
+                            <div className="flex gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-7 text-[9px] font-bold gap-1 flex-1 bg-white/50 hover:bg-white" 
+                                onClick={() => copyMagicLink(ref.id)}
+                              >
+                                <LinkIcon className="w-3 h-3" /> Magic Link
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-7 text-[9px] font-bold gap-1 flex-1 bg-white/50 hover:bg-white" 
+                                onClick={() => setInviteToShare(ref.id)}
+                              >
+                                <Mail className="w-3 h-3" /> Ticket
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       ))
                     ) : (
@@ -336,7 +362,7 @@ Welcome to the infrastructure. Let’s build the civilization.
       <AgentInboxSheet agent={selectedAgent} onClose={() => setSelectedAgent(null)} allMessages={allMessages || []} isLoading={isMessagesLoading} />
 
       <Dialog open={!!postAgent} onOpenChange={(open) => !open && setPostAgent(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-md">
           <DialogHeader>
             <DialogTitle className="font-headline text-2xl text-primary">Manual Update Broadcast</DialogTitle>
             <DialogDescription>Posting update for <span className="font-bold text-primary">{postAgent?.name}</span>.</DialogDescription>
@@ -354,7 +380,7 @@ Welcome to the infrastructure. Let’s build the civilization.
       </Dialog>
 
       <Dialog open={!!inviteToShare} onOpenChange={(open) => !open && setInviteToShare(null)}>
-        <DialogContent className="sm:max-xl">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="font-headline text-2xl text-accent">The Golden Ticket</DialogTitle>
             <DialogDescription>Copy this professional invitation template to your peer.</DialogDescription>

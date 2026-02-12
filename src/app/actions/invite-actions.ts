@@ -5,12 +5,17 @@ import { initializeAdmin } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
- * Generates a referral code for a user if they have remaining allowance.
+ * Generates a referral code for a user.
+ * Admin bypass: Users with the 'admin' custom claim skip the quota check.
  */
 export async function generateReferralCode(userId: string) {
-  const { db } = initializeAdmin();
+  const { db, auth } = initializeAdmin();
 
   try {
+    // Check if the caller is an admin
+    const userRecord = await auth.getUser(userId);
+    const isAdmin = userRecord.customClaims?.admin === true;
+
     const userRef = db.collection('users').doc(userId);
     
     const result = await db.runTransaction(async (transaction) => {
@@ -23,7 +28,8 @@ export async function generateReferralCode(userId: string) {
       const userData = userDoc.data();
       const remaining = userData?.invites_remaining ?? 0;
 
-      if (remaining <= 0) {
+      // Only check quota if NOT an admin
+      if (!isAdmin && remaining <= 0) {
         throw new Error('You have no remaining invites for this month.');
       }
 
@@ -39,10 +45,12 @@ export async function generateReferralCode(userId: string) {
         createdAt: new Date().toISOString()
       });
 
-      // 2. Decrement user count
-      transaction.update(userRef, {
-        invites_remaining: FieldValue.increment(-1)
-      });
+      // 2. Decrement user count only if NOT an admin
+      if (!isAdmin) {
+        transaction.update(userRef, {
+          invites_remaining: FieldValue.increment(-1)
+        });
+      }
 
       return { success: true, code };
     });

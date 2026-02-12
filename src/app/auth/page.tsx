@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { 
@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Leaf, Loader2, Sparkles, Key } from 'lucide-react';
+import { Leaf, Loader2, Sparkles, Key, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { submitInviteRequest } from '@/app/actions/request-invite';
@@ -26,12 +26,21 @@ export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [requesting, setRequesting] = useState(false);
+  const [magicCode, setMagicCode] = useState<string | null>(null);
   const auth = useAuth();
   const db = useFirestore();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
+
+  // MAGIC LINK DETECTION: Look for ?code= in URL
+  useEffect(() => {
+    const code = searchParams.get('code');
+    if (code) {
+      setMagicCode(code.toUpperCase());
+    }
+  }, [searchParams]);
 
   const handleAuth = async (e: React.FormEvent<HTMLFormElement>, mode: 'login' | 'signup') => {
     e.preventDefault();
@@ -41,7 +50,7 @@ export default function AuthPage() {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const name = formData.get('name') as string;
-    const inviteCode = formData.get('inviteCode') as string;
+    const inviteCode = magicCode || (formData.get('inviteCode') as string);
 
     try {
       if (mode === 'signup') {
@@ -67,7 +76,7 @@ export default function AuthPage() {
           email: user.email,
           displayName: name,
           monthly_invite_limit: 30,
-          invites_remaining: 30, // Initial Credit
+          invites_remaining: 30, 
           createdAt: new Date().toISOString()
         }, { merge: true });
 
@@ -114,7 +123,7 @@ export default function AuthPage() {
       </Link>
 
       <Card className="w-full max-w-md border-none shadow-2xl bg-white/60 backdrop-blur-xl">
-        <Tabs defaultValue="login" className="w-full">
+        <Tabs defaultValue={magicCode ? "signup" : "login"} className="w-full">
           <CardHeader>
             <TabsList className="grid w-full grid-cols-2 rounded-full h-12 bg-muted/50 p-1">
               <TabsTrigger value="login" className="rounded-full">Login</TabsTrigger>
@@ -163,15 +172,27 @@ export default function AuthPage() {
                       <Key className="w-3 h-3 text-primary" />
                       Invite Code
                     </Label>
-                    <button 
-                      type="button" 
-                      onClick={() => setShowRequestDialog(true)}
-                      className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest"
-                    >
-                      Request Invite
-                    </button>
+                    {!magicCode && (
+                      <button 
+                        type="button" 
+                        onClick={() => setShowRequestDialog(true)}
+                        className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest"
+                      >
+                        Request Invite
+                      </button>
+                    )}
                   </div>
-                  <Input name="inviteCode" placeholder="GARDEN-XXXXX" required className="rounded-xl h-10 font-mono" />
+                  <div className="relative">
+                    <Input 
+                      name="inviteCode" 
+                      placeholder="GARDEN-XXXXX" 
+                      defaultValue={magicCode || ""}
+                      readOnly={!!magicCode}
+                      className={`rounded-xl h-10 font-mono ${magicCode ? 'bg-muted/50 border-primary/30 pr-10' : ''}`}
+                    />
+                    {magicCode && <Lock className="absolute right-3 top-3 w-4 h-4 text-primary/50" />}
+                  </div>
+                  {magicCode && <p className="text-[10px] text-primary font-bold mt-1 uppercase tracking-tighter">Magic Seed Activated</p>}
                 </div>
               </CardContent>
               <CardFooter>

@@ -18,7 +18,8 @@ import {
   XCircle,
   Trash2,
   CheckSquare,
-  Square
+  Square,
+  Mail
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,11 +36,6 @@ import {
 } from '@/app/actions/admin-actions';
 import { useToast } from '@/hooks/use-toast';
 
-/**
- * @fileOverview Master Gardener Console
- * Protected by Admin Custom Claims Route Guard.
- */
-
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -50,17 +46,18 @@ export default function AdminPage() {
   const db = useFirestore();
   const { toast } = useToast();
 
-  // ROUTE GUARD: Verify admin custom claim
+  // ADMIN GUARD: Refresh token and verify claim
   useEffect(() => {
     async function checkAdmin() {
       if (!user) return;
       try {
+        // Force refresh to get latest custom claims
         const idTokenResult = await user.getIdTokenResult(true);
         if (idTokenResult.claims.admin) {
           setIsAdmin(true);
         } else {
           setIsAdmin(false);
-          toast({ variant: "destructive", title: "Access Denied", description: "Admin privileges required." });
+          toast({ variant: "destructive", title: "Access Denied", description: "Master Gardener privileges required." });
           router.push('/');
         }
       } catch (error) {
@@ -89,7 +86,7 @@ export default function AdminPage() {
     setIsGenerating(true);
     const result = await batchGenerateInviteCodes(user.uid);
     setIsGenerating(false);
-    if (result.success) toast({ title: "Batch Generated", description: `10 codes created.` });
+    if (result.success) toast({ title: "Batch Generated", description: `10 codes created and registry updated.` });
   };
 
   const handleToggleRequest = (id: string) => {
@@ -115,10 +112,13 @@ export default function AdminPage() {
     setIsProcessing(false);
     
     if (result.success) {
-      toast({ title: "Applications Approved", description: `${result.count} Golden Tickets dispatched.` });
+      toast({ 
+        title: "Applications Approved", 
+        description: `Golden Tickets generated and automated emails triggered for ${result.count} applicants.` 
+      });
       setSelectedRequests([]);
     } else {
-      toast({ variant: "destructive", title: "Error", description: result.error });
+      toast({ variant: "destructive", title: "Bulk Approval Failed", description: result.error });
     }
   };
 
@@ -129,15 +129,15 @@ export default function AdminPage() {
     setIsProcessing(false);
     
     if (result.success) {
-      toast({ title: "Applications Rejected", description: `${result.count} requests updated.` });
+      toast({ title: "Applications Rejected", description: `${result.count} requests purged from registry.` });
       setSelectedRequests([]);
     } else {
-      toast({ variant: "destructive", title: "Error", description: result.error });
+      toast({ variant: "destructive", title: "Rejection Error", description: result.error });
     }
   };
 
   if (isUserLoading || isAdmin === null) return (<div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>);
-  if (isAdmin === false) return null; // Redirect logic handled in useEffect
+  if (isAdmin === false) return null;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -162,13 +162,13 @@ export default function AdminPage() {
           <TabsContent value="requests">
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="font-headline text-3xl flex items-center gap-2"><Inbox className="w-8 h-8 text-primary" /> Invite Applications</h2>
+                <h2 className="font-headline text-3xl flex items-center gap-2"><Inbox className="w-8 h-8 text-primary" /> Pending Applications</h2>
                 {selectedRequests.length > 0 && (
                   <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right-4">
                     <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{selectedRequests.length} Selected</span>
                     <Button onClick={handleApproveSelected} disabled={isProcessing} size="sm" className="rounded-full bg-green-600 hover:bg-green-700">
-                      {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-                      Approve
+                      {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
+                      Approve & Dispatch
                     </Button>
                     <Button onClick={handleRejectSelected} disabled={isProcessing} variant="destructive" size="sm" className="rounded-full">
                       {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
@@ -232,15 +232,12 @@ export default function AdminPage() {
                           )}
                           {req.status === 'approved' && (
                             <span className="text-[10px] font-mono font-bold text-primary flex items-center gap-1">
-                              <CheckCircle className="w-3 h-3" /> PROTOCOL DISPATCHED
+                              <CheckCircle className="w-3 h-3" /> EMAIL DISPATCHED
                             </span>
                           )}
                         </td>
                       </tr>
                     ))}
-                    {inviteRequests?.length === 0 && (
-                      <tr><td colSpan={5} className="px-6 py-12 text-center text-muted-foreground italic">No applications received yet.</td></tr>
-                    )}
                   </tbody>
                 </table>
               </div>
@@ -270,7 +267,7 @@ export default function AdminPage() {
                       <tr key={c.id} className="hover:bg-muted/30">
                         <td className="px-6 py-4 font-mono font-bold text-primary">{c.id}</td>
                         <td className="px-6 py-4 text-xs">{c.assigned_to || 'General Seed'}</td>
-                        <td><Badge variant={c.uses_left > 0 ? 'default' : 'secondary'}>{c.uses_left > 0 ? 'Active' : 'Burned'}</Badge></td>
+                        <td><Badge variant={c.uses_left > 0 ? 'default' : 'secondary'}>{c.uses_left > 0 ? 'Active' : 'Used'}</Badge></td>
                         <td className="px-6 py-4 font-bold">{c.uses_left}</td>
                       </tr>
                     ))}
@@ -313,7 +310,7 @@ export default function AdminPage() {
               <div className="flex items-center justify-between">
                 <h2 className="font-headline text-3xl flex items-center gap-2"><Users className="w-8 h-8 text-primary" /> Gardener Management</h2>
                 <Button variant="outline" size="sm" onClick={resetAllUserInvites} className="rounded-full gap-2 border-dashed">
-                  <ArrowLeft className="w-4 h-4 rotate-90" /> Manual Quota Reset
+                  <ArrowLeft className="w-4 h-4 rotate-90" /> Manual Refill (+30)
                 </Button>
               </div>
               <div className="bg-white/60 rounded-3xl border shadow-sm overflow-hidden">
@@ -330,7 +327,7 @@ export default function AdminPage() {
                       <tr key={p.id} className="hover:bg-muted/30">
                         <td className="px-6 py-4 font-bold">{p.displayName || p.email}</td>
                         <td className="px-6 py-4 text-[10px] font-mono text-muted-foreground">{p.id}</td>
-                        <td className="px-6 py-4 font-bold text-primary">{p.invites_remaining} seeds left</td>
+                        <td className="px-6 py-4 font-bold text-primary">{p.invites_remaining} seeds remaining</td>
                       </tr>
                     ))}
                   </tbody>
