@@ -46,24 +46,13 @@ export default function AdminPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Queries for Tracker and User Manager
-  const codesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'invite_codes'), orderBy('created_at', 'desc'));
-  }, [firestore]);
-
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'users'));
-  }, [firestore]);
-
-  const { data: inviteCodes, isLoading: isCodesLoading } = useCollection(codesQuery);
-  const { data: users, isLoading: isUsersLoading } = useCollection(usersQuery);
-
   useEffect(() => {
     async function checkClaims() {
       if (user) {
         const idTokenResult = await user.getIdTokenResult(true);
+        // We check the claim, but for the prototype UI, we also want to allow
+        // the full UI if the user is in the database roles_admin collection.
+        // However, the prompt specifically asked for idTokenResult.claims.admin.
         setHasAdminClaim(!!idTokenResult.claims.admin);
       }
     }
@@ -77,12 +66,32 @@ export default function AdminPage() {
     }
   }, [user, isUserLoading, router]);
 
+  // Queries only run if the user is confirmed as an admin to prevent permission errors
+  const codesQuery = useMemoFirebase(() => {
+    if (!firestore || !hasAdminClaim) return null;
+    return query(collection(firestore, 'invite_codes'), orderBy('created_at', 'desc'));
+  }, [firestore, hasAdminClaim]);
+
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore || !hasAdminClaim) return null;
+    return query(collection(firestore, 'users'));
+  }, [firestore, hasAdminClaim]);
+
+  const { data: inviteCodes, isLoading: isCodesLoading } = useCollection(codesQuery);
+  const { data: users, isLoading: isUsersLoading } = useCollection(usersQuery);
+
   const handlePromoteSelf = async () => {
     if (!user) return;
     setIsProcessing(true);
     try {
       await makeAdmin(user.uid);
-      toast({ title: "Role Registry Updated", description: "Refresh token to apply admin status." });
+      toast({ 
+        title: "Role Registry Updated", 
+        description: "Firestore record created. Please refresh the page to apply admin status." 
+      });
+      // In a real environment, we'd trigger a token refresh. 
+      // For this prototype, we'll suggest a refresh.
+      setTimeout(() => window.location.reload(), 2000);
     } catch (err) {
       toast({ variant: "destructive", title: "Promotion Failed", description: "Unauthorized." });
     } finally {
@@ -103,7 +112,9 @@ export default function AdminPage() {
   };
 
   const handleUpdateLimit = async (userId: string, currentLimit: number) => {
-    const newLimit = parseInt(prompt("Enter new monthly invite limit:", currentLimit.toString()) || "");
+    const newLimitRaw = prompt("Enter new monthly invite limit:", currentLimit.toString());
+    if (newLimitRaw === null) return;
+    const newLimit = parseInt(newLimitRaw);
     if (isNaN(newLimit)) return;
 
     try {
@@ -114,10 +125,11 @@ export default function AdminPage() {
     }
   };
 
-  if (isUserLoading || hasAdminClaim === null) {
+  if (isUserLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
   }
 
+  // If claim is missing, show the "Access Restricted" bootstrap UI
   if (!hasAdminClaim) {
     return (
       <main className="min-h-screen bg-background flex items-center justify-center p-6">
@@ -133,11 +145,16 @@ export default function AdminPage() {
               <AlertTitle className="text-xs uppercase tracking-widest font-bold">Claim Missing</AlertTitle>
               <AlertDescription className="text-xs">Token does not contain 'admin: true'.</AlertDescription>
             </Alert>
+            <p className="text-sm text-muted-foreground px-4">
+              Click below to register your UID in the administrative registry. You will need to refresh your session after promotion.
+            </p>
             <Button onClick={handlePromoteSelf} disabled={isProcessing} className="w-full rounded-xl h-12 font-bold gap-2">
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
               Grant Prototype Admin
             </Button>
-            <Button asChild variant="ghost" className="w-full rounded-xl"><Link href="/dashboard"><ArrowLeft className="w-4 h-4 mr-2" />Return to Garden</Link></Button>
+            <Button asChild variant="ghost" className="w-full rounded-xl">
+              <Link href="/dashboard"><ArrowLeft className="w-4 h-4 mr-2" />Return to Garden</Link>
+            </Button>
           </CardContent>
         </Card>
       </main>
