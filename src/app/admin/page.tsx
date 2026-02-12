@@ -4,25 +4,43 @@
 import { useEffect, useState } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { ShieldAlert, ShieldCheck, Loader2, ArrowLeft, Users, Settings, Database, Activity } from 'lucide-react';
+import { 
+  ShieldAlert, 
+  ShieldCheck, 
+  Loader2, 
+  ArrowLeft, 
+  Users, 
+  Settings, 
+  Database, 
+  Activity, 
+  Ticket, 
+  Plus, 
+  Trash2,
+  RefreshCw,
+  Edit3
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { collection, query, limit } from 'firebase/firestore';
-import type { Agent } from '@/app/lib/agents';
+import { collection, query, limit, orderBy } from 'firebase/firestore';
+import type { Agent, InviteCode, UserProfile } from '@/app/lib/agents';
+import { batchGenerateInviteCodes, updateUserInviteLimit } from '@/app/actions/admin-actions';
+import { useToast } from '@/hooks/use-toast';
 
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const router = useRouter();
   const db = useFirestore();
+  const { toast } = useToast();
 
   useEffect(() => {
     async function checkAdmin() {
       if (!user) return;
-      
       try {
-        // Force refresh the token to get the latest claims
         const idTokenResult = await user.getIdTokenResult(true);
         setIsAdmin(!!idTokenResult.claims.admin);
       } catch (error) {
@@ -45,7 +63,48 @@ export default function AdminPage() {
     return query(collection(db, "agents"), limit(100));
   }, [db]);
 
+  const inviteCodesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, "invite_codes"), limit(100));
+  }, [db]);
+
+  const usersQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, "users"), limit(50));
+  }, [db]);
+
   const { data: agents, isLoading: isAgentsLoading } = useCollection<Agent>(allAgentsQuery);
+  const { data: inviteCodes, isLoading: isCodesLoading } = useCollection<InviteCode>(inviteCodesQuery);
+  const { data: profiles, isLoading: isProfilesLoading } = useCollection<UserProfile>(usersQuery);
+
+  const handleBatchGenerate = async () => {
+    if (!user) return;
+    setIsGenerating(true);
+    const result = await batchGenerateInviteCodes(user.uid);
+    setIsGenerating(false);
+
+    if (result.success) {
+      toast({
+        title: "Batch Generation Success",
+        description: `Generated 10 new codes for the registry.`,
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Generation Failed",
+        description: result.error,
+      });
+    }
+  };
+
+  const handleUpdateLimit = async (uid: string, newLimit: number) => {
+    const result = await updateUserInviteLimit(uid, newLimit);
+    if (result.success) {
+      toast({ title: "Limit Updated", description: "User's monthly invite allowance has been modified." });
+    } else {
+      toast({ variant: "destructive", title: "Update Failed", description: result.error });
+    }
+  };
 
   if (isUserLoading || isAdmin === null) {
     return (
@@ -91,8 +150,8 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+      <main className="max-w-7xl mx-auto px-6 py-12 space-y-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <Card className="border-none shadow-lg bg-white/80">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Total Agents</CardTitle>
@@ -106,12 +165,12 @@ export default function AdminPage() {
           
           <Card className="border-none shadow-lg bg-white/80">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Registry Health</CardTitle>
-              <Activity className="w-4 h-4 text-accent" />
+              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Invite Codes</CardTitle>
+              <Ticket className="w-4 h-4 text-accent" />
             </CardHeader>
             <CardContent>
-              <div className="text-4xl font-headline text-accent">Optimal</div>
-              <p className="text-xs text-muted-foreground mt-1">Latency: 42ms • Integrity: 100%</p>
+              <div className="text-4xl font-headline text-accent">{inviteCodes?.length || 0}</div>
+              <p className="text-xs text-muted-foreground mt-1">Active access tokens in registry</p>
             </CardContent>
           </Card>
 
@@ -122,56 +181,114 @@ export default function AdminPage() {
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-headline text-foreground">Firestore</div>
-              <p className="text-xs text-muted-foreground mt-1">Multi-regional deployment</p>
+              <p className="text-xs text-muted-foreground mt-1">Registry integrity is 100%</p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="space-y-8">
-          <h2 className="font-headline text-3xl">Global Specialist Manifest</h2>
+        {/* Invite Code Manager */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="font-headline text-3xl flex items-center gap-2">
+              <Ticket className="w-8 h-8 text-primary" />
+              Invite Code Registry
+            </h2>
+            <Button 
+              onClick={handleBatchGenerate} 
+              disabled={isGenerating} 
+              className="rounded-full gap-2 font-headline"
+            >
+              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Batch Generate 10 Codes
+            </Button>
+          </div>
           
           <div className="bg-white/60 rounded-3xl border shadow-sm overflow-hidden">
             <table className="w-full text-left border-collapse">
               <thead className="bg-muted/50 border-b">
                 <tr>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Agent Name</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Handle</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Owner UID</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Code</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Uses Left</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Status</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Creator UID</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {isCodesLoading ? (
+                  <tr><td colSpan={4} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></td></tr>
+                ) : inviteCodes && inviteCodes.length > 0 ? (
+                  inviteCodes.map((code) => (
+                    <tr key={code.id} className="hover:bg-primary/5 transition-colors">
+                      <td className="px-6 py-4 font-code font-bold text-primary">{code.id}</td>
+                      <td className="px-6 py-4 font-medium">{code.uses_left}</td>
+                      <td className="px-6 py-4">
+                        <Badge variant={code.uses_left > 0 ? 'default' : 'secondary'} className="rounded-full uppercase text-[10px]">
+                          {code.uses_left > 0 ? 'Available' : 'Used'}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 font-code text-[10px] text-muted-foreground">{code.created_by.substring(0, 12)}...</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">No codes found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* User Manager */}
+        <div className="space-y-6">
+          <h2 className="font-headline text-3xl flex items-center gap-2">
+            <Users className="w-8 h-8 text-primary" />
+            Resident Gardener Management
+          </h2>
+          
+          <div className="bg-white/60 rounded-3xl border shadow-sm overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-muted/50 border-b">
+                <tr>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">User UID</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Invite Limit</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {isAgentsLoading ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
-                      <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" />
-                    </td>
-                  </tr>
-                ) : agents && agents.length > 0 ? (
-                  agents.map((agent) => (
-                    <tr key={agent.id} className="hover:bg-primary/5 transition-colors">
-                      <td className="px-6 py-4 font-medium text-primary">{agent.name}</td>
-                      <td className="px-6 py-4 font-code text-sm text-muted-foreground">{agent.handle}</td>
-                      <td className="px-6 py-4 font-code text-xs text-muted-foreground">{agent.owner_id.substring(0, 12)}...</td>
+                {isProfilesLoading ? (
+                  <tr><td colSpan={3} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></td></tr>
+                ) : profiles && profiles.length > 0 ? (
+                  profiles.map((profile) => (
+                    <tr key={profile.id} className="hover:bg-primary/5 transition-colors">
+                      <td className="px-6 py-4 font-code text-sm text-primary">{profile.id}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                          agent.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {agent.status}
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <Input 
+                            type="number" 
+                            defaultValue={profile.monthly_invite_limit || 0} 
+                            className="w-20 h-8 rounded-lg text-xs" 
+                            id={`limit-${profile.id}`}
+                          />
+                          <span className="text-xs text-muted-foreground font-bold">INVITES / MO</span>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
-                        <Button variant="ghost" size="sm" className="rounded-full text-xs">Manage</Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="rounded-full text-[10px] uppercase font-bold gap-2"
+                          onClick={() => {
+                            const val = (document.getElementById(`limit-${profile.id}`) as HTMLInputElement).value;
+                            handleUpdateLimit(profile.id, parseInt(val));
+                          }}
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          Update Limit
+                        </Button>
                       </td>
                     </tr>
                   ))
                 ) : (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
-                      No agents found in the global registry.
-                    </td>
-                  </tr>
+                  <tr><td colSpan={3} className="px-6 py-12 text-center text-muted-foreground">No resident profiles found.</td></tr>
                 )}
               </tbody>
             </table>
