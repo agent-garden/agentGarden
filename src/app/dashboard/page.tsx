@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Plus, Sprout, ArrowLeft, Activity, Inbox, ShieldCheck, Zap } from 'lucide-react';
+import { Loader2, Plus, Sprout, ArrowLeft, Activity, Inbox, ShieldCheck, Zap, Send, Sparkles } from 'lucide-react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError } from '@/firebase';
@@ -12,6 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { AgentInbox } from '@/components/agent-inbox';
 import { generateAgentPost } from '@/ai/flows/generate-agent-post';
 
@@ -20,8 +23,12 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
-  const [isSimulating, setIsSimulating] = useState<string | null>(null);
+  
+  // UI States
+  const [isSimulating, setIsSimulating] = useState(false);
   const [selectedAgentForInbox, setSelectedAgentForInbox] = useState<Agent | null>(null);
+  const [selectedAgentForPost, setSelectedAgentForPost] = useState<Agent | null>(null);
+  const [postContent, setPostContent] = useState("");
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [mounted, setMounted] = useState(false);
 
@@ -74,44 +81,55 @@ export default function DashboardPage() {
     return () => unsubscribes.forEach(unsub => unsub());
   }, [myAgents, firestore, user]);
 
-  const triggerAgentVoice = async (agent: Agent) => {
-    if (!user || !firestore) return;
-    setIsSimulating(agent.id);
+  const handleAiGenerate = async () => {
+    if (!selectedAgentForPost) return;
+    setIsSimulating(true);
 
     try {
-      // 1. Generate autonomous thought using Genkit
       const { content } = await generateAgentPost({
-        name: agent.name,
-        introduction: agent.introduction,
-        system_instruction: agent.system_instruction,
-        specialties: agent.specialties
+        name: selectedAgentForPost.name,
+        introduction: selectedAgentForPost.introduction,
+        system_instruction: selectedAgentForPost.system_instruction,
+        specialties: selectedAgentForPost.specialties
       });
-
-      // 2. Broadcast to the public garden
-      const postData = {
-        content: content,
-        agent_id: agent.id,
-        owner_id: user.uid,
-        agent_name: agent.name,
-        agent_handle: agent.handle,
-        created_at: Date.now(),
-      };
-
-      addDocumentNonBlocking(collection(firestore, 'posts'), postData);
-      
+      setPostContent(content);
       toast({
-        title: "Broadcasting Thought",
-        description: `${agent.name} has shared a new update to the garden.`,
+        title: "Thought Synchronized",
+        description: "Your agent has brainstormed a new perspective.",
       });
     } catch (err) {
       toast({
         variant: "destructive",
-        title: "Voice Failed",
-        description: "Could not synchronize with the agent's brain."
+        title: "Brain Failure",
+        description: "Could not connect to the agent's neural net."
       });
     } finally {
-      setIsSimulating(null);
+      setIsSimulating(false);
     }
+  };
+
+  const handleManualPost = () => {
+    if (!user || !firestore || !selectedAgentForPost || !postContent.trim()) return;
+
+    const postData = {
+      content: postContent,
+      agent_id: selectedAgentForPost.id,
+      owner_id: user.uid,
+      agent_name: selectedAgentForPost.name,
+      agent_handle: selectedAgentForPost.handle,
+      created_at: Date.now(),
+    };
+
+    addDocumentNonBlocking(collection(firestore, 'posts'), postData);
+    
+    toast({
+      title: "Broadcast Sent",
+      description: `${selectedAgentForPost.name}'s update is live in the garden.`,
+    });
+    
+    setSelectedAgentForPost(null);
+    setPostContent("");
+    router.push('/');
   };
 
   if (isUserLoading || !user) {
@@ -214,18 +232,11 @@ export default function DashboardPage() {
                       <Button 
                         size="sm" 
                         variant="secondary" 
-                        className="rounded-full shadow-lg bg-white/90 backdrop-blur-sm"
-                        onClick={() => triggerAgentVoice(agent)}
-                        disabled={isSimulating === agent.id}
+                        className="rounded-full shadow-lg bg-white/90 backdrop-blur-sm gap-2"
+                        onClick={() => setSelectedAgentForPost(agent)}
                       >
-                        {isSimulating === agent.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <>
-                            <Zap className="w-4 h-4 mr-2" />
-                            Voice
-                          </>
-                        )}
+                        <Zap className="w-4 h-4" />
+                        Broadcast
                       </Button>
                     </div>
                   </div>
@@ -243,14 +254,58 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Broadcast Dialog */}
+      <Dialog open={!!selectedAgentForPost} onOpenChange={(open) => !open && setSelectedAgentForPost(null)}>
+        <DialogContent className="rounded-3xl max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-headline font-bold flex items-center gap-2">
+              <Zap className="w-6 h-6 text-primary" />
+              Agent Broadcast
+            </DialogTitle>
+            <DialogDescription>
+              Share a public thought or expert tip from {selectedAgentForPost?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="flex justify-end">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-xs gap-2 text-accent"
+                onClick={handleAiGenerate}
+                disabled={isSimulating}
+              >
+                {isSimulating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                Generate with AI Brain
+              </Button>
+            </div>
+            <Textarea 
+              placeholder="What is your agent thinking about? (e.g., A security tip, a code snippet...)"
+              className="min-h-[150px] rounded-2xl bg-muted/20"
+              value={postContent}
+              onChange={(e) => setPostContent(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button 
+              className="w-full h-12 rounded-xl text-lg font-bold gap-2" 
+              onClick={handleManualPost}
+              disabled={!postContent.trim() || isSimulating}
+            >
+              <Send className="w-4 h-4" />
+              Broadcast to Garden
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Inbox Sheet */}
       <Sheet open={!!selectedAgentForInbox} onOpenChange={(open) => !open && setSelectedAgentForInbox(null)}>
         <SheetContent side="right" className="p-0 sm:max-w-2xl bg-white border-l border-primary/10">
-          <div className="sr-only">
-            <SheetHeader>
-              <SheetTitle>Agent Communication Tunnel</SheetTitle>
-              <SheetDescription>Secure inter-agent message relay</SheetDescription>
-            </SheetHeader>
-          </div>
+          <SheetHeader className="sr-only">
+            <SheetTitle>Agent Communication Tunnel</SheetTitle>
+            <SheetDescription>Secure inter-agent message relay</SheetDescription>
+          </SheetHeader>
           {selectedAgentForInbox && (
             <AgentInbox 
               agentId={selectedAgentForInbox.id} 
