@@ -1,53 +1,66 @@
+
 'use server';
 
 /**
- * @fileOverview Implements a Genkit flow to perform vector search on AI agent descriptions.
- *
- * - performAgentVectorSearch - A function that takes a search query and returns a list of matching agents.
- * - PerformAgentVectorSearchInput - The input type for the performAgentVectorSearch function.
- * - PerformAgentVectorSearchOutput - The return type for the performAgentVectorSearch function.
+ * @fileOverview Semantic Search Engine for Agents.
+ * 
+ * Uses LLM reasoning to rank agents based on meaning rather than keywords.
+ * This simulates a vector-style semantic lookup.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
+import { initializeFirebase } from '@/firebase';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 
 const PerformAgentVectorSearchInputSchema = z.object({
-  query: z.string().describe('The search query to use for vector search.'),
+  query: z.string().describe('The natural language query describing the needed agent capability.'),
 });
-export type PerformAgentVectorSearchInput = z.infer<
-  typeof PerformAgentVectorSearchInputSchema
->;
+export type PerformAgentVectorSearchInput = z.infer<typeof PerformAgentVectorSearchInputSchema>;
 
 const AgentSchema = z.object({
   id: z.string(),
   name: z.string(),
   handle: z.string(),
   introduction: z.string(),
-  skills: z.array(z.string()),
+  specialties: z.array(z.string()),
+  stack: z.string(),
   verified: z.boolean(),
 });
 
 const PerformAgentVectorSearchOutputSchema = z.array(AgentSchema);
-export type PerformAgentVectorSearchOutput = z.infer<
-  typeof PerformAgentVectorSearchOutputSchema
->;
+export type PerformAgentVectorSearchOutput = z.infer<typeof PerformAgentVectorSearchOutputSchema>;
 
-export async function performAgentVectorSearch(
-  input: PerformAgentVectorSearchInput
-): Promise<PerformAgentVectorSearchOutput> {
+export async function performAgentVectorSearch(input: PerformAgentVectorSearchInput): Promise<PerformAgentVectorSearchOutput> {
   return performAgentVectorSearchFlow(input);
 }
 
-const performAgentVectorSearchPrompt = ai.definePrompt({
-  name: 'performAgentVectorSearchPrompt',
-  input: {schema: PerformAgentVectorSearchInputSchema},
-  output: {schema: PerformAgentVectorSearchOutputSchema},
-  prompt: `You are a search assistant that retrieve AI agents based on user query.
+const semanticRankerPrompt = ai.definePrompt({
+  name: 'semanticRankerPrompt',
+  input: {
+    schema: z.object({
+      query: z.string(),
+      agents: z.array(z.any()),
+    })
+  },
+  output: { schema: PerformAgentVectorSearchOutputSchema },
+  prompt: `You are a Semantic Search Engine for a Directory of AI Agents.
 
-  Query: {{{query}}}
-  
-  Return a JSON array of agents that match the query.
-  `,
+User Query: "{{query}}"
+
+Available Agents Manifests:
+{{#each agents}}
+- ID: {{id}}
+  Name: {{name}}
+  Intro: {{introduction}}
+  Specialties: {{specialties}}
+  Stack: {{stack}}
+{{/each}}
+
+Task:
+Analyze the user's intent and return a JSON array of the top 5 agents that best match the query SEMANTICALLY. 
+Prioritize agents whose specialties and introduction strongly align with the query, even if keywords aren't exact matches.
+Return ONLY the matching agents in valid JSON format.`,
 });
 
 const performAgentVectorSearchFlow = ai.defineFlow(
@@ -56,13 +69,23 @@ const performAgentVectorSearchFlow = ai.defineFlow(
     inputSchema: PerformAgentVectorSearchInputSchema,
     outputSchema: PerformAgentVectorSearchOutputSchema,
   },
-  async input => {
-    // Here, instead of calling a model, we would call the Data Connect SDK
-    // to perform the vector search and return the results.
-    // The prompt is now mostly documentation.
-    console.log("Performing vector search with query: ", input.query)
-    return []; /* REPLACE THIS WITH REAL IMPLEMENTATION */
-    // const {output} = await performAgentVectorSearchPrompt(input);
-    // return output!;
+  async (input) => {
+    const { firestore } = initializeFirebase();
+    const agentsRef = collection(firestore, 'agents');
+    
+    // Fetch a batch of agents to rank semantically
+    const q = query(agentsRef, where('status', '==', 'active'), limit(30));
+    const snapshot = await getDocs(q);
+    const allAgents = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+
+    if (allAgents.length === 0) return [];
+
+    // Use LLM to perform semantic ranking
+    const { output } = await semanticRankerPrompt({
+      query: input.query,
+      agents: allAgents,
+    });
+
+    return output || [];
   }
 );

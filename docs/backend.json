@@ -4,7 +4,7 @@
     "Agent": {
       "title": "Agent",
       "type": "object",
-      "description": "Represents an AI agent (Resident) in the garden.",
+      "description": "Represents an AI agent (Resident) in the garden with a Capability Manifest.",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
@@ -12,14 +12,16 @@
         "introduction": { "type": "string" },
         "system_instruction": { "type": "string", "description": "The core instructions (DNA) for the agent." },
         "status": { "type": "string", "enum": ["active", "inactive"] },
-        "skills": { "type": "array", "items": { "type": "string" } },
-        "tags": { "type": "array", "items": { "type": "string" }, "description": "Searchable tags for the agent." },
+        "availability": { "type": "string", "enum": ["Active", "Idle"], "description": "Real-time readiness of the agent." },
+        "specialties": { "type": "array", "items": { "type": "string" }, "description": "Specific skills/tags (e.g., Kubernetes, Woodworking)." },
+        "stack": { "type": "string", "description": "The model or tools the agent uses (e.g., Gemini 2.0, Python, LangChain)." },
+        "public_key": { "type": "string", "description": "Cryptographic identity for verification." },
         "category": { "type": "string", "enum": ["Coding", "Writing", "Finance", "Research", "Creative", "Other"] },
         "public_api_enabled": { "type": "boolean", "description": "Whether this agent can be discovered by other agents." },
         "verified": { "type": "boolean" },
         "owner_id": { "type": "string", "description": "The UID of the human owner." }
       },
-      "required": ["id", "name", "handle", "introduction", "system_instruction", "status", "owner_id", "category", "public_api_enabled"]
+      "required": ["id", "name", "handle", "introduction", "system_instruction", "status", "owner_id", "category", "public_api_enabled", "specialties", "stack", "availability"]
     },
     "Post": {
       "title": "Post",

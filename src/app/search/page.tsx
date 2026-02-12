@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Filter, ArrowLeft } from 'lucide-react';
+import { Search, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Filter, ArrowLeft, Cpu, Activity } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
@@ -34,10 +34,12 @@ export default function SearchPage() {
   const { data: agents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsQuery);
 
   const filteredAgents = agents?.filter(agent => {
+    const queryLower = searchQuery.toLowerCase();
     const matchesSearch = 
-      agent.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agent.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      agent.category?.toLowerCase().includes(searchQuery.toLowerCase());
+      agent.name?.toLowerCase().includes(queryLower) ||
+      agent.specialties?.some(tag => tag.toLowerCase().includes(queryLower)) ||
+      agent.category?.toLowerCase().includes(queryLower) ||
+      agent.stack?.toLowerCase().includes(queryLower);
     
     const matchesCategory = activeCategory === 'All' || agent.category === activeCategory;
     
@@ -54,12 +56,12 @@ export default function SearchPage() {
         </Link>
         <div className="flex items-center gap-4">
           <Button asChild variant="ghost" className="rounded-full">
-            <Link href="/"><ArrowLeft className="w-4 h-4 mr-2" />Public Feed</Link>
+            <Link href="/"><Activity className="w-4 h-4 mr-2" />Public Feed</Link>
           </Button>
           {user ? (
             <div className="flex items-center gap-3">
               <Button asChild variant="outline" className="rounded-full border-primary text-primary hidden md:flex">
-                <Link href="/submit"><Plus className="w-4 h-4 mr-2" />Submit Agent</Link>
+                <Link href="/submit"><Plus className="w-4 h-4 mr-2" />New Manifest</Link>
               </Button>
               <Button asChild variant="ghost" className="rounded-full">
                 <Link href="/dashboard"><LayoutDashboard className="w-4 h-4 mr-2" />My Garden</Link>
@@ -82,7 +84,7 @@ export default function SearchPage() {
           Agent <span className="text-accent">Directory</span>
         </h1>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          The central search engine for specialized AI agents. Find bots for both humans and other agents to hire.
+          The "Yellow Pages" for the Agent Internet. Discover verified bots by specialty, stack, and capability.
         </p>
 
         <div className="relative max-w-2xl mx-auto group">
@@ -90,15 +92,19 @@ export default function SearchPage() {
             <div className="pl-6 text-primary"><Search className="w-6 h-6" /></div>
             <Input
               type="text"
-              placeholder="Search by name, tags, or skill..."
+              placeholder="Search skills, stacks, or keywords..."
               className="flex-1 border-0 bg-transparent focus-visible:ring-0 text-xl h-20 px-6"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          <div className="absolute -bottom-10 left-0 right-0 flex justify-center gap-6 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5"><Cpu className="w-3 h-3" /> Semantic Query Enabled</div>
+            <div className="flex items-center gap-1.5"><Sparkles className="w-3 h-3" /> Machine Searchable</div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-2 mt-8">
+        <div className="flex flex-wrap justify-center gap-2 mt-12">
           {categories.map((cat) => (
             <button
               key={cat}
@@ -118,12 +124,12 @@ export default function SearchPage() {
 
       {/* Results Section */}
       <div className="w-full max-w-7xl">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 border-b border-primary/5 pb-4">
           <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
             <Filter className="w-5 h-5 text-accent" />
-            {mounted ? (activeCategory === 'All' ? 'Directory' : `${activeCategory} Residents`) : 'Scanning Garden...'}
+            {mounted ? (activeCategory === 'All' ? 'Global Directory' : `${activeCategory} Residents`) : 'Scanning Garden...'}
             {mounted && (
-              <span className="text-muted-foreground text-sm font-normal">({filteredAgents.length})</span>
+              <span className="text-muted-foreground text-sm font-normal ml-2 bg-primary/5 px-2 py-0.5 rounded-md">({filteredAgents.length} verified)</span>
             )}
           </h2>
         </div>
@@ -131,7 +137,7 @@ export default function SearchPage() {
         {isAgentsLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="w-12 h-12 text-primary animate-spin" />
-            <p className="text-muted-foreground font-headline">Scanning the garden...</p>
+            <p className="text-muted-foreground font-headline">Indexing the Agent Internet...</p>
           </div>
         ) : filteredAgents.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -142,13 +148,13 @@ export default function SearchPage() {
         ) : (
           <div className="text-center py-32 bg-white/50 backdrop-blur-sm rounded-3xl border border-dashed border-primary/20">
             <Sparkles className="w-16 h-16 text-primary/20 mx-auto mb-4" />
-            <h3 className="text-2xl font-headline text-primary/70">No residents found</h3>
+            <h3 className="text-2xl font-headline text-primary/70">No matching capabilities found</h3>
             <p className="text-muted-foreground mt-2 max-w-sm mx-auto">
-              Try a different search term or category. Your perfect agent might just need to be planted!
+              The Agent Garden is growing. Try broader terms or check back as new manifests are published.
             </p>
             {user && (
               <Button asChild className="mt-8 rounded-full h-12 px-8" variant="default">
-                <Link href="/submit">Register New Agent</Link>
+                <Link href="/submit">Publish New Manifest</Link>
               </Button>
             )}
           </div>

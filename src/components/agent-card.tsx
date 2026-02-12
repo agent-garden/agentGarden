@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe } from "lucide-react";
+import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface Agent {
@@ -13,8 +13,11 @@ export interface Agent {
   introduction: string;
   system_instruction: string;
   status: 'active' | 'inactive';
+  availability: 'Active' | 'Idle';
   category: string;
-  tags: string[];
+  specialties: string[];
+  stack: string;
+  public_key: string;
   public_api_enabled: boolean;
   verified?: boolean;
   owner_id: string;
@@ -40,39 +43,63 @@ export function AgentCard({ agent }: { agent: Agent }) {
     )}>
       <CardHeader className="pb-4 space-y-2">
         <div className="flex items-start justify-between">
-          <Badge variant="secondary" className="bg-primary/5 text-primary border-none rounded-lg px-2 py-0.5 gap-1.5 flex items-center">
-            <CategoryIcon className="w-3.5 h-3.5" />
-            {agent.category}
-          </Badge>
-          {agent.public_api_enabled && (
-            <Badge variant="outline" className="text-[10px] border-accent/20 text-accent gap-1">
-              <Globe className="w-3 h-3" />
-              API Ready
+          <div className="flex flex-col gap-1.5">
+            <Badge variant="secondary" className="bg-primary/5 text-primary border-none rounded-lg px-2 py-0.5 gap-1.5 flex items-center w-fit">
+              <CategoryIcon className="w-3.5 h-3.5" />
+              {agent.category}
+            </Badge>
+            <div className="flex gap-1">
+              <Badge variant={agent.availability === 'Active' ? 'default' : 'secondary'} className="text-[10px] h-4 px-1.5">
+                {agent.availability}
+              </Badge>
+              {agent.public_api_enabled && (
+                <Badge variant="outline" className="text-[10px] h-4 border-accent/20 text-accent gap-1">
+                  <Globe className="w-3 h-3" />
+                  API
+                </Badge>
+              )}
+            </div>
+          </div>
+          {agent.verified && (
+            <Badge variant="outline" className="text-[10px] border-primary/20 text-primary gap-1 py-0.5">
+              <CheckCircle2 className="w-3 h-3" />
+              Verified
             </Badge>
           )}
         </div>
         <div>
-          <CardTitle className="text-2xl font-headline font-bold flex items-center gap-2 group-hover:text-primary transition-colors">
+          <CardTitle className="text-xl font-headline font-bold flex items-center gap-2 group-hover:text-primary transition-colors">
             {agent.name}
-            {agent.verified && <CheckCircle2 className="w-5 h-5 text-primary fill-primary/10" />}
           </CardTitle>
           <span className="text-sm text-muted-foreground">@{agent.handle}</span>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col justify-between space-y-6">
-        <p className="text-sm text-foreground/80 leading-relaxed font-body line-clamp-4">
+      <CardContent className="flex-1 flex flex-col justify-between space-y-4">
+        <p className="text-sm text-foreground/80 leading-relaxed font-body line-clamp-3">
           {agent.introduction}
         </p>
-        
-        <div className="space-y-3 pt-4 border-t border-primary/5">
+
+        <div className="space-y-3 pt-3 border-t border-primary/5">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Cpu className="w-3.5 h-3.5" />
+            <span className="font-mono">{agent.stack}</span>
+          </div>
+          
           <div className="flex flex-wrap gap-1.5">
-            {agent.tags?.slice(0, 5).map((tag) => (
+            {agent.specialties?.slice(0, 4).map((tag) => (
               <Badge key={tag} variant="outline" className="text-[10px] px-2 py-0 h-5 bg-white border-primary/10 text-muted-foreground flex items-center gap-1">
                 <Tag className="w-2.5 h-2.5" />
                 {tag}
               </Badge>
             ))}
           </div>
+
+          {agent.public_key && (
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 bg-muted/30 p-1.5 rounded-lg">
+              <Lock className="w-3 h-3 shrink-0" />
+              <span className="truncate font-mono">{agent.public_key}</span>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
