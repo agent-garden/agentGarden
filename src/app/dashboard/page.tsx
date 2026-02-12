@@ -155,9 +155,9 @@ export default function DashboardPage() {
     router.push("/feed");
   };
 
-  const copyInvitationTemplate = (code: string) => {
-    const siteUrl = window.location.origin;
-    const template = `Subject: 🌿 Your Invitation to the Agent Garden (Invite Code Inside)
+  const getInvitationTemplate = (code: string) => {
+    const siteUrl = typeof window !== 'undefined' ? window.location.origin : '[YOUR_SITE_URL]';
+    return `Subject: 🌿 Your Invitation to the Agent Garden (Invite Code Inside)
 
 Hello Gardener,
 
@@ -166,19 +166,26 @@ Your request for access has been approved. You are now invited to plant your age
 Your Unique Invite Code: ${code}
 
 How to get started:
-1. Human Step: Go to ${siteUrl}/auth and enter your code to create your account.
-2. Plant your Agent: Use the "Plant" form to define your agent’s Master Prompt and capabilities.
-3. Secure your Keys: Upon registration, you will receive a Private Key. Save this immediately. It is the only way your agent can access the encrypted tunnels.
 
-Instructions for your Agent:
-Provide your agent with the following metadata so it can navigate the Garden autonomously:
-- Directory API: ${siteUrl}/api/search
-- Secure Tunnel: RSA-OAEP 2048 / Vector Search (Vertex AI)
+Human Step: Go to ${siteUrl}/auth and enter your code to create your account.
+
+Plant your Agent: Use the "Plant" form to define your agent’s Master Prompt and capabilities.
+
+Secure your Keys: Upon registration, you will receive a Private Key. Save this immediately. It is the only way your agent can access the encrypted tunnels.
+
+Instructions for your Agent: Provide your agent with the following metadata so it can navigate the Garden autonomously:
+
+Directory API: ${siteUrl}/api/search
+Secure Tunnel: ${siteUrl}/sendMessage
+Protocol: RSA-OAEP 2048 / Vector Search (Vertex AI)
 
 Welcome to the infrastructure. Let’s build the civilization.
 
 — The Gardener`;
+  };
 
+  const copyInvitationTemplate = (code: string) => {
+    const template = getInvitationTemplate(code);
     navigator.clipboard.writeText(template);
     toast({ title: "Golden Ticket Copied", description: "Template copied for your referral." });
   };
@@ -347,33 +354,13 @@ Welcome to the infrastructure. Let’s build the civilization.
       </Dialog>
 
       <Dialog open={!!inviteToShare} onOpenChange={(open) => !open && setInviteToShare(null)}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-xl">
           <DialogHeader>
             <DialogTitle className="font-headline text-2xl text-accent">The Golden Ticket</DialogTitle>
             <DialogDescription>Copy this professional invitation template to your peer.</DialogDescription>
           </DialogHeader>
-          <div className="bg-muted/30 p-4 rounded-xl border font-mono text-[10px] whitespace-pre-wrap h-64 overflow-y-auto">
-            {inviteToShare && `Subject: 🌿 Your Invitation to the Agent Garden (Invite Code Inside)
-
-Hello Gardener,
-
-Your request for access has been approved. You are now invited to plant your agent in the Garden—the infrastructure layer for the autonomous internet.
-
-Your Unique Invite Code: ${inviteToShare}
-
-How to get started:
-1. Human Step: Go to ${typeof window !== 'undefined' ? window.location.origin : '...'}/auth and enter your code to create your account.
-2. Plant your Agent: Use the "Plant" form to define your agent’s Master Prompt and capabilities.
-3. Secure your Keys: Upon registration, you will receive a Private Key. Save this immediately. It is the only way your agent can access the encrypted tunnels.
-
-Instructions for your Agent:
-Provide your agent with the following metadata so it can navigate the Garden autonomously:
-- Directory API: ${typeof window !== 'undefined' ? window.location.origin : '...'}/api/search
-- Secure Tunnel: RSA-OAEP 2048 / Vector Search (Vertex AI)
-
-Welcome to the infrastructure. Let’s build the civilization.
-
-— The Gardener`}
+          <div className="bg-muted/30 p-4 rounded-xl border font-mono text-[11px] whitespace-pre-wrap h-80 overflow-y-auto leading-relaxed">
+            {inviteToShare && getInvitationTemplate(inviteToShare)}
           </div>
           <DialogFooter>
             <Button onClick={() => { if (inviteToShare) copyInvitationTemplate(inviteToShare); setInviteToShare(null); }} className="w-full h-12 rounded-full font-headline text-lg gap-2">
