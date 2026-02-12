@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { Loader2, Sprout, LogIn, UserPlus, ArrowLeft } from 'lucide-react';
+import { Loader2, Sprout, LogIn, UserPlus, ArrowLeft, Ticket } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,11 +24,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, runTransaction } from 'firebase/firestore';
 
 const authSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
   password: z.string().min(6, { message: "Password must be at least 6 characters" }),
+  inviteCode: z.string().optional(),
 });
 
 export default function AuthPage() {
@@ -38,6 +40,7 @@ export default function AuthPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState("login");
   const redirect = searchParams.get('redirect') || '/';
 
   useEffect(() => {
@@ -51,30 +54,51 @@ export default function AuthPage() {
     defaultValues: {
       email: "",
       password: "",
+      inviteCode: "",
     },
   });
 
   async function onSignIn(values: z.infer<typeof authSchema>) {
     setIsSubmitting(true);
-    initiateEmailSignIn(auth, values.email, values.password)
-      .catch((error: any) => {
-        toast({ 
-          variant: "destructive", 
-          title: "Authentication Failed", 
-          description: error.message || "Please check your credentials." 
-        });
-      })
-      .finally(() => {
-        setIsSubmitting(false);
+    try {
+      await initiateEmailSignIn(auth, values.email, values.password);
+      toast({ title: "Welcome Back", description: "Synchronizing your gardener profile..." });
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Authentication Failed", 
+        description: error.message || "Please check your credentials." 
       });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   async function onSignUp(values: z.infer<typeof authSchema>) {
+    if (!values.inviteCode) {
+      form.setError("inviteCode", { message: "Invite code is required for registration." });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      // 1. Verify Invite Code Existence before attempting Auth
+      const inviteRef = doc(firestore, 'invite_codes', values.inviteCode);
+      const inviteSnap = await getDoc(inviteRef);
+
+      if (!inviteSnap.exists()) {
+        throw new Error("Invalid invite code. This code is not in the garden registry.");
+      }
+
+      const inviteData = inviteSnap.data();
+      if (inviteData.uses_left <= 0) {
+        throw new Error("This invite code has no uses left.");
+      }
+
+      // 2. Perform Sign Up
       const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
       
-      // Initialize User Profile with default invites
+      // 3. Initialize User Profile
       if (userCredential.user) {
         await setDoc(doc(firestore, 'users', userCredential.user.uid), {
           id: userCredential.user.uid,
@@ -82,7 +106,8 @@ export default function AuthPage() {
           displayName: values.email.split('@')[0],
           monthly_invite_limit: 30,
           invites_remaining: 30,
-          created_at: Date.now()
+          created_at: Date.now(),
+          invite_code_used: values.inviteCode
         });
       }
 
@@ -125,7 +150,7 @@ export default function AuthPage() {
             <CardDescription>Discover and share specialized AI agents.</CardDescription>
           </CardHeader>
           <CardContent className="p-8">
-            <Tabs defaultValue="login" className="w-full">
+            <Tabs defaultValue="login" className="w-full" onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-2 mb-8 rounded-xl">
                 <TabsTrigger value="login" className="rounded-lg">Login</TabsTrigger>
                 <TabsTrigger value="signup" className="rounded-lg">Sign Up</TabsTrigger>
@@ -159,6 +184,28 @@ export default function AuthPage() {
                       </FormItem>
                     )}
                   />
+
+                  {activeTab === "signup" && (
+                    <FormField
+                      control={form.control}
+                      name="inviteCode"
+                      render={({ field }) => (
+                        <FormItem className="pt-2">
+                          <FormLabel className="flex items-center gap-2 text-accent font-bold">
+                            <Ticket className="w-4 h-4" />
+                            Invite Code
+                          </FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter your Golden Ticket" {...field} className="rounded-xl border-accent/20 focus:border-accent" />
+                          </FormControl>
+                          <FormDescription className="text-[10px]">
+                            Required for entry to the gardener registry.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
                   <TabsContent value="login">
                     <Button 
