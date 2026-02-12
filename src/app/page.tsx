@@ -1,40 +1,52 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Search, Loader2, Sparkles, Sprout, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AgentCard, type Agent } from '@/components/agent-card';
-import { performAgentVectorSearch } from '@/ai/flows/perform-agent-vector-search';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 import Link from 'next/link';
 
 export default function Home() {
   const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<Agent[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  
+  const firestore = useFirestore();
+  
+  // Memoize the collection reference for real-time updates
+  const agentsRef = useMemoFirebase(() => collection(firestore, 'agents'), [firestore]);
+  const { data: agents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsRef);
 
-  const handleSearch = async (e?: React.FormEvent) => {
+  // Filter agents locally for a fast, responsive search experience
+  const filteredResults = useMemo(() => {
+    if (!hasSearched) return [];
+    if (!agents) return [];
+    if (!query.trim()) return agents;
+    
+    const lowerQuery = query.toLowerCase();
+    return agents.filter(agent => 
+      agent.name.toLowerCase().includes(lowerQuery) ||
+      agent.introduction.toLowerCase().includes(lowerQuery) ||
+      agent.skills.some(skill => skill.toLowerCase().includes(lowerQuery)) ||
+      agent.handle.toLowerCase().includes(lowerQuery)
+    );
+  }, [agents, query, hasSearched]);
+
+  const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!query.trim()) return;
-
-    setLoading(true);
     setHasSearched(true);
-    try {
-      const searchResults = await performAgentVectorSearch({ query });
-      setResults(searchResults || []);
-    } catch (error) {
-      console.error("Search failed:", error);
-    } finally {
-      setLoading(false);
-    }
   };
+
+  const results = filteredResults;
 
   return (
     <main className="min-h-screen flex flex-col items-center bg-background p-6 md:p-12">
       {/* Top Navigation */}
       <div className="w-full max-w-7xl flex justify-end mb-8">
-        <Button asChild variant="outline" className="rounded-full gap-2 border-primary/20 hover:bg-primary/5">
+        <Button asChild variant="outline" className="rounded-full gap-2 border-primary/20 hover:bg-primary/5 shadow-sm">
           <Link href="/submit">
             <Plus className="w-4 h-4" />
             Submit Agent
@@ -74,9 +86,9 @@ export default function Home() {
                 type="submit" 
                 size="lg"
                 className="rounded-full px-8 h-12 bg-primary hover:bg-accent text-primary-foreground font-headline font-bold"
-                disabled={loading || !query.trim()}
+                disabled={isAgentsLoading || !query.trim()}
               >
-                {loading ? (
+                {isAgentsLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   "Search"
@@ -87,7 +99,7 @@ export default function Home() {
         </form>
         
         <div className="flex justify-center gap-4 mt-6 text-xs text-muted-foreground/60">
-          <span>Vector Search powered by Vertex AI</span>
+          <span>Real-time Search</span>
           <span>•</span>
           <span>Firestore Database</span>
         </div>
@@ -95,14 +107,14 @@ export default function Home() {
 
       {/* Results Section */}
       <div className="w-full max-w-5xl">
-        {loading && (
+        {isAgentsLoading && (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
             <Loader2 className="w-10 h-10 text-primary animate-spin" />
             <p className="text-muted-foreground animate-pulse font-headline">Tending to the garden...</p>
           </div>
         )}
 
-        {!loading && hasSearched && results.length > 0 && (
+        {!isAgentsLoading && hasSearched && results.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {results.map((agent) => (
               <AgentCard key={agent.id} agent={agent} />
@@ -110,10 +122,10 @@ export default function Home() {
           </div>
         )}
 
-        {!loading && hasSearched && results.length === 0 && (
+        {!isAgentsLoading && hasSearched && results.length === 0 && (
           <div className="text-center py-20 bg-white/30 backdrop-blur-sm rounded-3xl border border-dashed border-border/60">
             <Sparkles className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-            <h3 className="text-xl font-headline text-foreground/70">No agents found yet</h3>
+            <h3 className="text-xl font-headline text-foreground/70">No agents found</h3>
             <p className="text-muted-foreground mt-2 font-body">Try a different query or submit a new agent.</p>
           </div>
         )}
@@ -125,7 +137,7 @@ export default function Home() {
                 key={suggestion}
                 onClick={() => {
                   setQuery(suggestion);
-                  setTimeout(() => handleSearch(), 100);
+                  setHasSearched(true);
                 }}
                 className="p-4 bg-white/40 hover:bg-white border border-border/50 rounded-2xl text-sm font-medium text-primary text-center transition-all hover:shadow-sm"
               >

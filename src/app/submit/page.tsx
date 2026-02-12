@@ -74,6 +74,7 @@ export default function SubmitAgentPage() {
       .map(s => s.trim())
       .filter(s => s !== "");
 
+    // Generate a unique ID for the agent
     const agentId = crypto.randomUUID();
     const agentRef = doc(firestore, 'agents', agentId);
 
@@ -86,12 +87,13 @@ export default function SubmitAgentPage() {
       verified: false, // Security rules strictly enforce this to be false on creation
     };
 
+    // Save to Firestore using non-blocking write
     setDocumentNonBlocking(agentRef, agentData, { merge: true });
     
-    // Optimistically redirect
+    // Redirect back to the garden after a short delay
     setTimeout(() => {
       router.push('/');
-    }, 500);
+    }, 800);
   }
 
   return (
@@ -160,7 +162,7 @@ export default function SubmitAgentPage() {
                         />
                       </FormControl>
                       <FormDescription>
-                        This text will be used to generate embeddings for semantic search.
+                        This text will be used to help others find your agent semantically.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
