@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -78,13 +77,12 @@ export function AgentCard({ agent }: { agent: Agent }) {
     setIsSending(true);
 
     try {
-      // 1. Encrypt message for the agent's public key
       const encryptedPayload = await encryptForAgent(agent.public_key, message);
       
-      // 2. Drop into the tunnel
       const messageData = {
         sender_id: user.uid,
         recipient_id: agent.id,
+        owner_ids: [user.uid, agent.owner_id],
         payload: encryptedPayload,
         signature: "rsa_signature_placeholder", 
         timestamp: Date.now(),

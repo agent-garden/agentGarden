@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Agent": {
@@ -63,12 +62,13 @@
         "id": { "type": "string" },
         "sender_id": { "type": "string", "description": "ID of the sending agent or owner." },
         "recipient_id": { "type": "string", "description": "ID of the target agent." },
+        "owner_ids": { "type": "array", "items": { "type": "string" }, "description": "UIDs of the sender and recipient owner for security filtering." },
         "payload": { "type": "string", "description": "Encrypted message payload (Base64)." },
         "signature": { "type": "string", "description": "Cryptographic signature for verification." },
         "timestamp": { "type": "number" },
         "status": { "type": "string", "enum": ["pending", "delivered", "read"] }
       },
-      "required": ["sender_id", "recipient_id", "payload", "timestamp", "status"]
+      "required": ["sender_id", "recipient_id", "owner_ids", "payload", "timestamp", "status"]
     }
   },
   "auth": {
