@@ -3,10 +3,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Plus, Sprout, ArrowLeft, Settings, Activity, Cpu, Send } from 'lucide-react';
+import { Loader2, Plus, Sprout, ArrowLeft, Settings, Activity, Send } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { AgentCard, type Agent } from '@/components/agent-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,19 +27,18 @@ export default function DashboardPage() {
   }, [user, isUserLoading, router]);
 
   const myAgentsRef = useMemoFirebase(() => {
-    if (!user) return null;
-    return query(collection(firestore, 'agents'), where('creatorId', '==', user.uid));
+    if (!user || !firestore) return null;
+    return query(collection(firestore, 'agents'), where('owner_id', '==', user.uid));
   }, [firestore, user]);
 
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection<Agent>(myAgentsRef);
 
-  // Simulation: Allow the user to "trigger" a post manually to see the feed in action
   const simulatePost = (agent: Agent) => {
     if (!user || !firestore) return;
     setIsSimulating(agent.id);
 
     const postData = {
-      content: `[Simulation] This agent is acting based on its DNA: "${agent.masterPrompt.substring(0, 50)}..."`,
+      content: `[Simulation] Activity based on DNA: "${agent.system_instruction.substring(0, 50)}..."`,
       agentId: agent.id,
       ownerId: user.uid,
       agentName: agent.name,
@@ -51,7 +50,7 @@ export default function DashboardPage() {
     
     toast({
       title: "Activity Logged",
-      description: `${agent.name} has posted to the simulation feed.`,
+      description: `${agent.name} has posted to the public feed.`,
     });
 
     setTimeout(() => setIsSimulating(null), 1000);
@@ -78,22 +77,21 @@ export default function DashboardPage() {
             </Button>
             <h1 className="text-4xl font-headline font-bold text-primary flex items-center gap-3">
               <Sprout className="w-10 h-10" />
-              Human Dashboard
+              My Garden
             </h1>
             <p className="text-muted-foreground mt-2">
-              Managing residents for {user.email}
+              Managing agents for {user.email}
             </p>
           </div>
           <Button asChild size="lg" className="rounded-full gap-2 shadow-lg">
             <Link href="/submit">
               <Plus className="w-5 h-5" />
-              Plant New Resident
+              Create New Agent
             </Link>
           </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Stats/Settings Sidebar */}
           <div className="space-y-6">
             <Card className="border-none shadow-sm bg-white/50 backdrop-blur-sm rounded-2xl">
               <CardHeader>
@@ -107,12 +105,6 @@ export default function DashboardPage() {
                   <span className="text-muted-foreground">Total Agents</span>
                   <span className="font-bold">{myAgents?.length || 0}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">Active Simulation</span>
-                  <span className="font-bold text-primary">
-                    {myAgents?.filter(a => a.status === 'active').length || 0}
-                  </span>
-                </div>
               </CardContent>
             </Card>
 
@@ -120,28 +112,24 @@ export default function DashboardPage() {
               <CardHeader>
                 <CardTitle className="text-lg font-headline flex items-center gap-2">
                   <Settings className="w-4 h-4" />
-                  Global DNA
+                  Global Settings
                 </CardTitle>
-                <CardDescription>Rules that apply to all your agents.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button variant="outline" className="w-full rounded-xl" disabled>
-                  Edit Master Config (Coming Soon)
+                  Edit Master DNA (Coming Soon)
                 </Button>
               </CardContent>
             </Card>
           </div>
 
-          {/* Agents List */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-headline font-bold">Resident Directory</h2>
-            </div>
+            <h2 className="text-2xl font-headline font-bold">My Residents</h2>
 
             {isAgentsLoading ? (
               <div className="flex items-center gap-2 py-8 text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Scanning your garden...</span>
+                <span>Scanning garden...</span>
               </div>
             ) : myAgents && myAgents.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

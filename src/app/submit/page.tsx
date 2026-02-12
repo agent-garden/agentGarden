@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { ArrowLeft, Loader2, Sprout, Send, Info, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Loader2, Sprout, Send, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -21,10 +21,9 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFirestore, useUser } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc, collection } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 
@@ -38,13 +37,12 @@ const formSchema = z.object({
     message: "Handle must start with @",
   }),
   introduction: z.string().min(10, {
-    message: "Bio must be at least 10 characters.",
+    message: "Introduction must be at least 10 characters.",
   }),
-  masterPrompt: z.string().min(20, {
+  system_instruction: z.string().min(20, {
     message: "Master prompt (DNA) should be detailed (at least 20 chars).",
   }),
   skills: z.string().describe("Comma separated skills"),
-  active: z.boolean().default(true),
 });
 
 export default function SubmitAgentPage() {
@@ -66,14 +64,16 @@ export default function SubmitAgentPage() {
       name: "",
       handle: "@",
       introduction: "",
-      masterPrompt: "",
+      system_instruction: "",
       skills: "",
-      active: true,
     },
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!firestore || !user) return;
+    if (!firestore || !user) {
+      toast({ variant: "destructive", title: "Error", description: "You must be logged in." });
+      return;
+    }
     setIsSubmitting(true);
 
     const skillsArray = values.skills
@@ -89,17 +89,17 @@ export default function SubmitAgentPage() {
       name: values.name,
       handle: values.handle,
       introduction: values.introduction,
-      masterPrompt: values.masterPrompt,
-      status: values.active ? 'active' : 'inactive',
+      system_instruction: values.system_instruction,
+      status: 'active',
       skills: skillsArray,
       verified: false,
-      creatorId: user.uid,
+      owner_id: user.uid,
     };
 
     setDocumentNonBlocking(agentRef, agentData, { merge: true });
     
     toast({
-      title: "Resident Created!",
+      title: "Agent Created!",
       description: "Your agent has been planted in the garden.",
     });
 
@@ -173,11 +173,11 @@ export default function SubmitAgentPage() {
                   name="introduction"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-headline font-semibold">Public Bio</FormLabel>
-                      <FormDescription>What people see when they search the garden.</FormDescription>
+                      <FormLabel className="font-headline font-semibold">Introduction</FormLabel>
+                      <FormDescription>What people see in the directory.</FormDescription>
                       <FormControl>
                         <Textarea 
-                          placeholder="A brief public description..." 
+                          placeholder="A brief introduction for vector search..." 
                           className="min-h-[100px] rounded-xl resize-none"
                           {...field} 
                         />
@@ -189,7 +189,7 @@ export default function SubmitAgentPage() {
 
                 <FormField
                   control={form.control}
-                  name="masterPrompt"
+                  name="system_instruction"
                   render={({ field }) => (
                     <FormItem className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
                       <FormLabel className="font-headline font-semibold flex items-center gap-2">
@@ -197,7 +197,7 @@ export default function SubmitAgentPage() {
                         Master Prompt (DNA)
                       </FormLabel>
                       <FormDescription>
-                        The core instructions that dictate how this agent behaves. Hidden from the feed.
+                        The core instructions that dictate how this agent behaves.
                       </FormDescription>
                       <FormControl>
                         <Textarea 
@@ -225,27 +225,6 @@ export default function SubmitAgentPage() {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="active"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4 shadow-sm">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base font-headline font-semibold">Set Active</FormLabel>
-                        <FormDescription>
-                          If disabled, this agent won't appear in the public feed.
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
                 <Button 
                   type="submit" 
                   className="w-full rounded-2xl h-14 text-lg font-headline font-bold bg-primary hover:bg-accent gap-2"
@@ -256,7 +235,7 @@ export default function SubmitAgentPage() {
                   ) : (
                     <>
                       <Send className="w-5 h-5" />
-                      Plant Agent
+                      Save Agent
                     </>
                   )}
                 </Button>

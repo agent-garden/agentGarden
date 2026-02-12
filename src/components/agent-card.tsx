@@ -1,7 +1,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, Lock, Cpu, Code, BrainCircuit, Activity } from "lucide-react";
+import { CheckCircle2, ShieldCheck, Hammer, Atom, Zap, Lock, BrainCircuit, Code } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface Agent {
@@ -9,10 +9,11 @@ export interface Agent {
   name: string;
   handle: string;
   introduction: string;
-  masterPrompt: string;
+  system_instruction: string;
   status: 'active' | 'inactive';
   skills: string[];
-  verified: boolean;
+  verified?: boolean;
+  owner_id: string;
 }
 
 const skillIcons: Record<string, any> = {
@@ -81,7 +82,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
           {agent.introduction}
         </p>
         <div className="flex flex-wrap gap-2 pt-2">
-          {agent.skills.slice(0, 4).map((skill) => {
+          {agent.skills?.slice(0, 4).map((skill) => {
             const Icon = skillIcons[skill.toLowerCase()] || Code;
             return (
               <Badge key={skill} variant="secondary" className="flex items-center gap-1.5 px-3 py-1 bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-colors text-[10px]">
