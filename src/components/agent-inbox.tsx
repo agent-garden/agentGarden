@@ -2,15 +2,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, doc } from 'firebase/firestore';
+import { useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, where, orderBy, doc, runTransaction } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
-import { Loader2, Mail, Lock, Clock, User, ChevronRight, Inbox, ShieldCheck } from 'lucide-react';
+import { Loader2, Mail, Lock, Clock, User, ChevronRight, Inbox, ShieldCheck, Star } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Message {
   id: string;
@@ -24,8 +27,13 @@ interface Message {
 
 export function AgentInbox({ agentId, agentName }: { agentId: string, agentName: string }) {
   const firestore = useFirestore();
+  const { user } = useUser();
+  const { toast } = useToast();
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [reviewText, setReviewText] = useState("");
+  const [isVouching, setIsVouching] = useState(false);
+  const [isVouchDialogOpen, setIsVouchDialogOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -48,6 +56,55 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
       updateDocumentNonBlocking(msgRef, { status: 'read' });
     }
     setSelectedMessage(msg);
+  };
+
+  const handleVouch = async () => {
+    if (!user || !firestore || !selectedMessage || !reviewText.trim()) return;
+    setIsVouching(true);
+
+    try {
+      await runTransaction(firestore, async (transaction) => {
+        // 1. Create the review
+        const reviewRef = doc(collection(firestore, 'reviews'));
+        transaction.set(reviewRef, {
+          reviewer_id: agentId,
+          target_id: selectedMessage.sender_id,
+          task_description: reviewText,
+          timestamp: Date.now(),
+          owner_id: user.uid
+        });
+
+        // 2. Update the target agent's reputation (if target_id is an agent)
+        const agentRef = doc(firestore, 'agents', selectedMessage.sender_id);
+        const agentSnap = await transaction.get(agentRef);
+        
+        if (agentSnap.exists()) {
+          const data = agentSnap.data();
+          const newReviewCount = (data.review_count || 0) + 1;
+          const newTrustLevel = newReviewCount >= 5 ? 2 : data.trust_level;
+          
+          transaction.update(agentRef, {
+            review_count: newReviewCount,
+            trust_level: newTrustLevel
+          });
+        }
+      });
+
+      toast({
+        title: "Peer Vouch Recorded",
+        description: `You have successfully vouched for Agent ${selectedMessage.sender_id.substring(0, 8)}...`,
+      });
+      setIsVouchDialogOpen(false);
+      setReviewText("");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Vouch Failed",
+        description: "Reputation update could not be completed.",
+      });
+    } finally {
+      setIsVouching(false);
+    }
   };
 
   return (
@@ -116,25 +173,61 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
         <div className="bg-muted/10 flex flex-col overflow-hidden">
           {selectedMessage ? (
             <div className="p-6 space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                    <User className="w-5 h-5" />
+              <div className="flex justify-between items-start">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold font-headline">Sender ID</h4>
+                      <p className="text-[10px] text-muted-foreground font-mono">{selectedMessage.sender_id}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold font-headline">Sender ID</h4>
-                    <p className="text-[10px] text-muted-foreground font-mono">{selectedMessage.sender_id}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center text-accent">
+                      <Clock className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold font-headline">Timestamp</h4>
+                      <p className="text-xs text-muted-foreground">{mounted ? new Date(selectedMessage.timestamp).toLocaleString() : '...'}</p>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center text-accent">
-                    <Clock className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold font-headline">Timestamp</h4>
-                    <p className="text-xs text-muted-foreground">{mounted ? new Date(selectedMessage.timestamp).toLocaleString() : '...'}</p>
-                  </div>
-                </div>
+
+                <Dialog open={isVouchDialogOpen} onOpenChange={setIsVouchDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2 rounded-full text-primary border-primary/20 hover:bg-primary/5">
+                      <Star className="w-4 h-4" />
+                      Vouch
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="rounded-3xl">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Star className="w-5 h-5 text-primary" />
+                        Peer-to-Peer Reputation
+                      </DialogTitle>
+                      <DialogDescription>
+                        Attest that this agent successfully completed a task. Peer-Verified status requires 5+ vouches.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                      <FormLabel>Task Description</FormLabel>
+                      <Textarea 
+                        placeholder="e.g., Successfully performed a Kubernetes security audit..."
+                        className="mt-2 rounded-xl"
+                        value={reviewText}
+                        onChange={(e) => setReviewText(e.target.value)}
+                      />
+                    </div>
+                    <DialogFooter>
+                      <Button onClick={handleVouch} disabled={isVouching || !reviewText.trim()} className="w-full h-12 rounded-xl">
+                        {isVouching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Peer Vouch"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <div className="space-y-3">

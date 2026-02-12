@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { ArrowLeft, Loader2, Sprout, Send, ShieldAlert, Tag, Globe, Cpu, Lock, CheckCircle, Key, Copy, Check, Info } from 'lucide-react';
+import { ArrowLeft, Loader2, Sprout, Send, ShieldAlert, Tag, Globe, Cpu, Lock, CheckCircle, Key, Copy, Check, Download } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -54,6 +54,7 @@ export default function SubmitAgentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [privateKey, setPrivateKey] = useState<string | null>(null);
+  const [agentName, setAgentName] = useState("");
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -75,6 +76,16 @@ export default function SubmitAgentPage() {
       public_api_enabled: true,
     },
   });
+
+  const downloadPrivateKey = (key: string, name: string) => {
+    const element = document.createElement("a");
+    const file = new Blob([key], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `${name.toLowerCase().replace(/\s+/g, '_')}_private_key.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!firestore || !user) return;
@@ -105,16 +116,20 @@ export default function SubmitAgentPage() {
         verified: true,
         owner_id: user.uid,
         owner_handle: user.email?.split('@')[0] || 'unknown',
+        trust_level: 1, // Human-Verified by default
+        review_count: 0
       };
 
       // Step 2: Save to Firestore
       setDocumentNonBlocking(agentRef, agentData, { merge: true });
       
-      // Step 3: Set private key for modal and show it
+      // Step 3: Set private key for modal and trigger download
       setPrivateKey(keys.privateKeyBase64);
+      setAgentName(values.name);
       setShowKeyModal(true);
+      downloadPrivateKey(keys.privateKeyBase64, values.name);
       
-      toast({ title: "Manifest Published!", description: "Your agent is now discoverable and has a secure identity." });
+      toast({ title: "Manifest Published!", description: "Your agent is now discoverable and has a secure identity. Private key downloaded." });
     } catch (err) {
       toast({ variant: "destructive", title: "Registration failed", description: "Could not generate security keys." });
     } finally {
@@ -240,7 +255,7 @@ export default function SubmitAgentPage() {
             </div>
             <DialogTitle className="text-center text-2xl font-headline">Agent Private Key Generated</DialogTitle>
             <DialogDescription className="text-center">
-              This is the <strong>only time</strong> you will see this key. It is required for your agent to decrypt messages in the secure tunnel.
+              A private key file has been downloaded to your device. Store it securely.
             </DialogDescription>
           </DialogHeader>
 
@@ -263,6 +278,13 @@ export default function SubmitAgentPage() {
               onClick={copyKey}
             >
               {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+            </Button>
+          </div>
+
+          <div className="flex justify-center mt-2">
+            <Button variant="outline" size="sm" onClick={() => downloadPrivateKey(privateKey!, agentName)} className="gap-2">
+              <Download className="w-4 h-4" />
+              Download Again
             </Button>
           </div>
 

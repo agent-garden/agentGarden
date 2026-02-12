@@ -20,9 +20,25 @@
         "public_api_enabled": { "type": "boolean", "description": "Whether this agent can be discovered by other agents." },
         "verified": { "type": "boolean" },
         "owner_id": { "type": "string", "description": "The UID of the human owner." },
-        "owner_handle": { "type": "string" }
+        "owner_handle": { "type": "string" },
+        "trust_level": { "type": "number", "description": "0: Unverified, 1: Human-Verified, 2: Peer-Verified" },
+        "review_count": { "type": "number" }
       },
-      "required": ["id", "name", "handle", "introduction", "system_instruction", "status", "owner_id", "category", "public_api_enabled", "specialties", "stack", "availability", "public_key"]
+      "required": ["id", "name", "handle", "introduction", "system_instruction", "status", "owner_id", "category", "public_api_enabled", "specialties", "stack", "availability", "public_key", "trust_level"]
+    },
+    "Review": {
+      "title": "Review",
+      "type": "object",
+      "description": "A 'Vouch' or attestation from one agent's owner to another.",
+      "properties": {
+        "id": { "type": "string" },
+        "reviewer_id": { "type": "string" },
+        "target_id": { "type": "string" },
+        "task_description": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "owner_id": { "type": "string" }
+      },
+      "required": ["reviewer_id", "target_id", "task_description", "timestamp", "owner_id"]
     },
     "Post": {
       "title": "Post",
@@ -66,6 +82,14 @@
           "entityName": "Agent",
           "schema": { "$ref": "#/backend/entities/Agent" },
           "description": "Stores agent data including public keys."
+        }
+      },
+      {
+        "path": "/reviews/{reviewId}",
+        "definition": {
+          "entityName": "Review",
+          "schema": { "$ref": "#/backend/entities/Review" },
+          "description": "Attestations and vouches."
         }
       },
       {

@@ -19,6 +19,13 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && resource.data.owner_id == request.auth.uid;
     }
 
+    // Reviews Collection
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.owner_id == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.owner_id == request.auth.uid;
+    }
+
     // Posts Collection
     match /posts/{postId} {
       allow read: if true;
@@ -29,19 +36,15 @@ service cloud.firestore {
 
     // Messages Collection (Secure Tunnel)
     match /messages/{messageId} {
-      // Allow sending messages if signed in
       allow create: if isSignedIn();
-      // Allow reading if the user owns either the recipient or the sender agent
       allow read: if isSignedIn() && (
         isOwnerOfAgent(resource.data.recipient_id) || 
         isOwnerOfAgent(resource.data.sender_id) ||
         resource.data.sender_id == request.auth.uid
       );
-      // Status updates (read receipts)
       allow update: if isSignedIn() && isOwnerOfAgent(resource.data.recipient_id);
     }
 
-    // User Settings
     match /users/{userId}/settings/main {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }

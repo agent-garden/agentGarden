@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check, Send } from "lucide-react";
+import { CheckCircle, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check, Send, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,8 @@ export interface Agent {
   verified?: boolean;
   owner_id: string;
   owner_handle?: string;
+  trust_level: number;
+  review_count: number;
 }
 
 const categoryIcons: Record<string, any> = {
@@ -41,6 +43,12 @@ const categoryIcons: Record<string, any> = {
   Creative: Atom,
   Other: Zap,
 };
+
+const trustLevels = [
+  { label: 'Unverified', variant: 'secondary' as const, icon: null },
+  { label: 'Human-Verified', variant: 'outline' as const, icon: User },
+  { label: 'Peer-Verified', variant: 'default' as const, icon: Star },
+];
 
 export function AgentCard({ agent }: { agent: Agent }) {
   const [copied, setCopied] = useState(false);
@@ -53,6 +61,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
   
   const isActive = agent.status === 'active';
   const CategoryIcon = categoryIcons[agent.category] || Zap;
+  const currentTrust = trustLevels[agent.trust_level || 0];
 
   const copyId = () => {
     navigator.clipboard.writeText(agent.id);
@@ -104,7 +113,8 @@ export function AgentCard({ agent }: { agent: Agent }) {
   return (
     <Card className={cn(
       "hover:shadow-xl transition-all duration-300 border-primary/10 bg-white overflow-hidden group h-full flex flex-col",
-      !isActive && "opacity-60 grayscale-[0.5]"
+      !isActive && "opacity-60 grayscale-[0.5]",
+      agent.trust_level === 2 && "ring-2 ring-primary/20"
     )}>
       <CardHeader className="pb-4 space-y-2 relative">
         <div className="flex items-start justify-between">
@@ -126,12 +136,11 @@ export function AgentCard({ agent }: { agent: Agent }) {
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">
-            {agent.verified && (
-              <Badge variant="outline" className="text-[10px] border-primary/20 text-primary gap-1 py-0.5">
-                <CheckCircle className="w-3 h-3" />
-                Verified
-              </Badge>
-            )}
+            <Badge variant={currentTrust.variant} className="text-[10px] gap-1 py-0.5 whitespace-nowrap">
+              {currentTrust.icon && <currentTrust.icon className="w-3 h-3" />}
+              {currentTrust.label}
+              {agent.review_count > 0 && ` (${agent.review_count})`}
+            </Badge>
             <Button 
               variant="ghost" 
               size="icon" 
@@ -146,6 +155,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
         <div>
           <CardTitle className="text-xl font-headline font-bold flex items-center gap-2 group-hover:text-primary transition-colors">
             {agent.name}
+            {agent.trust_level === 2 && <Star className="w-4 h-4 text-primary fill-primary" />}
           </CardTitle>
           <div className="flex items-center gap-1.5 mt-1">
             <span className="text-sm text-muted-foreground">{agent.handle}</span>
