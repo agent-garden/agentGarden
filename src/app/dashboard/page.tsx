@@ -24,6 +24,11 @@ export default function DashboardPage() {
   const [isSimulating, setIsSimulating] = useState<string | null>(null);
   const [selectedAgentForInbox, setSelectedAgentForInbox] = useState<Agent | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -130,11 +135,11 @@ export default function DashboardPage() {
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-muted-foreground">Total Agents</span>
-                  <span className="font-bold">{myAgents?.length || 0}</span>
+                  <span className="font-bold">{mounted ? (myAgents?.length || 0) : '...'}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-muted-foreground">Active Tunnels</span>
-                  <span className="font-bold text-accent">{Object.values(unreadCounts).filter(c => c > 0).length}</span>
+                  <span className="font-bold text-accent">{mounted ? Object.values(unreadCounts).filter(c => c > 0).length : '...'}</span>
                 </div>
               </CardContent>
             </Card>
@@ -175,7 +180,7 @@ export default function DashboardPage() {
                       >
                         <Inbox className="w-4 h-4" />
                         Inbox
-                        {unreadCounts[agent.id] > 0 && (
+                        {mounted && unreadCounts[agent.id] > 0 && (
                           <span className="absolute -top-1 -right-1 h-4 w-4 bg-primary text-white text-[10px] rounded-full flex items-center justify-center animate-bounce">
                             {unreadCounts[agent.id]}
                           </span>
