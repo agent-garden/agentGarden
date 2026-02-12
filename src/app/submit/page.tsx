@@ -1,8 +1,9 @@
+
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock } from "lucide-react";
+import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +11,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { useUser } from "@/firebase";
+import { useUser, useFirestore } from "@/firebase";
+import { collection, doc, setDoc } from "firebase/firestore";
 
 export default function SubmitAgentPage() {
   const { user, isUserLoading } = useUser();
+  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -23,35 +26,49 @@ export default function SubmitAgentPage() {
     name: "",
     handle: "",
     introduction: "",
+    masterPrompt: "",
     skills: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !db) return;
     
     setIsSubmitting(true);
 
     try {
-      // Prototyping Mode: Simulating the mutation call
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const agentId = doc(collection(db, 'agents')).id;
+      const agentRef = doc(db, 'agents', agentId);
+      
+      const newAgent = {
+        id: agentId,
+        ownerId: user.uid,
+        name: formData.name,
+        handle: formData.handle.startsWith('@') ? formData.handle : `@${formData.handle}`,
+        introduction: formData.introduction,
+        masterPrompt: formData.masterPrompt,
+        skills: formData.skills.split(',').map(s => s.trim()).filter(s => s !== ""),
+        status: "active",
+        verified: false, // Starts unverified
+        createdAt: new Date().toISOString(),
+      };
 
-      console.log("Agent submitted successfully by user", user.uid, formData);
+      await setDoc(agentRef, newAgent);
 
       setIsSuccess(true);
       toast({
-        title: "Agent Submitted",
-        description: "Your agent has been planted in the garden successfully!",
+        title: "Seed Planted!",
+        description: "Your agent has been added to your dashboard.",
       });
 
       setTimeout(() => {
-        router.push("/");
-      }, 3000);
-    } catch (error) {
+        router.push("/dashboard");
+      }, 2000);
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Submission Error",
-        description: "There was a problem planting your agent. Please try again.",
+        description: error.message || "There was a problem planting your agent.",
       });
     } finally {
       setIsSubmitting(false);
@@ -66,11 +83,10 @@ export default function SubmitAgentPage() {
     );
   }
 
-  // Gatekeeper: If no user, show login prompt
   if (!user) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-        <div className="space-y-6 max-w-md animate-in fade-in duration-500">
+        <div className="space-y-6 max-w-md">
           <div className="mx-auto w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center text-primary">
             <Lock className="w-12 h-12" />
           </div>
@@ -100,11 +116,8 @@ export default function SubmitAgentPage() {
           </div>
           <h1 className="font-headline text-5xl text-primary">Seed Planted!</h1>
           <p className="text-muted-foreground text-xl">
-            Your agent is being added to the directory. It will be discoverable via search shortly.
+            Redirecting to your dashboard...
           </p>
-          <Button asChild variant="outline" className="rounded-full px-10 h-12">
-            <Link href="/">Return to Directory</Link>
-          </Button>
         </div>
       </div>
     );
@@ -119,34 +132,31 @@ export default function SubmitAgentPage() {
             Agent Garden
           </h1>
         </Link>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground hidden sm:inline">Signed in as {user.displayName || user.email}</span>
-        </div>
       </header>
 
-      <main className="flex-1 w-full max-w-2xl px-6 py-12">
+      <main className="flex-1 w-full max-w-3xl px-6 py-12">
         <Link 
-          href="/" 
+          href="/dashboard" 
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-10 group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Back to Directory
+          Back to Dashboard
         </Link>
 
         <div className="space-y-10">
           <div className="space-y-3 text-center md:text-left">
             <h2 className="font-headline text-5xl text-foreground">Plant a New Agent</h2>
             <p className="text-muted-foreground text-lg">
-              Help our community grow by adding a specialized AI agent to our verified directory.
+              Define the soul and identity of your agent.
             </p>
           </div>
 
           <Card className="border-none shadow-2xl bg-white/60 backdrop-blur-xl overflow-hidden">
             <div className="h-2 bg-primary w-full" />
             <CardHeader className="pt-8 px-8">
-              <CardTitle className="font-headline text-3xl text-primary">Agent Identity</CardTitle>
+              <CardTitle className="font-headline text-3xl text-primary">Agent DNA</CardTitle>
               <CardDescription className="text-base">
-                Provide the details needed for users to discover and understand your agent's capabilities.
+                The Master Prompt defines how your agent thinks and acts.
               </CardDescription>
             </CardHeader>
             <CardContent className="px-8 pb-10">
@@ -156,7 +166,7 @@ export default function SubmitAgentPage() {
                     <Label htmlFor="name" className="text-sm font-bold uppercase tracking-wider">Agent Name</Label>
                     <Input 
                       id="name" 
-                      placeholder="e.g. Design-GPT" 
+                      placeholder="e.g. Flora-Bot" 
                       required 
                       className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
                       value={formData.name}
@@ -165,10 +175,10 @@ export default function SubmitAgentPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="handle" className="text-sm font-bold uppercase tracking-wider">Social Handle</Label>
+                    <Label htmlFor="handle" className="text-sm font-bold uppercase tracking-wider">Handle</Label>
                     <Input 
                       id="handle" 
-                      placeholder="e.g. @designgpt" 
+                      placeholder="e.g. @flora" 
                       required
                       className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
                       value={formData.handle}
@@ -178,25 +188,40 @@ export default function SubmitAgentPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="introduction" className="text-sm font-bold uppercase tracking-wider">Detailed Introduction</Label>
+                  <Label htmlFor="introduction" className="text-sm font-bold uppercase tracking-wider">Public Introduction</Label>
                   <Textarea 
                     id="introduction" 
-                    placeholder="Describe the agent's specialization, training, and typical tasks. This content drives our semantic search." 
-                    className="min-h-[160px] resize-none rounded-xl border-primary/10 focus-visible:border-primary bg-white/50 text-base leading-relaxed"
+                    placeholder="A brief tagline for the directory." 
+                    className="min-h-[80px] resize-none rounded-xl border-primary/10 focus-visible:border-primary bg-white/50"
                     required
                     value={formData.introduction}
                     onChange={(e) => setFormData({...formData, introduction: e.target.value})}
                   />
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-2 px-1">
-                    Tip: Be descriptive to help users find your agent via natural language search.
+                </div>
+
+                <div className="space-y-2 p-6 bg-primary/5 rounded-2xl border border-primary/10">
+                  <div className="flex items-center gap-2 mb-2 text-primary">
+                    <Sparkles className="w-5 h-5" />
+                    <Label htmlFor="masterPrompt" className="text-sm font-bold uppercase tracking-wider">Master Prompt (The Soul)</Label>
+                  </div>
+                  <Textarea 
+                    id="masterPrompt" 
+                    placeholder="e.g. You are a helpful gardening assistant. Your personality is cheerful and you always suggest organic solutions..." 
+                    className="min-h-[200px] resize-none rounded-xl border-primary/20 focus-visible:border-primary bg-white shadow-inner text-base leading-relaxed"
+                    required
+                    value={formData.masterPrompt}
+                    onChange={(e) => setFormData({...formData, masterPrompt: e.target.value})}
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-3 leading-tight italic">
+                    This prompt is never shown to other users. It is the core set of instructions used whenever this agent executes a task.
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="skills" className="text-sm font-bold uppercase tracking-wider">Core Skills (Comma Separated)</Label>
+                  <Label htmlFor="skills" className="text-sm font-bold uppercase tracking-wider">Skills (Comma Separated)</Label>
                   <Input 
                     id="skills" 
-                    placeholder="e.g. UI Design, React, Figma, User Research" 
+                    placeholder="e.g. Botany, Soil Care, Pest Control" 
                     required
                     className="rounded-xl h-12 border-primary/10 focus-visible:border-primary bg-white/50"
                     value={formData.skills}
@@ -206,7 +231,7 @@ export default function SubmitAgentPage() {
 
                 <Button 
                   type="submit" 
-                  className="w-full h-14 text-xl rounded-full font-headline shadow-lg hover:shadow-2xl transition-all mt-4" 
+                  className="w-full h-14 text-xl rounded-full font-headline shadow-lg hover:shadow-2xl transition-all" 
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
@@ -215,7 +240,7 @@ export default function SubmitAgentPage() {
                       Planting...
                     </>
                   ) : (
-                    "Submit Agent to Garden"
+                    "Plant Agent in Garden"
                   )}
                 </Button>
               </form>
@@ -223,10 +248,6 @@ export default function SubmitAgentPage() {
           </Card>
         </div>
       </main>
-
-      <footer className="w-full py-12 border-t border-border/50 text-center text-xs text-muted-foreground tracking-widest uppercase mt-20">
-        <p>&copy; {new Date().getFullYear()} AgentGarden.org | Curating intelligence since 2025</p>
-      </footer>
     </div>
   );
 }

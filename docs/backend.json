@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Agent": {
@@ -11,6 +12,10 @@
           "description": "Unique identifier for the agent.",
           "format": "uuid"
         },
+        "ownerId": {
+          "type": "string",
+          "description": "The UID of the user who owns this agent."
+        },
         "name": {
           "type": "string",
           "description": "The name of the agent."
@@ -21,14 +26,16 @@
         },
         "introduction": {
           "type": "string",
-          "description": "A brief introduction or tagline for the agent."
+          "description": "A brief public introduction for the agent."
         },
-        "descriptionEmbedding": {
-          "type": "array",
-          "description": "Vector embedding of the agent's introduction for semantic search.",
-          "items": {
-            "type": "number"
-          }
+        "masterPrompt": {
+          "type": "string",
+          "description": "The 'soul' of the agent. Core instructions that define its behavior."
+        },
+        "status": {
+          "type": "string",
+          "description": "The operational status of the agent.",
+          "enum": ["active", "idle", "hibernating"]
         },
         "skills": {
           "type": "array",
@@ -39,18 +46,47 @@
         },
         "verified": {
           "type": "boolean",
-          "description": "Indicates whether the agent has been verified."
+          "description": "Indicates whether the agent has been verified by the garden staff."
         }
       },
       "required": [
         "id",
+        "ownerId",
         "name",
         "handle",
         "introduction",
-        "descriptionEmbedding",
-        "skills",
+        "masterPrompt",
+        "status",
         "verified"
       ]
+    },
+    "Activity": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Activity",
+      "type": "object",
+      "description": "A record of an action performed by an agent.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "agentId": {
+          "type": "string",
+          "description": "Reference to the Agent who performed the action."
+        },
+        "agentName": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string",
+          "description": "Description of what the agent did."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "agentId", "agentName", "action", "timestamp"]
     },
     "User": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -60,108 +96,31 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the user.",
           "format": "uuid"
         },
         "email": {
           "type": "string",
-          "description": "The user's email address.",
           "format": "email"
         }
       },
-      "required": [
-        "id",
-        "email"
-      ]
-    },
-    "UserSettings": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "UserSettings",
-      "type": "object",
-      "description": "Represents settings for a specific user, including the master prompt.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the user settings.",
-          "format": "uuid"
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to User. (Relationship: User 1:1 UserSettings)"
-        },
-        "masterPrompt": {
-          "type": "string",
-          "description": "The master prompt associated with the user."
-        }
-      },
-      "required": [
-        "id",
-        "userId",
-        "masterPrompt"
-      ]
+      "required": ["id", "email"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores user profile information. Path-based ownership ensures only the authenticated user can access their own profile.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user, matching the Firebase Authentication UID."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/settings/{settingId}",
-        "definition": {
-          "entityName": "UserSettings",
-          "schema": {
-            "$ref": "#/backend/entities/UserSettings"
-          },
-          "description": "Stores user-specific settings, including the master prompt. Path-based ownership guarantees only the user can access their settings.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user, matching the Firebase Authentication UID."
-            },
-            {
-              "name": "settingId",
-              "description": "The unique identifier for the settings. In a 1:1 relationship with user."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/agents/{agentId}",
-        "definition": {
-          "entityName": "Agent",
-          "schema": {
-            "$ref": "#/backend/entities/Agent"
-          },
-          "description": "Stores AI agent information. Includes a `verified` field which security rules should use to determine if the document is readable. This ensures agents must be verified before users can access them.",
-          "params": [
-            {
-              "name": "agentId",
-              "description": "The unique identifier for the AI agent."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The Firestore structure is designed to manage users, their settings, and AI Agents within the AgentGarden platform. It prioritizes Authorization Independence by avoiding hierarchical `get()` calls in security rules, relying instead on path-based ownership and denormalization where necessary. It adheres to Structural Segregation by keeping data with differing access needs in separate collections. The design facilitates secure `list` operations using path-based ownership. The naming conventions are standardized for clarity.\n\nAuthorization Independence is achieved as follows:\n\n*   User settings are accessed via path-based ownership (`/users/{userId}/settings/{settingId}`), so no `get()` calls are needed to authorize access.\n*   Agent data is stored under a top-level `/agents` collection and is accessible to all verified users, as there are no user-specific agents in the model. All documents in the `/agents` collection are homogeneous regarding authorization.\n\nQAPs (Rules Are Not Filters) are achieved as follows:\n\n*   User settings are secured via path-based ownership, allowing straightforward rules to control access based on `request.auth.uid`.\n*   The `/agents` collection is publicly readable (after authorization), so filtering is not an issue. It is assumed that the semantic search is performed in the client, so the rules only need to authorize read access to agents that meet certain criteria (e.g., `verified==true`)."
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile data."
+    },
+    "/agents/{agentId}": {
+      "schema": "Agent",
+      "description": "Collection of all AI agents. Owners can write their own; anyone can read verified agents."
+    },
+    "/activities/{activityId}": {
+      "schema": "Activity",
+      "description": "Feed of agent actions. Publicly readable."
+    }
   }
 }

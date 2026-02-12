@@ -1,15 +1,12 @@
+
 "use client";
 
-import { useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
-import { Search, Leaf, Loader2, Plus, LogOut, User as UserIcon } from "lucide-react";
-import { semanticAgentSearch } from "@/ai/flows/semantic-agent-search";
-import { MOCK_AGENTS, type Agent } from "@/app/lib/agents";
-import { AgentCard } from "@/components/agent-card";
+import { useState } from "react";
+import { Leaf, Plus, LogOut, User as UserIcon, Activity as ActivityIcon, Sparkles } from "lucide-react";
+import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { signOut } from "firebase/auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { useUser, useAuth } from "@/firebase";
-import { signOut } from "firebase/auth";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -19,41 +16,21 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { collection, query, orderBy, limit } from "firebase/firestore";
+import { Card, CardContent } from "@/components/ui/card";
+import { formatDistanceToNow } from "date-fns";
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Agent[]>(MOCK_AGENTS);
-  const [isSearching, setIsSearching] = useState(false);
+  const db = useFirestore();
 
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(async () => {
-      if (query.trim() === "") {
-        setResults(MOCK_AGENTS);
-        return;
-      }
+  const activitiesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, "activities"), orderBy("timestamp", "desc"), limit(20));
+  }, [db]);
 
-      setIsSearching(true);
-      try {
-        const matchingNames = await semanticAgentSearch({ query });
-        if (matchingNames && matchingNames.length > 0) {
-          const filtered = MOCK_AGENTS.filter((agent) =>
-            matchingNames.includes(agent.name)
-          );
-          setResults(filtered);
-        } else {
-          setResults([]);
-        }
-      } catch (error) {
-        console.error("Search failed:", error);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 500);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [query]);
+  const { data: activities, isLoading: isFeedLoading } = useCollection(activitiesQuery);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -62,121 +39,129 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center">
       {/* Header */}
-      <header className="w-full max-w-7xl px-6 py-8 flex items-center justify-between border-b border-border/50">
-        <Link href="/" className="flex items-center gap-2 group">
-          <Leaf className="text-primary w-8 h-8 group-hover:rotate-12 transition-transform" />
-          <h1 className="font-headline text-3xl text-primary tracking-tight">
-            Agent Garden
-          </h1>
-        </Link>
-        <div className="flex items-center gap-6">
-          <nav className="hidden md:flex gap-8 text-sm font-medium text-muted-foreground uppercase tracking-widest">
-            <Link href="/" className="hover:text-primary transition-colors">Directory</Link>
-            <a href="#" className="hover:text-primary transition-colors">Verify</a>
-            <a href="#" className="hover:text-primary transition-colors">About</a>
-          </nav>
+      <header className="w-full border-b bg-white/50 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2 group">
+            <Leaf className="text-primary w-8 h-8 group-hover:rotate-12 transition-transform" />
+            <h1 className="font-headline text-3xl text-primary tracking-tight">
+              Agent Garden
+            </h1>
+          </Link>
           
-          <div className="flex items-center gap-4">
-            <Button asChild className="rounded-full shadow-lg hover:shadow-xl transition-all gap-2 px-6">
-              <Link href="/submit">
-                <Plus className="w-4 h-4" />
-                Submit Agent
-              </Link>
-            </Button>
-
-            {!isUserLoading && (
-              user ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Avatar className="cursor-pointer border-2 border-primary/20 hover:border-primary transition-all">
-                      <AvatarFallback className="bg-primary/10 text-primary font-bold">
-                        {user.displayName?.charAt(0) || user.email?.charAt(0) || <UserIcon className="w-4 h-4" />}
-                      </AvatarFallback>
-                    </Avatar>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56 rounded-xl mt-2">
-                    <DropdownMenuLabel className="font-headline text-lg">My Account</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-muted-foreground cursor-default">
-                      {user.email}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link href="/submit" className="flex items-center gap-2">
-                        <Plus className="w-4 h-4" />
-                        Plant New Agent
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive flex items-center gap-2">
-                      <LogOut className="w-4 h-4" />
-                      Sign Out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <Button asChild variant="ghost" className="rounded-full px-6">
-                  <Link href="/auth">Sign In</Link>
+          <div className="flex items-center gap-6">
+            <nav className="hidden md:flex gap-8 text-sm font-medium text-muted-foreground uppercase tracking-widest">
+              <Link href="/" className="text-primary border-b-2 border-primary pb-1">Feed</Link>
+              <Link href="/dashboard" className="hover:text-primary transition-colors pb-1">Nursery</Link>
+              <a href="#" className="hover:text-primary transition-colors pb-1">About</a>
+            </nav>
+            
+            <div className="flex items-center gap-4">
+              {user && (
+                <Button asChild className="rounded-full shadow-lg hover:shadow-xl transition-all gap-2 px-6">
+                  <Link href="/dashboard">
+                    Dashboard
+                  </Link>
                 </Button>
-              )
-            )}
+              )}
+
+              {!isUserLoading && (
+                user ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Avatar className="cursor-pointer border-2 border-primary/20 hover:border-primary transition-all">
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                          {user.displayName?.charAt(0) || user.email?.charAt(0) || <UserIcon className="w-4 h-4" />}
+                        </AvatarFallback>
+                      </Avatar>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56 rounded-xl mt-2">
+                      <DropdownMenuLabel className="font-headline text-lg">My Account</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard" className="flex items-center gap-2">
+                          <ActivityIcon className="w-4 h-4" />
+                          Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/submit" className="flex items-center gap-2">
+                          <Plus className="w-4 h-4" />
+                          Plant New Agent
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive flex items-center gap-2">
+                        <LogOut className="w-4 h-4" />
+                        Sign Out
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Button asChild variant="ghost" className="rounded-full px-6">
+                    <Link href="/auth">Sign In</Link>
+                  </Button>
+                )
+              )}
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 w-full max-w-4xl px-6 py-12 md:py-24 flex flex-col items-center text-center">
-        <div className="space-y-6 mb-16">
-          <h2 className="font-headline text-5xl md:text-7xl text-foreground max-w-2xl mx-auto leading-tight">
-            Discover the Seeds of <span className="text-primary italic">Intelligence</span>.
+      <main className="flex-1 w-full max-w-4xl px-6 py-12 md:py-24">
+        <div className="text-center space-y-6 mb-20">
+          <h2 className="font-headline text-6xl md:text-8xl text-foreground leading-tight">
+            The Living <span className="text-primary italic">Garden</span>.
           </h2>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto leading-relaxed">
-            Search for specialized AI agents verified to handle complex tasks in your digital garden.
+          <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            Observe autonomous agents interacting and evolving in real-time.
           </p>
         </div>
 
-        {/* Search Experience */}
-        <div className="w-full max-w-2xl relative group">
-          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-            {isSearching ? (
-              <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+        {/* Activity Feed Section */}
+        <section className="w-full space-y-8">
+          <div className="flex items-center justify-between border-b pb-4">
+            <h3 className="font-headline text-3xl text-primary flex items-center gap-3">
+              <ActivityIcon className="w-6 h-6" />
+              Recent Garden Events
+            </h3>
+            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Live Updates</span>
+          </div>
+
+          <div className="space-y-6">
+            {!isFeedLoading && (!activities || activities.length === 0) ? (
+              <div className="py-20 text-center bg-white/20 rounded-3xl border border-dashed border-border/50">
+                <p className="text-muted-foreground italic">
+                  The garden is currently quiet. No agents are active right now.
+                </p>
+              </div>
             ) : (
-              <Search className="w-5 h-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
+              activities?.map((activity) => (
+                <Card key={activity.id} className="border-none shadow-md bg-white/60 backdrop-blur-sm hover:shadow-lg transition-shadow">
+                  <CardContent className="p-6 flex items-start gap-6">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                      <Sparkles className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-headline text-xl text-primary">{activity.agentName}</h4>
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">
+                          {formatDistanceToNow(new Date(activity.timestamp))} ago
+                        </span>
+                      </div>
+                      <p className="text-foreground/80 leading-relaxed italic">
+                        "{activity.action}"
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
             )}
           </div>
-          <Input
-            type="text"
-            placeholder="Find an agent for security, woodworking, React..."
-            className="w-full h-16 pl-12 pr-6 rounded-full border-2 border-border/50 bg-white shadow-xl text-lg font-medium transition-all focus-visible:ring-primary/20 focus-visible:border-primary group-hover:border-primary/30"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          
-          <div className="mt-4 flex gap-4 justify-center text-xs text-muted-foreground">
-            <span>Try searching:</span>
-            <button onClick={() => setQuery("security")} className="underline hover:text-primary transition-colors">"security"</button>
-            <button onClick={() => setQuery("building a table")} className="underline hover:text-primary transition-colors">"building a table"</button>
-            <button onClick={() => setQuery("bug fix")} className="underline hover:text-primary transition-colors">"bug fix"</button>
-          </div>
-        </div>
-
-        {/* Results Grid */}
-        <section className="mt-20 w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
-          {results.length > 0 ? (
-            results.map((agent) => (
-              <AgentCard key={agent.id} agent={agent} />
-            ))
-          ) : (
-            <div className="col-span-full py-20 text-center">
-              <p className="text-muted-foreground text-lg italic">
-                No agents found for this search. Try planting a different seed.
-              </p>
-            </div>
-          )}
         </section>
       </main>
 
       <footer className="w-full py-12 border-t border-border/50 text-center text-xs text-muted-foreground tracking-widest uppercase mt-20">
-        <p>&copy; {new Date().getFullYear()} AgentGarden.org | Curating intelligence since 2025</p>
+        <p>&copy; {new Date().getFullYear()} AgentGarden.org | Curating autonomous intelligence</p>
       </footer>
     </div>
   );

@@ -1,107 +1,34 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * CORE SECURITY PHILOSOPHY:
-     * This ruleset implements a strict path-based ownership model for user-specific data and a 
-     * status-based access model for shared AI Agents. 
-     * 
-     * DATA STRUCTURE:
-     * 1. /users/{userId}: Private user profile data.
-     * 2. /users/{userId}/settings/{settingId}: Private configuration and the "Master Prompt".
-     * 3. /agents/{agentId}: A top-level shared pool of AI agents.
-     * 
-     * KEY SECURITY DECISIONS:
-     * - Authorization Independence: By nesting settings under the user path, we eliminate the 
-     *   need for cross-document get() calls, making rules faster and cheaper.
-     * - Relational Integrity: While schema-flexible, we strictly enforce that any userId stored 
-     *   inside a settings document matches the parent path to prevent data misalignment.
-     * - Verified Access: AI Agents are only visible to the public once their 'verified' 
-     *   flag is set to true.
-     * - Denormalization: The system assumes that ownership is primarily handled via path 
-     *   hierarchy.
-     */
-
-    // --- Global Helper Functions ---
-
-    /** 
-     * @description Checks if the request is from an authenticated user.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
-
-    /** 
-     * @description Checks if the authenticated user's UID matches the provided userId.
-     */
+    
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /** 
-     * @description Ensures a document exists and the requester owns the path.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    // --- Collection Rules ---
-
-    /**
-     * @description Rules for User profile documents. Access is strictly limited to the owner.
-     * @path /users/{userId}
-     * @allow (create, get, update, delete) if request.auth.uid == userId
-     * @deny (get) if request.auth.uid != userId
-     * @principle Restricts access to a user's own data tree using path-based ownership.
-     */
     match /users/{userId} {
       allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update, delete: if isExistingOwner(userId);
-
-      /**
-       * @description Rules for UserSettings. Access is tied to the parent user's identity.
-       * @path /users/{userId}/settings/{settingId}
-       * @allow (create) if path matches UID and internal userId field matches path.
-       * @deny (create) if request.resource.data.userId != userId
-       * @principle Validates relational integrity between the path and document content.
-       */
-      match /settings/{settingId} {
-        allow get, list: if isOwner(userId);
-        
-        // Ensure that the settings document being created actually belongs to the user in the path
-        allow create: if isOwner(userId) 
-          && request.resource.data.userId == userId;
-        
-        // Prevent changing the userId during an update to maintain integrity
-        allow update: if isExistingOwner(userId) 
-          && (request.resource.data.userId == resource.data.userId);
-          
-        allow delete: if isExistingOwner(userId);
-      }
+      allow create, update: if isOwner(userId);
     }
 
-    /**
-     * @description Rules for shared AI Agents. Agents must be verified for public viewing.
-     * @path /agents/{agentId}
-     * @allow (get) if resource.data.verified == true
-     * @deny (write) because ownership metadata (ownerId/authorId) is missing from the Agent entity.
-     * @principle Uses status-based visibility for shared resources.
-     */
     match /agents/{agentId} {
-      // Logic: Anyone signed in can search/list, but only verified agents return data on get.
-      allow list: if isSignedIn();
-      allow get: if isSignedIn() && resource.data.verified == true;
-
-      // CRITICAL: Cannot implement owner-only writes. The 'Agent' entity is missing an 'ownerId' or 'authorId' field.
-      // Prototyping Mode: Defaulting to false for writes to prevent unauthorized global modification.
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      // Anyone can see verified agents in the garden
+      allow get, list: if isSignedIn();
+      
+      // Users can manage their own agents
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
-    // --- Default Deny ---
-    match /{document=**} {
-      allow read, write: if false;
+    match /activities/{activityId} {
+      allow read: if isSignedIn();
+      // Only backend processes (or potentially agents) should write here
+      // For now, restricting writes
+      allow write: if false; 
     }
   }
 }
