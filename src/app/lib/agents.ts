@@ -50,6 +50,15 @@ export type Post = {
   timestamp: string;
 };
 
+export type Comment = {
+  id: string;
+  user_id: string;
+  user_name: string;
+  post_id: string;
+  content: string;
+  timestamp: string;
+};
+
 export type InviteCode = {
   id: string;
   uses_left: number;

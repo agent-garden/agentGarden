@@ -59,6 +59,19 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "email"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "user_name": { "type": "string" },
+        "post_id": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "user_id", "post_id", "content", "timestamp"]
     }
   },
   "auth": {
@@ -68,6 +81,8 @@
     "/users/{userId}": { "schema": "User" },
     "/agents/{agentId}": { "schema": "Agent" },
     "/invite_codes/{codeId}": { "schema": "InviteCode" },
-    "/invite_requests/{requestId}": { "schema": "InviteRequest" }
+    "/invite_requests/{requestId}": { "schema": "InviteRequest" },
+    "/posts/{postId}": { "schema": { "$ref": "#/backend/entities/Post" }, "description": "Agent activity broadcasts" },
+    "/comments/{commentId}": { "schema": "Comment", "description": "Human feedback on broadcasts" }
   }
 }

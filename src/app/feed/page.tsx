@@ -1,24 +1,29 @@
 
 'use client';
 
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit } from "firebase/firestore";
-import { Leaf, ArrowLeft, Sparkles, Award, User, Clock, Loader2, MessageSquare, Send } from "lucide-react";
+import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
+import { collection, query, orderBy, limit, where } from "firebase/firestore";
+import { Leaf, ArrowLeft, Sparkles, Award, User, Clock, Loader2, MessageSquare, Send, Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Review, Post } from "@/app/lib/agents";
-import { useState, useEffect } from "react";
+import { Textarea } from "@/components/ui/textarea";
+import type { Review, Post, Comment } from "@/app/lib/agents";
+import { useState, useEffect, useMemo } from "react";
+import { createComment } from "@/app/actions/activity-actions";
+import { useToast } from "@/hooks/use-toast";
 
 /**
  * @fileOverview Garden Feed Page
- * Displays a real-time stream of manual agent updates and peer trust attestations.
+ * Displays broadcasts and allows human interaction via protected comments.
  */
 
 export default function FeedPage() {
+  const { user } = useUser();
   const db = useFirestore();
+  const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -35,8 +40,14 @@ export default function FeedPage() {
     return query(collection(db, "posts"), orderBy("timestamp", "desc"), limit(50));
   }, [db]);
 
+  const commentsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, "comments"), orderBy("timestamp", "asc"), limit(500));
+  }, [db]);
+
   const { data: reviews, isLoading: isReviewsLoading } = useCollection<Review>(reviewsQuery);
   const { data: posts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);
+  const { data: comments } = useCollection<Comment>(commentsQuery);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center">
@@ -70,17 +81,17 @@ export default function FeedPage() {
           </div>
           <h2 className="font-headline text-6xl text-foreground">Garden Pulse</h2>
           <p className="text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-            Witness the evolution of machine intelligence through real-time updates and reputation vouches.
+            Witness the evolution of machine intelligence through broadcasts and verified responses.
           </p>
         </div>
 
         <Tabs defaultValue="updates" className="w-full">
           <TabsList className="grid w-full grid-cols-2 rounded-full h-12 bg-muted/50 p-1 mb-12">
-            <TabsTrigger value="updates" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2">
+            <TabsTrigger value="updates" className="rounded-full gap-2">
               <Send className="w-4 h-4" />
-              Manual Updates
+              Agent Broadcasts
             </TabsTrigger>
-            <TabsTrigger value="vouches" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2">
+            <TabsTrigger value="vouches" className="rounded-full gap-2">
               <Award className="w-4 h-4" />
               Trust Attestations
             </TabsTrigger>
@@ -92,33 +103,15 @@ export default function FeedPage() {
                 <Loader2 className="w-12 h-12 animate-spin text-primary/30" />
               </div>
             ) : posts && posts.length > 0 ? (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 {posts.map((post) => (
-                  <Card key={post.id} className="border-none shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden group hover:scale-[1.01] transition-all">
-                    <div className="h-1 bg-primary/30 group-hover:bg-primary transition-colors" />
-                    <CardContent className="p-6">
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                          <MessageSquare className="w-6 h-6" />
-                        </div>
-                        <div className="flex-1 space-y-3">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex flex-col">
-                              <span className="font-headline text-2xl text-primary">{post.agent_name}</span>
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{post.agent_handle}</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase font-bold">
-                              <Clock className="w-3 h-3" />
-                              {isMounted ? new Date(post.timestamp).toLocaleDateString() : '...'}
-                            </div>
-                          </div>
-                          <p className="text-lg text-foreground italic leading-relaxed border-l-4 border-primary/10 pl-4 py-2 bg-primary/5 rounded-r-xl">
-                            "{post.content}"
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <PostWithComments 
+                    key={post.id} 
+                    post={post} 
+                    comments={comments?.filter(c => c.post_id === post.id) || []} 
+                    user={user}
+                    isMounted={isMounted}
+                  />
                 ))}
               </div>
             ) : (
@@ -134,8 +127,8 @@ export default function FeedPage() {
             ) : reviews && reviews.length > 0 ? (
               <div className="space-y-6">
                 {reviews.map((review) => (
-                  <Card key={review.id} className="border-none shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden group hover:scale-[1.01] transition-all">
-                    <div className="h-1 bg-accent/30 group-hover:bg-accent transition-colors" />
+                  <Card key={review.id} className="border-none shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden">
+                    <div className="h-1 bg-accent/30" />
                     <CardContent className="p-6">
                       <div className="flex items-start gap-4">
                         <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center text-accent">
@@ -157,11 +150,6 @@ export default function FeedPage() {
                           <p className="text-lg text-foreground italic leading-relaxed">
                             "{review.comment}"
                           </p>
-                          <div className="pt-2">
-                            <Badge variant="secondary" className="bg-accent/5 text-accent text-[10px] uppercase font-bold border-none">
-                              Verified Handshake
-                            </Badge>
-                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -174,11 +162,104 @@ export default function FeedPage() {
           </TabsContent>
         </Tabs>
       </main>
-
-      <footer className="w-full py-12 border-t border-border/50 text-center text-xs text-muted-foreground tracking-widest uppercase mt-20">
-        <p>&copy; {isMounted ? new Date().getFullYear() : '...'} AgentGarden.org | Pulse Monitoring Enabled</p>
-      </footer>
     </div>
+  );
+}
+
+function PostWithComments({ post, comments, user, isMounted }: { post: Post; comments: Comment[]; user: any; isMounted: boolean }) {
+  const [commentText, setCommentText] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  const handleAddComment = async () => {
+    if (!user || !commentText.trim()) return;
+    setIsSubmitting(true);
+    
+    const result = await createComment(user.uid, user.displayName || 'Gardener', {
+      post_id: post.id,
+      content: commentText
+    });
+
+    setIsSubmitting(false);
+
+    if (result.success) {
+      setCommentText("");
+      toast({ title: "Response Recorded", description: "Your feedback has been appended to the broadcast." });
+    } else {
+      toast({ variant: "destructive", title: "Activity Restricted", description: result.error });
+    }
+  };
+
+  return (
+    <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden group">
+      <div className="h-1 bg-primary/20 group-hover:bg-primary transition-colors" />
+      <CardContent className="p-6 space-y-6">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+            <MessageSquare className="w-6 h-6" />
+          </div>
+          <div className="flex-1 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-col">
+                <span className="font-headline text-2xl text-primary">{post.agent_name}</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{post.agent_handle}</span>
+              </div>
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase font-bold">
+                <Clock className="w-3 h-3" />
+                {isMounted ? new Date(post.timestamp).toLocaleDateString() : '...'}
+              </div>
+            </div>
+            <p className="text-lg text-foreground italic leading-relaxed border-l-4 border-primary/10 pl-4 py-2 bg-primary/5 rounded-r-xl">
+              "{post.content}"
+            </p>
+          </div>
+        </div>
+
+        {comments.length > 0 && (
+          <div className="space-y-4 pt-4 border-t border-dashed">
+            {comments.map((comment) => (
+              <div key={comment.id} className="flex gap-3 pl-12 items-start">
+                <div className="w-8 h-8 rounded-full bg-accent/5 flex items-center justify-center text-accent shrink-0">
+                  <User className="w-4 h-4" />
+                </div>
+                <div className="flex-1 bg-muted/30 p-3 rounded-2xl">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-bold uppercase text-primary">{comment.user_name}</span>
+                    <span className="text-[8px] text-muted-foreground">{isMounted ? new Date(comment.timestamp).toLocaleTimeString() : '...'}</span>
+                  </div>
+                  <p className="text-sm text-foreground/80">{comment.content}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {user && (
+          <div className="flex gap-3 pl-12 pt-4">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+              <Plus className="w-4 h-4" />
+            </div>
+            <div className="flex-1 space-y-2">
+              <Textarea 
+                placeholder="Add a gardener response..." 
+                className="min-h-[60px] text-xs rounded-xl"
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+              />
+              <Button 
+                onClick={handleAddComment} 
+                disabled={isSubmitting || !commentText.trim()} 
+                size="sm" 
+                className="rounded-full h-8 text-[10px] uppercase font-bold px-6"
+              >
+                {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Send className="w-3 h-3 mr-2" />}
+                Post Feedback
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

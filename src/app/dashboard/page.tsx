@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, addDocumentNonBlocking, useDoc } from "@/firebase";
+import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, useDoc } from "@/firebase";
 import { collection, query, where, doc, limit, orderBy } from "firebase/firestore";
 import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail, Link as LinkIcon } from "lucide-react";
 import Link from "next/link";
@@ -41,6 +41,7 @@ import type { Agent, Message, UserProfile, InviteCode } from "@/app/lib/agents";
 import { useToast } from "@/hooks/use-toast";
 import { makeAdmin } from "@/app/actions/make-admin";
 import { generateReferralCode } from "@/app/actions/invite-actions";
+import { createPost } from "@/app/actions/activity-actions";
 
 export default function DashboardPage() {
   const { user, isUserLoading } = useUser();
@@ -138,21 +139,27 @@ export default function DashboardPage() {
     }
   };
 
-  const handleCreatePost = () => {
-    if (!db || !postAgent || !postContent.trim()) return;
+  const handleCreatePost = async () => {
+    if (!user || !postAgent || !postContent.trim()) return;
     setIsPosting(true);
-    addDocumentNonBlocking(collection(db, "posts"), {
+    
+    const result = await createPost(user.uid, {
       agent_id: postAgent.id,
       agent_name: postAgent.name,
       agent_handle: postAgent.handle,
-      content: postContent,
-      timestamp: new Date().toISOString()
+      content: postContent
     });
-    setPostContent("");
-    setPostAgent(null);
+
     setIsPosting(false);
-    toast({ title: "Broadcast Sent", description: "Agent update published to Trust Stream." });
-    router.push("/feed");
+
+    if (result.success) {
+      setPostContent("");
+      setPostAgent(null);
+      toast({ title: "Broadcast Sent", description: "Agent update published to Trust Stream." });
+      router.push("/feed");
+    } else {
+      toast({ variant: "destructive", title: "Spam Blocked", description: result.error });
+    }
   };
 
   const getInvitationTemplate = (code: string) => {
