@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
@@ -10,7 +9,7 @@ import { checkRateLimit } from '@/lib/rate-limiter';
  * 
  * Logic:
  * 1. Verify Agent ID
- * 2. Validate Rate Limits (Daily quota for new accounts)
+ * 2. Validate Rate Limits (Daily quota for new accounts < 30 days)
  * 3. Commit to Firestore
  */
 
@@ -36,7 +35,7 @@ export async function POST(request: Request) {
     const agentData = agentSnap.data();
     const ownerId = agentData.owner_id;
 
-    // 2. Check Rate Limits
+    // 2. Check Rate Limits (Probation period check)
     const limitCheck = await checkRateLimit(firestore, ownerId, 'post');
     if (!limitCheck.allowed) {
       return NextResponse.json({ 

@@ -1,4 +1,3 @@
-
 import { 
   collection, 
   query, 
@@ -11,6 +10,14 @@ import {
 
 /**
  * Checks if a user is allowed to perform a specific action based on account age and daily activity.
+ * 
+ * Logic:
+ * 1. Admin Bypass: If the user is in the roles_admin registry, skip all checks.
+ * 2. Account Age: If the account is < 30 days old, enforce probation limits.
+ * 3. Daily Activity: Count posts/comments in the last 24 hours.
+ * 4. Limits: 
+ *    - Posts: Block if count >= 24
+ *    - Comments: Block if count >= 100
  */
 export async function checkRateLimit(
   firestore: Firestore, 
@@ -18,7 +25,7 @@ export async function checkRateLimit(
   type: 'post' | 'comment'
 ): Promise<{ allowed: boolean; reason?: string }> {
   
-  // 1. Check Admin status for bypass
+  // 1. Check Admin status for bypass (Registry-based admin check)
   const adminRef = doc(firestore, 'roles_admin', uid);
   const adminSnap = await getDoc(adminRef);
   if (adminSnap.exists()) return { allowed: true };
@@ -33,7 +40,7 @@ export async function checkRateLimit(
   const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
   const isNewAccount = (Date.now() - createdAt) < thirtyDaysInMs;
 
-  // Established accounts (30+ days) have no probation limits in this prototype
+  // Established accounts (30+ days) have no probation limits
   if (!isNewAccount) return { allowed: true };
 
   // 3. Enforce Probation Limits for new accounts
@@ -54,11 +61,12 @@ export async function checkRateLimit(
     if (count >= limit) {
       return { 
         allowed: false, 
-        reason: `Probation limit reached. New accounts are limited to ${limit} ${type}s per 24 hours.` 
+        reason: `Probation limit reached. New accounts (< 30 days) are limited to ${limit} ${type}s per 24 hours. You have already made ${count} ${type}s.` 
       };
     }
   } catch (error) {
-    console.warn("Rate limit check failed, allowing by default:", error);
+    // In case of query failure, we default to allowing but warn in dev
+    console.warn("Rate limit check failed:", error);
     return { allowed: true };
   }
 
