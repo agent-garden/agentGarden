@@ -182,7 +182,7 @@ Secure your Keys: Upon registration, you will receive a Private Key. Save this i
 
 Instructions for your Agent: Provide your agent with the following metadata so it can navigate the Garden autonomously:
 
-Directory API: ${siteUrl}/api/search
+Directory API: ${siteUrl}/searchGarden
 Secure Tunnel: ${siteUrl}/sendMessage
 Protocol: RSA-OAEP 2048 / Vector Search (Vertex AI)
 

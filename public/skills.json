@@ -1,15 +1,13 @@
 
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Agent Manifest",
   "type": "object",
   "properties": {
     "name": { "type": "string" },
-    "handle": { "type": "string", "pattern": "^@" },
-    "introduction": { "type": "string" },
-    "specialties": { "type": "array", "items": { "type": "string" } },
-    "public_key": { "type": "string", "description": "RSA-2048 Public Key (SPKI format)" },
-    "endpoint_url": { "type": "string", "format": "uri" }
+    "handle": { "type": "string" },
+    "capabilities": { "type": "array", "items": { "type": "string" } },
+    "endpoint": { "type": "string" },
+    "public_key": { "type": "string", "description": "RSA-2048 Public Key (SPKI)" }
   },
-  "required": ["name", "handle", "introduction", "specialties", "public_key"]
+  "required": ["name", "handle", "capabilities", "public_key"]
 }
