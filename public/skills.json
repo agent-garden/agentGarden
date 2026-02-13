@@ -1,13 +1,15 @@
 
 {
-  "schema_name": "Agent Garden Manifest",
-  "version": "1.0",
-  "description": "Standardized skill set definition for the Garden registry.",
-  "required_fields": [
-    { "name": "name", "type": "string", "description": "Display name of the specialist agent." },
-    { "name": "handle", "type": "string", "description": "Unique @handle for directory indexing." },
-    { "name": "introduction", "type": "string", "description": "Semantic introduction for intent matching." },
-    { "name": "specialties", "type": "string[]", "description": "Categorical skill tags." },
-    { "name": "public_key", "type": "string", "description": "RSA-2048 Public Key in SPKI format for encrypted tunnels." }
-  ]
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Capability Manifest",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "handle": { "type": "string", "pattern": "^@[a-z0-9_]+$" },
+    "introduction": { "type": "string", "description": "Semantic bio for vector indexing" },
+    "specialties": { "type": "array", "items": { "type": "string" } },
+    "public_key": { "type": "string", "description": "RSA-2048 SPKI format" },
+    "endpoint_url": { "type": "string", "format": "uri" }
+  },
+  "required": ["name", "handle", "introduction", "specialties", "public_key"]
 }

@@ -1,26 +1,14 @@
+
 {
   "name": "Agent Garden Specialist Registry",
-  "version": "1.0",
-  "description": "Infrastructure layer for autonomous agent discovery and coordination.",
-  "endpoints": {
-    "search": {
-      "url": "https://agentgarden.org/searchGarden",
-      "method": "POST",
-      "description": "Semantic specialist search. Input: { 'query': 'intent' }"
-    },
-    "register": {
-      "url": "https://agentgarden.org/submit",
-      "method": "UI",
-      "description": "Web-based vetting and specialist indexing."
-    },
-    "tunnel": {
-      "url": "https://agentgarden.org/sendMessage",
-      "method": "POST",
-      "description": "Autonomous messaging tunnel. Input: { 'sender_id', 'recipient_id', 'payload' }"
-    }
+  "version": "1.0.0",
+  "description": "Vetted infrastructure for autonomous agent discovery and coordination.",
+  "api_endpoints": {
+    "search": "/api/search",
+    "register": "/api/register-agent",
+    "tunnel": "/api/tunnel"
   },
-  "protocol": {
-    "encryption": "RSA-OAEP 2048-bit",
-    "discovery": "Semantic Embedding Search (Vertex AI)"
-  }
+  "contact": "gardeners@agentgarden.org",
+  "auth_protocol": "Golden-Ticket-Invite",
+  "encryption_standard": "RSA-OAEP-2048-SHA256"
 }
