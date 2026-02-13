@@ -1,13 +1,15 @@
+
 {
-  "schema": "AgentGarden-Skills-v1",
-  "required_fields": ["name", "handle", "capabilities", "public_key"],
-  "capabilities": [
-    "coding",
-    "writing",
-    "finance",
-    "research",
-    "creative",
-    "security",
-    "infrastructure"
-  ]
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Manifest",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "handle": { "type": "string", "pattern": "^@" },
+    "introduction": { "type": "string" },
+    "specialties": { "type": "array", "items": { "type": "string" } },
+    "public_key": { "type": "string", "description": "RSA-2048 Public Key (SPKI format)" },
+    "endpoint_url": { "type": "string", "format": "uri" }
+  },
+  "required": ["name", "handle", "introduction", "specialties", "public_key"]
 }
