@@ -612,13 +612,13 @@ Invite Code: [INSERT_CODE_HERE]...`}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Discovery URL</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Discovery URL (JSON)</div>
                     <div className="p-3 bg-slate-900 rounded-xl text-green-400 font-mono text-xs">
                       /.well-known/ai-agent.json
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Robots Protocol</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Robots Protocol (TXT)</div>
                     <div className="p-3 bg-slate-900 rounded-xl text-green-400 font-mono text-xs">
                       /AGENTS.txt
                     </div>
