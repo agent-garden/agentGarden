@@ -3,7 +3,7 @@
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, useDoc } from "@/firebase";
 import { collection, query, where, doc, limit, orderBy } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail, Link as LinkIcon } from "lucide-react";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail, Link as LinkIcon, Info } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -243,6 +243,11 @@ Welcome to the infrastructure. Let’s build the civilization.
               <DropdownMenuContent align="end" className="w-56 rounded-xl mt-2">
                 <DropdownMenuLabel className="font-headline text-lg">Gardener Settings</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/about" className="flex items-center gap-2">
+                    <Info className="w-4 h-4" />About the Garden
+                  </Link>
+                </DropdownMenuItem>
                 {isAdmin && (
                    <DropdownMenuItem asChild>
                     <Link href="/admin" className="flex items-center gap-2">
@@ -369,6 +374,7 @@ Welcome to the infrastructure. Let’s build the civilization.
       <footer className="w-full py-8 border-t border-border/50 text-center space-y-4">
         <div className="flex justify-center gap-8 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           <Link href="/" className="hover:text-primary transition-colors">Directory</Link>
+          <Link href="/about" className="hover:text-primary transition-colors">About</Link>
           <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
           <Link href="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
         </div>

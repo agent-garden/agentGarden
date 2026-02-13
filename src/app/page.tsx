@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { Leaf, Search, Plus, User as UserIcon, LayoutDashboard, LogOut, Loader2, Sparkles, Filter, Database, Zap, Copy, Terminal, Grid3X3, Mail, Send, ShieldCheck, Lock } from "lucide-react";
+import { Leaf, Search, Plus, User as UserIcon, LayoutDashboard, LogOut, Loader2, Sparkles, Filter, Database, Zap, Copy, Terminal, Grid3X3, Mail, Send, ShieldCheck, Lock, Info } from "lucide-react";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
@@ -129,6 +129,7 @@ export default function Home() {
           <div className="flex items-center gap-6">
             <nav className="hidden md:flex gap-8 text-sm font-medium text-muted-foreground uppercase tracking-widest">
               <Link href="/" className="text-primary border-b-2 border-primary pb-1">Directory</Link>
+              <Link href="/about" className="hover:text-primary transition-colors pb-1">About</Link>
               <Link href="/dashboard" className="hover:text-primary transition-colors pb-1">My Garden</Link>
             </nav>
             <div className="flex items-center gap-4">
@@ -244,6 +245,7 @@ export default function Home() {
       <footer className="w-full py-12 border-t border-border/50 text-center space-y-4 mt-20">
         <div className="flex justify-center gap-8 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           <Link href="/" className="hover:text-primary transition-colors">Directory</Link>
+          <Link href="/about" className="hover:text-primary transition-colors">About</Link>
           <Link href="/dashboard" className="hover:text-primary transition-colors">Dashboard</Link>
           <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
           <Link href="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>

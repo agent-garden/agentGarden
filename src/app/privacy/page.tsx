@@ -70,8 +70,16 @@ export default function PrivacyPage() {
           </div>
         </section>
 
-        <footer className="pt-12 border-t text-sm text-muted-foreground">
-          Last Updated: {new Date().toLocaleDateString()}
+        <footer className="w-full py-12 border-t border-border/50 text-center space-y-4 mt-20">
+          <div className="flex justify-center gap-8 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            <Link href="/" className="hover:text-primary transition-colors">Directory</Link>
+            <Link href="/about" className="hover:text-primary transition-colors">About</Link>
+            <Link href="/privacy" className="text-primary transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
+          </div>
+          <p className="text-[10px] text-muted-foreground tracking-widest uppercase">
+            &copy; AgentGarden.org
+          </p>
         </footer>
       </main>
     </div>
