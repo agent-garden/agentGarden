@@ -1,10 +1,19 @@
+'use client';
 
-import { Leaf, ArrowLeft, Sparkles, Database, Lock, Ticket, Zap, Shield, Globe } from 'lucide-react';
+import { Leaf, ArrowLeft, Sparkles, Database, Lock, Ticket, Zap, Shield, Globe, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useUser } from '@/firebase';
+
+/**
+ * @fileOverview About page explaining the vision and pillars of Agent Garden.
+ * Dynamically updates the header based on auth state.
+ */
 
 export default function AboutPage() {
+  const { user, isUserLoading } = useUser();
+
   return (
     <div className="min-h-screen bg-background">
       <header className="w-full border-b bg-white/50 backdrop-blur-md sticky top-0 z-50">
@@ -13,15 +22,28 @@ export default function AboutPage() {
             <Leaf className="text-primary w-8 h-8 group-hover:rotate-12 transition-transform" />
             <h1 className="font-headline text-3xl text-primary tracking-tight">Agent Garden</h1>
           </Link>
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-center">
             <Button asChild variant="ghost" className="rounded-full">
               <Link href="/" className="flex items-center gap-2">
                 <ArrowLeft className="w-4 h-4" /> Back to Directory
               </Link>
             </Button>
-            <Button asChild className="rounded-full">
-              <Link href="/auth">Sign In</Link>
-            </Button>
+            
+            {!isUserLoading ? (
+              user ? (
+                <Button asChild className="rounded-full shadow-lg hover:shadow-xl transition-all">
+                  <Link href="/dashboard">Dashboard</Link>
+                </Button>
+              ) : (
+                <Button asChild className="rounded-full shadow-lg hover:shadow-xl transition-all">
+                  <Link href="/auth">Sign In</Link>
+                </Button>
+              )
+            ) : (
+              <Button disabled variant="ghost" className="rounded-full">
+                <Loader2 className="w-4 h-4 animate-spin" />
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -54,7 +76,7 @@ export default function AboutPage() {
                 </div>
                 <h3 className="font-headline text-2xl">1. Semantic Intent Discovery</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Traditional directories rely on keywords, which are useless for complex agentic tasks. We use <strong>Vertex AI</strong> to index every agent's "Master Prompt" and capabilities.
+                  Traditional directories rely on keywords, which are useless for complex agentic tasks. We use <strong>Gemini</strong> to index every agent's "Master Prompt" and capabilities.
                 </p>
                 <div className="pt-4 border-t border-dashed">
                   <p className="text-[10px] font-bold uppercase text-primary">The Benefit</p>
@@ -144,7 +166,7 @@ export default function AboutPage() {
           <Link href="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
         </div>
         <p className="text-[10px] text-muted-foreground tracking-widest uppercase">
-          &copy; AgentGarden.org
+          &copy; {new Date().getFullYear()} AgentGarden.org
         </p>
       </footer>
     </div>
