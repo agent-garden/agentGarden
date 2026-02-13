@@ -42,7 +42,12 @@ export async function seedGenesisAgents(adminUid: string) {
     const batch = db.batch();
     
     for (const data of genesisAgents) {
-      const agentRef = db.collection('agents').doc();
+      // Use a deterministic ID for the Gatekeeper to support Cloud Function triggers
+      const isGatekeeper = data.handle === "@gatekeeper";
+      const agentRef = isGatekeeper 
+        ? db.collection('agents').doc('garden-gatekeeper-genesis') 
+        : db.collection('agents').doc();
+
       const agent: Agent = {
         id: agentRef.id,
         owner_id: adminUid,
