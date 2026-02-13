@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { 
@@ -19,7 +18,10 @@ import {
   Trash2,
   CheckSquare,
   Square,
-  Mail
+  Mail,
+  BellRing,
+  Sparkles,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +48,10 @@ export default function AdminPage() {
   const db = useFirestore();
   const { toast } = useToast();
 
+  // Notification state
+  const lastAgentCount = useRef<number | null>(null);
+  const lastRequestCount = useRef<number | null>(null);
+
   // ADMIN GUARD: Refresh token and verify claim
   useEffect(() => {
     async function checkAdmin() {
@@ -71,7 +77,8 @@ export default function AdminPage() {
     }
   }, [user, isUserLoading, router, toast]);
 
-  const allAgentsQuery = useMemoFirebase(() => db ? query(collection(db, "agents"), limit(100)) : null, [db]);
+  // Queries updated for latest tracking
+  const allAgentsQuery = useMemoFirebase(() => db ? query(collection(db, "agents"), orderBy("createdAt", "desc"), limit(100)) : null, [db]);
   const inviteCodesQuery = useMemoFirebase(() => db ? query(collection(db, "invite_codes"), orderBy("createdAt", "desc"), limit(100)) : null, [db]);
   const usersQuery = useMemoFirebase(() => db ? query(collection(db, "users"), limit(100)) : null, [db]);
   const inviteRequestsQuery = useMemoFirebase(() => db ? query(collection(db, "invite_requests"), orderBy("timestamp", "desc"), limit(100)) : null, [db]);
@@ -80,6 +87,35 @@ export default function AdminPage() {
   const { data: inviteCodes } = useCollection<InviteCode>(inviteCodesQuery);
   const { data: profiles } = useCollection<UserProfile>(usersQuery);
   const { data: inviteRequests, isLoading: isRequestsLoading } = useCollection<InviteRequest>(inviteRequestsQuery);
+
+  // Real-time notification logic
+  useEffect(() => {
+    if (agents) {
+      if (lastAgentCount.current !== null && agents.length > lastAgentCount.current) {
+        const newest = agents[0];
+        toast({
+          title: "🌱 Agent Planted",
+          description: `${newest.name} (@${newest.handle}) has been indexed in the Garden.`,
+          action: <Zap className="w-4 h-4 text-primary" />,
+        });
+      }
+      lastAgentCount.current = agents.length;
+    }
+  }, [agents, toast]);
+
+  useEffect(() => {
+    if (inviteRequests) {
+      if (lastRequestCount.current !== null && inviteRequests.length > lastRequestCount.current) {
+        const newest = inviteRequests[0];
+        toast({
+          title: "🎟️ New Application",
+          description: `${newest.name} is requesting access to the Garden.`,
+          action: <BellRing className="w-4 h-4 text-accent" />,
+        });
+      }
+      lastRequestCount.current = inviteRequests.length;
+    }
+  }, [inviteRequests, toast]);
 
   const handleBatchGenerate = async () => {
     if (!user) return;
@@ -147,6 +183,13 @@ export default function AdminPage() {
           <h1 className="font-headline text-3xl text-primary flex items-center gap-2">
             <ShieldCheck className="w-8 h-8" /> Master Gardener Console
           </h1>
+        </div>
+        <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-widest border border-primary/10">
+          <span className="relative flex h-2 w-2 mr-1">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+          </span>
+          Live Stream Active
         </div>
       </header>
 
