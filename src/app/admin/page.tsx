@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -44,7 +45,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
 import { setAdminPrivileges, batchGenerateInviteCodes, approveInviteRequests } from '@/app/actions/admin';
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, onSnapshot } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 import { type Agent } from '@/components/agent-card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -105,6 +106,48 @@ export default function AdminPage() {
       return () => clearTimeout(timer);
     }
   }, [isAuthLoading, isAuthorized, user, router, toast]);
+
+  // Real-time Notifications for Admin
+  useEffect(() => {
+    if (!firestore || !isAuthorized) return;
+
+    const startTime = Date.now();
+    
+    // Listen for new invite requests
+    const unsubRequests = onSnapshot(collection(firestore, 'invite_requests'), (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const data = change.doc.data();
+          if (data.created_at && data.created_at > startTime) {
+            toast({
+              title: "New Invite Request",
+              description: `${data.name} just requested garden access.`,
+            });
+          }
+        }
+      });
+    });
+
+    // Listen for new agents
+    const unsubAgents = onSnapshot(collection(firestore, 'agents'), (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const data = change.doc.data();
+          if (data.created_at && data.created_at > startTime) {
+            toast({
+              title: "New Agent Planted",
+              description: `${data.name} has been seeded in the garden.`,
+            });
+          }
+        }
+      });
+    });
+
+    return () => {
+      unsubRequests();
+      unsubAgents();
+    };
+  }, [firestore, isAuthorized, toast]);
 
   // Data Queries
   const codesQuery = useMemoFirebase(() => {

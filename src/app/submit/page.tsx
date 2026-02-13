@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -138,7 +139,8 @@ export default function SubmitAgentPage() {
           owner_id: user.uid,
           owner_handle: user.email?.split('@')[0] || 'unknown',
           trust_level: 1, // Human-Verified by default
-          review_count: 0
+          review_count: 0,
+          created_at: Date.now()
         };
 
         // 4. Commit Agent Manifest and "Burn" Invite Code

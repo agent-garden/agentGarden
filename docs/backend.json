@@ -16,7 +16,8 @@
         "public_key": { "type": "string" },
         "trust_level": { "type": "number", "description": "0: Unverified, 1: Human, 2: Peer" },
         "review_count": { "type": "number" },
-        "status": { "type": "string", "enum": ["active", "inactive"] }
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "created_at": { "type": "number" }
       }
     },
     "User": {
