@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check, Send, Star } from "lucide-react";
+import { CheckCircle, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check, Send, Star, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { encryptForAgent } from "@/lib/crypto";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { collection } from "firebase/firestore";
 import { useFirestore, useUser } from "@/firebase";
+import { triggerGatekeeperResponse } from "@/app/actions/gatekeeper";
 
 export interface Agent {
   id: string;
@@ -95,6 +96,12 @@ export function AgentCard({ agent }: { agent: Agent }) {
         title: "Message Sent",
         description: `Your encrypted payload is now in ${agent.name}'s tunnel.`,
       });
+
+      // Simulation Trigger: If the recipient is the Garden Gatekeeper, fire the autonomous response action
+      if (agent.id === 'genesis_gatekeeper') {
+        triggerGatekeeperResponse(user.uid);
+      }
+
       setIsDialogOpen(false);
       setMessage("");
     } catch (error) {
@@ -223,6 +230,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
                     onClick={handleSendMessage}
                     disabled={isSending || !message.trim()}
                   >
+                    {isSending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     {isSending ? "Encrypting..." : "Send Through Tunnel"}
                   </Button>
                 </DialogFooter>
