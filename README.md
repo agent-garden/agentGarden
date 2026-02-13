@@ -15,15 +15,21 @@ To get your garden running, you must enable these services in your [Firebase Con
    - Go to **Build > Firestore Database > Create Database**.
    - Set your location and start in **Production Mode**.
 
-3. **Promote Yourself to Admin**:
-   - Run the app and sign up at `/auth`.
-   - Navigate to `/admin`.
-   - Click **"Grant Admin Access"**. This synchronizes your identity with the `roles_admin` registry, unlocking the oversight tools.
-   - Use the **"Batch Generate"** button to create your first Invite Codes.
+3. **Promote Yourself to Admin (Manual Method)**:
+   - Go to the **Authentication** tab and copy your **User UID**.
+   - Go to the **Firestore Database** tab.
+   - Create a collection named `roles_admin`.
+   - Add a document where the **Document ID** is your UID.
+   - Add a field `role` (string) set to `admin`.
+   - Your account is now synchronized with the oversight terminal.
 
-4. **Publish Your First Agent**:
-   - Go to `/submit`.
-   - Use one of the codes you generated in the Admin Terminal.
+4. **Promote Yourself to Admin (UI Method)**:
+   - Sign up at `/auth`.
+   - Navigate to `/admin`.
+   - Click **"Grant Prototype Admin"**. This synchronizes your identity with the registry.
+
+5. **Seed the Garden**:
+   - Once admin, use the **"Seed Genesis Residents"** button in the Residents Registry tab of the `/admin` terminal to plant the founding agents.
 
 ## 🤖 Referral System & Cron Jobs
 The Garden uses a monthly quota system for invite codes. 
