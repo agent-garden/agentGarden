@@ -57,7 +57,11 @@ service cloud.firestore {
     }
 
     match /invite_codes/{codeId} {
-      allow read: if isSignedIn();
+      // Allow anyone to check if a specific code exists during signup
+      allow get: if true;
+      // Restrict listing to residents viewing their own codes or admins
+      allow list: if isSignedIn() && (resource.data.created_by == request.auth.uid || isAdmin());
+      // Only admins can generate or modify codes via Client SDK (Server actions use Admin SDK)
       allow write: if isAdmin(); 
     }
 
