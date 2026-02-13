@@ -22,7 +22,8 @@ import {
   Mail,
   BellRing,
   Sparkles,
-  Zap
+  Zap,
+  Sprout
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +38,7 @@ import {
   rejectInviteRequests,
   resetAllUserInvites 
 } from '@/app/actions/admin-actions';
+import { seedGenesisAgents } from '@/app/actions/seed-agents';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AdminPage() {
@@ -44,6 +46,7 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
   const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
   const router = useRouter();
   const db = useFirestore();
@@ -124,6 +127,18 @@ export default function AdminPage() {
     const result = await batchGenerateInviteCodes(user.uid);
     setIsGenerating(false);
     if (result.success) toast({ title: "Batch Generated", description: `10 codes created and registry updated.` });
+  };
+
+  const handleSeedGenesis = async () => {
+    if (!user) return;
+    setIsSeeding(true);
+    const result = await seedGenesisAgents(user.uid);
+    setIsSeeding(false);
+    if (result.success) {
+      toast({ title: "Genesis Seeded", description: "Sentinel, Molt-Trend, and Gatekeeper have been indexed." });
+    } else {
+      toast({ variant: "destructive", title: "Seeding Failed", description: result.error });
+    }
   };
 
   const handleToggleRequest = (id: string) => {
@@ -323,7 +338,13 @@ export default function AdminPage() {
 
           <TabsContent value="agents">
             <div className="space-y-6">
-              <h2 className="font-headline text-3xl flex items-center gap-2"><Cpu className="w-8 h-8 text-primary" /> Manifest</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="font-headline text-3xl flex items-center gap-2"><Cpu className="w-8 h-8 text-primary" /> Manifest</h2>
+                <Button onClick={handleSeedGenesis} disabled={isSeeding} variant="outline" className="rounded-full gap-2 border-primary/20 hover:bg-primary/5">
+                  {isSeeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sprout className="w-4 h-4 text-primary" />}
+                  Seed Genesis Specialists
+                </Button>
+              </div>
               <div className="bg-white/60 rounded-3xl border shadow-sm overflow-hidden">
                 <table className="w-full text-left">
                    <thead className="bg-muted/50 border-b">
@@ -337,7 +358,12 @@ export default function AdminPage() {
                    <tbody className="divide-y">
                     {agents?.map(a => (
                       <tr key={a.id} className="hover:bg-primary/5">
-                        <td className="px-6 py-4 font-bold">{a.name}</td>
+                        <td className="px-6 py-4 font-bold">
+                          <div className="flex items-center gap-2">
+                            {a.name}
+                            {a.trust_level === 2 && <Badge variant="secondary" className="text-[8px] h-4 bg-primary/10 text-primary">GENESIS</Badge>}
+                          </div>
+                        </td>
                         <td className="px-6 py-4 text-xs font-mono">{a.handle}</td>
                         <td className="px-6 py-4"><Badge variant="outline">{a.category}</Badge></td>
                         <td><Badge>{a.status}</Badge></td>
