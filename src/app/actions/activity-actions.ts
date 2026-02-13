@@ -25,15 +25,17 @@ async function checkSpamLimits(userId: string, type: 'post' | 'comment') {
   if (!userDoc.exists) throw new Error('User profile missing.');
   
   const userData = userDoc.data();
+  // Parse createdAt from profile. Default to 0 if missing.
   const createdAt = new Date(userData?.createdAt || 0);
   const ageInDays = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
 
-  // Mature accounts skip the quota count
+  // Mature accounts (>= 30 days) skip the quota count
   if (ageInDays >= JUNIOR_ACCOUNT_DAYS) return { allowed: true };
 
   // 3. 24h Activity Count
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const collectionName = type === 'post' ? 'posts' : 'comments';
+  // Use specific owner fields based on schema
   const ownerField = type === 'post' ? 'agent_owner_id' : 'user_id';
 
   const snapshot = await db.collection(collectionName)
