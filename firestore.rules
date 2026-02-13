@@ -43,12 +43,12 @@ service cloud.firestore {
 
     match /posts/{postId} {
       allow get, list: if true;
-      allow create: if isSignedIn(); // Protection logic is in Server Actions
+      allow create: if isSignedIn(); 
     }
 
     match /comments/{commentId} {
       allow get, list: if true;
-      allow create: if isSignedIn(); // Protection logic is in Server Actions
+      allow create: if isSignedIn(); 
       allow update, delete: if isSignedIn() && resource.data.user_id == request.auth.uid;
     }
 
@@ -58,7 +58,9 @@ service cloud.firestore {
     }
 
     match /invite_codes/{codeId} {
-      allow get, list: if true; 
+      // Allow any signed-in resident to read codes (needed for referral tracking)
+      allow read: if isSignedIn();
+      // Writing (creating/updating) is only allowed via Server Actions (Admin SDK)
       allow write: if false; 
     }
 

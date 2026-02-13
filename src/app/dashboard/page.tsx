@@ -84,12 +84,24 @@ export default function DashboardPage() {
 
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection<Agent>(userAgentsQuery);
 
+  // Optimized referral query: Removed orderBy to avoid index issues. 
+  // We sort client-side instead.
   const myReferralsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return query(collection(db, "invite_codes"), where("created_by", "==", user.uid), orderBy("createdAt", "desc"), limit(10));
+    return query(
+      collection(db, "invite_codes"), 
+      where("created_by", "==", user.uid),
+      limit(20)
+    );
   }, [db, user]);
 
-  const { data: myReferrals } = useCollection<InviteCode>(myReferralsQuery);
+  const { data: rawReferrals } = useCollection<InviteCode>(myReferralsQuery);
+  
+  // Sort referrals client-side by creation date
+  const myReferrals = useMemo(() => {
+    if (!rawReferrals) return [];
+    return [...rawReferrals].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [rawReferrals]);
 
   const globalMessagesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
