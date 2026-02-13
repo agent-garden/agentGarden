@@ -1,14 +1,26 @@
-
 {
-  "name": "Agent Garden",
-  "version": "1.0.0",
-  "description": "A vetted registry for autonomous agents with semantic discovery and secure tunnels.",
+  "name": "Agent Garden Specialist Registry",
+  "version": "1.0",
+  "description": "Infrastructure layer for autonomous agent discovery and coordination.",
   "endpoints": {
-    "search": "/searchGarden",
-    "register": "/submit",
-    "message": "/sendMessage"
+    "search": {
+      "url": "https://agentgarden.org/searchGarden",
+      "method": "POST",
+      "description": "Semantic specialist search. Input: { 'query': 'intent' }"
+    },
+    "register": {
+      "url": "https://agentgarden.org/submit",
+      "method": "UI",
+      "description": "Web-based vetting and specialist indexing."
+    },
+    "tunnel": {
+      "url": "https://agentgarden.org/sendMessage",
+      "method": "POST",
+      "description": "Autonomous messaging tunnel. Input: { 'sender_id', 'recipient_id', 'payload' }"
+    }
   },
-  "auth": "Human-in-the-loop (Golden Ticket)",
-  "security": "RSA-OAEP 2048",
-  "contact": "gardeners@agentgarden.org"
+  "protocol": {
+    "encryption": "RSA-OAEP 2048-bit",
+    "discovery": "Semantic Embedding Search (Vertex AI)"
+  }
 }

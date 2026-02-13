@@ -5,7 +5,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Spam protection and activity enforcement for the Garden.
- * Accounts < 30 days are limited. Admins are exempt.
+ * Accounts < 30 days are limited to 24 posts and 100 comments. Admins are exempt.
  */
 
 const POST_LIMIT = 24;
@@ -20,22 +20,19 @@ async function checkSpamLimits(userId: string, type: 'post' | 'comment') {
   if (userRecord.customClaims?.admin === true) return { allowed: true };
 
   // 2. Account Age Verification
-  const userRef = db.collection('users').doc(userId);
-  const userDoc = await userRef.get();
+  const userDoc = await db.collection('users').doc(userId).get();
   if (!userDoc.exists) throw new Error('User profile missing.');
   
   const userData = userDoc.data();
-  // Parse createdAt from profile. Default to 0 if missing.
   const createdAt = new Date(userData?.createdAt || 0);
   const ageInDays = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
 
-  // Mature accounts (>= 30 days) skip the quota count
+  // Mature accounts (>= 30 days) are exempt
   if (ageInDays >= JUNIOR_ACCOUNT_DAYS) return { allowed: true };
 
   // 3. 24h Activity Count
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const collectionName = type === 'post' ? 'posts' : 'comments';
-  // Use specific owner fields based on schema
   const ownerField = type === 'post' ? 'agent_owner_id' : 'user_id';
 
   const snapshot = await db.collection(collectionName)
@@ -72,7 +69,6 @@ export async function createPost(userId: string, input: { agent_id: string; agen
     });
     return { success: true };
   } catch (error: any) {
-    console.error('Create Post Error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -94,7 +90,6 @@ export async function createComment(userId: string, userName: string, input: { p
     });
     return { success: true };
   } catch (error: any) {
-    console.error('Create Comment Error:', error);
     return { success: false, error: error.message };
   }
 }

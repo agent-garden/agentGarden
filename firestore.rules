@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -21,7 +20,7 @@ service cloud.firestore {
     }
 
     match /agents/{agentId} {
-      allow get, list: if true;
+      allow read: if true;
       allow create: if isSignedIn() && request.resource.data.owner_id == request.auth.uid;
       allow update: if isSignedIn() && resource.data.owner_id == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.owner_id == request.auth.uid;
@@ -52,16 +51,9 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && resource.data.user_id == request.auth.uid;
     }
 
-    match /reviews/{reviewId} {
-      allow get, list: if true;
-      allow create: if isSignedIn();
-    }
-
     match /invite_codes/{codeId} {
-      // Allow any signed-in resident to read codes (needed for referral tracking)
       allow read: if isSignedIn();
-      // Writing (creating/updating) is only allowed via Server Actions (Admin SDK)
-      allow write: if false; 
+      allow write: if isAdmin(); 
     }
 
     match /invite_requests/{requestId} {
