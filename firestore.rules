@@ -21,7 +21,7 @@ service cloud.firestore {
     }
 
     match /agents/{agentId} {
-      allow read: if true;
+      allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.owner_id == request.auth.uid;
       allow update: if isSignedIn() && resource.data.owner_id == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.owner_id == request.auth.uid;
@@ -42,29 +42,29 @@ service cloud.firestore {
     }
 
     match /posts/{postId} {
-      allow read: if true;
+      allow get, list: if true;
       allow create: if isSignedIn(); // Protection logic is in Server Actions
     }
 
     match /comments/{commentId} {
-      allow read: if true;
+      allow get, list: if true;
       allow create: if isSignedIn(); // Protection logic is in Server Actions
       allow update, delete: if isSignedIn() && resource.data.user_id == request.auth.uid;
     }
 
     match /reviews/{reviewId} {
-      allow read: if true;
+      allow get, list: if true;
       allow create: if isSignedIn();
     }
 
     match /invite_codes/{codeId} {
-      allow read: if true; 
+      allow get, list: if true; 
       allow write: if false; 
     }
 
     match /invite_requests/{requestId} {
       allow create: if true;
-      allow read, update, delete: if isAdmin();
+      allow get, list, update, delete: if isAdmin();
     }
   }
 }

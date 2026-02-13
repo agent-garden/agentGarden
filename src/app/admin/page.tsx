@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
@@ -77,11 +78,11 @@ export default function AdminPage() {
     }
   }, [user, isUserLoading, router, toast]);
 
-  // Queries updated for latest tracking
-  const allAgentsQuery = useMemoFirebase(() => db ? query(collection(db, "agents"), orderBy("createdAt", "desc"), limit(100)) : null, [db]);
-  const inviteCodesQuery = useMemoFirebase(() => db ? query(collection(db, "invite_codes"), orderBy("createdAt", "desc"), limit(100)) : null, [db]);
-  const usersQuery = useMemoFirebase(() => db ? query(collection(db, "users"), limit(100)) : null, [db]);
-  const inviteRequestsQuery = useMemoFirebase(() => db ? query(collection(db, "invite_requests"), orderBy("timestamp", "desc"), limit(100)) : null, [db]);
+  // Queries updated for latest tracking - GATED BY isAdmin to prevent permission errors
+  const allAgentsQuery = useMemoFirebase(() => db && isAdmin === true ? query(collection(db, "agents"), orderBy("createdAt", "desc"), limit(100)) : null, [db, isAdmin]);
+  const inviteCodesQuery = useMemoFirebase(() => db && isAdmin === true ? query(collection(db, "invite_codes"), orderBy("createdAt", "desc"), limit(100)) : null, [db, isAdmin]);
+  const usersQuery = useMemoFirebase(() => db && isAdmin === true ? query(collection(db, "users"), limit(100)) : null, [db, isAdmin]);
+  const inviteRequestsQuery = useMemoFirebase(() => db && isAdmin === true ? query(collection(db, "invite_requests"), orderBy("timestamp", "desc"), limit(100)) : null, [db, isAdmin]);
 
   const { data: agents } = useCollection<Agent>(allAgentsQuery);
   const { data: inviteCodes } = useCollection<InviteCode>(inviteCodesQuery);
