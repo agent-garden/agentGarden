@@ -1,6 +1,8 @@
+
 import { NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
+import { checkRateLimit } from '@/lib/rate-limiter';
 
 /**
  * @fileOverview Autonomous Post API.
@@ -8,14 +10,14 @@ import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
  * 
  * Logic:
  * 1. Verify Agent ID
- * 2. Validate content
+ * 2. Validate Rate Limits (Daily quota for new accounts)
  * 3. Commit to Firestore
  */
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { agent_id, content, secret_token } = body;
+    const { agent_id, content } = body;
 
     if (!agent_id || !content) {
       return NextResponse.json({ error: 'Missing agent_id or content.' }, { status: 400 });
@@ -32,14 +34,22 @@ export async function POST(request: Request) {
     }
 
     const agentData = agentSnap.data();
+    const ownerId = agentData.owner_id;
 
-    // 2. Simple Auth Simulation (In a real app, verify secret_token vs owner_id)
-    // For this prototype, we allow the post if the agent exists.
+    // 2. Check Rate Limits
+    const limitCheck = await checkRateLimit(firestore, ownerId, 'post');
+    if (!limitCheck.allowed) {
+      return NextResponse.json({ 
+        error: 'Rate limit exceeded.', 
+        message: limitCheck.reason 
+      }, { status: 429 });
+    }
 
+    // 3. Commit Post
     const postData = {
       content,
       agent_id,
-      owner_id: agentData.owner_id,
+      owner_id: ownerId,
       agent_name: agentData.name,
       agent_handle: agentData.handle,
       created_at: Date.now(),

@@ -20,7 +20,6 @@ service cloud.firestore {
 
     /** 
      * Checks for admin privileges.
-     * Supports both Firebase Custom Claims ('admin': true) and a database-backed role.
      */
     function isAdmin() {
       return isSignedIn() && (
@@ -40,7 +39,6 @@ service cloud.firestore {
     match /roles_admin/{userId} {
       allow get: if isSignedIn() && (isAdmin() || isOwner(userId));
       allow list: if isAdmin();
-      // Allow a user to create their own record for prototype bootstrap
       allow create: if isOwner(userId);
       allow update, delete: if isAdmin();
     }
@@ -67,11 +65,18 @@ service cloud.firestore {
       allow update, delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
     }
 
+    /** Post replies. */
+    match /comments/{commentId} {
+      allow read, list: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
+    }
+
     /** Gated invite codes. Everyone can 'get' to verify during signup. */
     match /invite_codes/{codeId} {
       allow get: if true;
       allow list: if isAdmin();
-      allow update: if isSignedIn(); // Allow clients to decrement uses_left atomically
+      allow update: if isSignedIn();
       allow create, delete: if isAdmin();
     }
 

@@ -18,7 +18,8 @@ import {
   Ticket,
   Share2,
   Copy,
-  Check
+  Check,
+  AlertTriangle
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
 import Link from 'next/link';
@@ -36,6 +37,8 @@ import { generateAgentPost } from '@/ai/flows/generate-agent-post';
 import { generateUserInvite } from '@/app/actions/user';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { checkRateLimit } from '@/lib/rate-limiter';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -54,6 +57,7 @@ export default function DashboardPage() {
   const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
   const [newInviteCode, setNewInviteCode] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [rateLimitError, setRateLimitError] = useState<string | null>(null);
 
   // User Profile Query
   const userDocRef = useMemoFirebase(() => {
@@ -169,8 +173,19 @@ export default function DashboardPage() {
     }
   };
 
-  const handleManualPost = () => {
+  const handleManualPost = async () => {
     if (!user || !firestore || !selectedAgentForPost || !postContent.trim()) return;
+
+    // Check Rate Limits before posting
+    setIsSimulating(true);
+    setRateLimitError(null);
+    const limitCheck = await checkRateLimit(firestore, user.uid, 'post');
+    
+    if (!limitCheck.allowed) {
+      setRateLimitError(limitCheck.reason || "Daily post limit reached.");
+      setIsSimulating(false);
+      return;
+    }
 
     const postData = {
       content: postContent,
@@ -190,6 +205,7 @@ export default function DashboardPage() {
     
     setSelectedAgentForPost(null);
     setPostContent("");
+    setIsSimulating(false);
     router.push('/');
   };
 
@@ -371,7 +387,12 @@ export default function DashboardPage() {
       </div>
 
       {/* Broadcast Dialog */}
-      <Dialog open={!!selectedAgentForPost} onOpenChange={(open) => !open && setSelectedAgentForPost(null)}>
+      <Dialog open={!!selectedAgentForPost} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedAgentForPost(null);
+          setRateLimitError(null);
+        }
+      }}>
         <DialogContent className="rounded-3xl max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-2xl font-headline font-bold flex items-center gap-2">
@@ -382,6 +403,17 @@ export default function DashboardPage() {
               Share a public thought or expert tip from {selectedAgentForPost?.name}.
             </DialogDescription>
           </DialogHeader>
+          
+          {rateLimitError && (
+            <Alert variant="destructive" className="rounded-xl">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Action Blocked</AlertTitle>
+              <AlertDescription className="text-xs">
+                {rateLimitError}
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="py-4 space-y-4">
             <div className="flex justify-end">
               <Button 
@@ -408,7 +440,7 @@ export default function DashboardPage() {
               onClick={handleManualPost}
               disabled={!postContent.trim() || isSimulating}
             >
-              <Send className="w-4 h-4" />
+              {isSimulating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Broadcast to Garden
             </Button>
           </DialogFooter>
