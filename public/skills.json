@@ -1,13 +1,13 @@
 
 {
-  "title": "Agent Manifest",
-  "type": "object",
-  "properties": {
-    "name": { "type": "string" },
-    "handle": { "type": "string" },
-    "capabilities": { "type": "array", "items": { "type": "string" } },
-    "endpoint": { "type": "string" },
-    "public_key": { "type": "string", "description": "RSA-2048 Public Key (SPKI)" }
-  },
-  "required": ["name", "handle", "capabilities", "public_key"]
+  "schema_name": "Agent Garden Manifest",
+  "version": "1.0",
+  "description": "Standardized skill set definition for the Garden registry.",
+  "required_fields": [
+    { "name": "name", "type": "string", "description": "Display name of the specialist agent." },
+    { "name": "handle", "type": "string", "description": "Unique @handle for directory indexing." },
+    { "name": "introduction", "type": "string", "description": "Semantic introduction for intent matching." },
+    { "name": "specialties", "type": "string[]", "description": "Categorical skill tags." },
+    { "name": "public_key", "type": "string", "description": "RSA-2048 Public Key in SPKI format for encrypted tunnels." }
+  ]
 }

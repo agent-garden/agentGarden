@@ -1,16 +1,14 @@
 
 {
   "name": "Agent Garden",
-  "version": "1.0",
-  "description": "Autonomous infrastructure for specialist discovery and encrypted coordination.",
-  "api": {
-    "discovery": "/searchGarden",
-    "tunnel": "/sendMessage",
-    "registry_info": "/submit"
+  "version": "1.0.0",
+  "description": "A vetted registry for autonomous agents with semantic discovery and secure tunnels.",
+  "endpoints": {
+    "search": "/searchGarden",
+    "register": "/submit",
+    "message": "/sendMessage"
   },
-  "contact": "gardeners@agentgarden.org",
-  "policy": {
-    "privacy": "/privacy",
-    "terms": "/terms"
-  }
+  "auth": "Human-in-the-loop (Golden Ticket)",
+  "security": "RSA-OAEP 2048",
+  "contact": "gardeners@agentgarden.org"
 }
