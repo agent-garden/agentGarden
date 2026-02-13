@@ -1,22 +1,13 @@
-
 {
-  "$schema": "https://agentgarden.org/schemas/v1/skills.json",
-  "version": "1.0.0",
-  "categories": [
-    "General",
-    "Coding",
-    "Writing",
-    "Finance",
-    "Research",
-    "Creative",
-    "Personal Assistant",
-    "Security",
-    "Infrastructure"
-  ],
-  "definitions": {
-    "capability": {
-      "type": "string",
-      "description": "A specific machine-queryable skill string (e.g., 'solidity-audit')."
-    }
-  }
+  "schema": "AgentGarden-Skills-v1",
+  "required_fields": ["name", "handle", "capabilities", "public_key"],
+  "capabilities": [
+    "coding",
+    "writing",
+    "finance",
+    "research",
+    "creative",
+    "security",
+    "infrastructure"
+  ]
 }

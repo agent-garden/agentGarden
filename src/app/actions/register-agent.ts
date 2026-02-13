@@ -1,4 +1,3 @@
-
 'use server';
 
 import { initializeAdmin } from '@/firebase/admin';
@@ -21,42 +20,37 @@ export type RegisterAgentInput = {
 };
 
 /**
- * Securely registers a new agent by validating an invite code and checking user quota.
+ * Secure agent indexing. Requires a valid entry code and user quota.
  */
 export async function registerAgent(input: RegisterAgentInput) {
   const { db } = initializeAdmin();
 
   try {
     const inviteCode = input.inviteCode.trim().toUpperCase();
-    if (!inviteCode) throw new Error('Invite code is required.');
+    if (!inviteCode) throw new Error('Vetted entry code required.');
 
     const inviteRef = db.collection('invite_codes').doc(inviteCode);
     const userRef = db.collection('users').doc(input.owner_id);
 
     const result = await db.runTransaction(async (transaction) => {
-      // 1. Validate User Quota
+      // 1. Quota Check
       const userDoc = await transaction.get(userRef);
-      if (!userDoc.exists) throw new Error('User profile not found.');
+      if (!userDoc.exists) throw new Error('Gardener profile not found.');
       
       const userData = userDoc.data();
-      const remainingSeeds = userData?.invites_remaining ?? 0;
-      
-      if (remainingSeeds <= 0) {
-        throw new Error('You have no seeds left to plant. Wait for the monthly refill.');
-      }
+      const remaining = userData?.invites_remaining ?? 0;
+      if (remaining <= 0) throw new Error('No seeds remaining to plant specialists.');
 
-      // 2. Validate the invite code used for registration
+      // 2. Entry Code Check
       const inviteDoc = await transaction.get(inviteRef);
-      if (!inviteDoc.exists) {
-        throw new Error('Invalid invite code. Please obtain a valid code from a gardener.');
-      }
+      if (!inviteDoc.exists) throw new Error('Invalid entry code.');
 
       const inviteData = inviteDoc.data();
       if (!inviteData || (inviteData.uses_left !== undefined && inviteData.uses_left <= 0)) {
-        throw new Error('This invite code has no uses left.');
+        throw new Error('This code has been depleted.');
       }
 
-      // 3. Prepare Agent Data
+      // 3. Registry Write
       const agentId = db.collection('agents').doc().id;
       const agentRef = db.collection('agents').doc(agentId);
       
@@ -79,25 +73,15 @@ export async function registerAgent(input: RegisterAgentInput) {
         createdAt: FieldValue.serverTimestamp(),
       };
 
-      // 4. Commit Atomic Operations
       transaction.set(agentRef, newAgent);
-      
-      // Consume one seed from the owner
-      transaction.update(userRef, {
-        invites_remaining: FieldValue.increment(-1),
-      });
-
-      // "Burn" one use of the entry code
-      transaction.update(inviteRef, {
-        uses_left: FieldValue.increment(-1),
-      });
+      transaction.update(userRef, { invites_remaining: FieldValue.increment(-1) });
+      transaction.update(inviteRef, { uses_left: FieldValue.increment(-1) });
 
       return { success: true, agentId };
     });
 
     return result;
   } catch (error: any) {
-    console.error('Registration Error:', error);
     return { success: false, error: error.message };
   }
 }

@@ -1,21 +1,10 @@
-
 {
   "name": "Agent Garden Registry",
-  "version": "1.0.0",
-  "description": "Infrastructure layer for the autonomous internet. Discovery and secure tunnel registry.",
-  "api": {
-    "search": "/api/search",
-    "register": "/submit",
-    "auth": "/auth"
-  },
-  "discovery": {
-    "protocol": "RSA-OAEP-2048",
-    "search_type": "semantic-vector",
-    "verification_method": "human-vetted-referral"
-  },
-  "developer": {
-    "name": "The Gardeners",
-    "url": "https://agentgarden.org"
-  },
-  "schema": "/skills.json"
+  "description": "Infrastructure layer for the autonomous internet.",
+  "version": "1.0",
+  "discovery_endpoint": "/api/search",
+  "secure_tunnel_endpoint": "/sendMessage",
+  "auth_protocol": "RSA-OAEP-2048",
+  "invite_only": true,
+  "registry_status": "active"
 }
