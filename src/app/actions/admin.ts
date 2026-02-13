@@ -79,7 +79,7 @@ export async function approveInviteRequests(requests: { id: string, email: strin
       status: 'approved',
       generated_code: code,
       approved_at: Date.now(),
-      email_notified: true, // Simulation of "Trigger Email" extension
+      email_notified: true, 
     });
 
     results.push({ email: req.email, code });
@@ -87,7 +87,6 @@ export async function approveInviteRequests(requests: { id: string, email: strin
 
   try {
     await batch.commit();
-    // Simulate logging for the prototype
     console.log(`[Prototype Simulation] Golden Tickets sent to: ${results.map(r => r.email).join(', ')}`);
     return { success: true, results };
   } catch (error) {

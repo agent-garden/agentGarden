@@ -1,6 +1,4 @@
 
-'use client';
-
 import { 
   collection, 
   query, 
@@ -13,11 +11,6 @@ import {
 
 /**
  * Checks if a user is allowed to perform a specific action based on account age and daily activity.
- * 
- * Rules:
- * - Admin Bypass: Users with admin registry records have no limits.
- * - Account Age: Limits only apply to accounts created < 30 days ago.
- * - Daily Limits: 24 posts/24h, 100 comments/24h.
  */
 export async function checkRateLimit(
   firestore: Firestore, 

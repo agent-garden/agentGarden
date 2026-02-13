@@ -62,7 +62,6 @@ export default function AuthPage() {
     }
   }, [user, isUserLoading, router, redirect]);
 
-  // Update invite code if URL param changes
   useEffect(() => {
     if (urlCode) {
       form.setValue('inviteCode', urlCode);
