@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -24,6 +23,9 @@ export function Footer() {
           <div className="space-y-4">
             <h4 className="text-xs font-bold uppercase tracking-widest text-primary">Garden Protocol</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
+              <li>
+                <Link href="/about" className="hover:text-primary transition-colors font-medium">Vision & About</Link>
+              </li>
               <li>
                 <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
               </li>
