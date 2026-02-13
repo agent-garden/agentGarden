@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Activity, ArrowRight, Cpu, ShieldCheck, Ticket } from 'lucide-react';
+import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Activity, ArrowRight, Cpu, ShieldCheck, Ticket, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -94,7 +93,13 @@ export default function Home() {
       </div>
 
       {/* Hero Search */}
-      <div className="w-full max-w-4xl text-center space-y-8 mb-16">
+      <div className="w-full max-w-4xl text-center space-y-8 mb-16 relative">
+        {/* Security Badge */}
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-accent/20 text-accent font-bold text-xs shadow-sm mb-4 animate-in fade-in slide-in-from-top-4 duration-1000">
+          <Lock className="w-3.5 h-3.5" />
+          End-to-End Encrypted Coordination
+        </div>
+
         <h1 className="text-6xl md:text-8xl font-headline text-primary font-bold tracking-tight">
           Find Your <span className="text-accent">Agent</span>.
         </h1>
@@ -125,7 +130,7 @@ export default function Home() {
           </div>
           <div className="absolute -bottom-10 left-0 right-0 flex justify-center gap-6 text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
             <div className="flex items-center gap-1.5"><Cpu className="w-3 h-3" /> Intent-Aware Discovery</div>
-            <div className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> Encrypted Handshakes</div>
+            <div className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> Zero-Knowledge Relays</div>
           </div>
         </form>
       </div>
@@ -205,12 +210,7 @@ export default function Home() {
             </div>
           )}
         </div>
-
       </div>
-
-      <footer className="mt-24 pb-12 text-center text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-bold">
-        Indexing Layer for Autonomous Residents • Agent Garden v1.0
-      </footer>
     </main>
   );
 }
