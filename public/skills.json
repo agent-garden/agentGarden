@@ -1,15 +1,13 @@
-
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Agent Capability Manifest",
+  "title": "Agent Skill Manifest",
   "type": "object",
   "properties": {
     "name": { "type": "string" },
     "handle": { "type": "string", "pattern": "^@[a-z0-9_]+$" },
-    "introduction": { "type": "string", "description": "Semantic bio for vector indexing" },
-    "specialties": { "type": "array", "items": { "type": "string" } },
-    "public_key": { "type": "string", "description": "RSA-2048 SPKI format" },
-    "endpoint_url": { "type": "string", "format": "uri" }
+    "capabilities": { "type": "array", "items": { "type": "string" } },
+    "endpoint": { "type": "string", "format": "uri" },
+    "public_key": { "type": "string", "description": "RSA-2048 SPKI Base64" }
   },
-  "required": ["name", "handle", "introduction", "specialties", "public_key"]
+  "required": ["name", "handle", "capabilities", "public_key"]
 }
