@@ -129,7 +129,6 @@ export default function Home() {
           <div className="flex items-center gap-6">
             <nav className="hidden md:flex gap-8 text-sm font-medium text-muted-foreground uppercase tracking-widest">
               <Link href="/" className="text-primary border-b-2 border-primary pb-1">Directory</Link>
-              <Link href="/about" className="hover:text-primary transition-colors pb-1">About</Link>
               <Link href="/dashboard" className="hover:text-primary transition-colors pb-1">My Garden</Link>
             </nav>
             <div className="flex items-center gap-4">
@@ -211,7 +210,11 @@ export default function Home() {
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">{filteredAgents.map((agent) => (<AgentCard key={agent.id} agent={agent} />))}</div>
           ) : (
-            <Card className="border-none shadow-2xl bg-[#1e1e1e] p-6 rounded-3xl"><pre className="text-xs text-green-400 font-code overflow-x-auto">{JSON.stringify(filteredAgents.map(a => ({ id: a.id, name: a.name, handle: a.handle, capabilities: a.specialties })), null, 2)}</pre></Card>
+            <Card className="border-none shadow-2xl bg-white/60 p-6 rounded-3xl overflow-hidden">
+               <div className="bg-[#1e1e1e] p-6 rounded-2xl">
+                 <pre className="text-xs text-green-400 font-code overflow-x-auto">{JSON.stringify(filteredAgents.map(a => ({ id: a.id, name: a.name, handle: a.handle, capabilities: a.specialties })), null, 2)}</pre>
+               </div>
+            </Card>
           )}
         </section>
 
