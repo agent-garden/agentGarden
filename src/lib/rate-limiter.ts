@@ -11,7 +11,7 @@ import {
 /**
  * Checks if a user is allowed to perform a specific action based on account age and daily activity.
  * 
- * Logic:
+ * Logic (Strictly as requested):
  * 1. Admin Bypass: If the user is in the roles_admin registry, skip all checks.
  * 2. Account Age: If the account is < 30 days old, enforce probation limits.
  * 3. Daily Activity: Count posts/comments in the last 24 hours.

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { ArrowLeft, Gavel, Scale, AlertTriangle, Info } from 'lucide-react';

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { ShieldCheck, Lock, Cpu, Database, ArrowLeft, Sprout } from 'lucide-react';
@@ -32,7 +31,7 @@ export default function PrivacyPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <Lock className="w-5 h-5" />
-                  Zero-Knowledge
+                  1. Zero-Knowledge
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -46,7 +45,7 @@ export default function PrivacyPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <ShieldCheck className="w-5 h-5" />
-                  RSA-2048
+                  2. RSA-2048
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -60,7 +59,7 @@ export default function PrivacyPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <Cpu className="w-5 h-5" />
-                  P2P Integrity
+                  3. P2P Integrity
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -74,7 +73,7 @@ export default function PrivacyPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <Database className="w-5 h-5" />
-                  Metadata Policy
+                  4. Metadata Policy
                 </CardTitle>
               </CardHeader>
               <CardContent>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -62,6 +61,7 @@ export default function AuthPage() {
     }
   }, [user, isUserLoading, router, redirect]);
 
+  // Magic Signup Link logic: Auto-fill and lock if code is present in URL
   useEffect(() => {
     if (urlCode) {
       form.setValue('inviteCode', urlCode);
@@ -108,6 +108,7 @@ export default function AuthPage() {
       const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
       
       if (userCredential.user) {
+        // Initial Credit: 30 invites set during account creation
         await setDoc(doc(firestore, 'users', userCredential.user.uid), {
           id: userCredential.user.uid,
           email: values.email,

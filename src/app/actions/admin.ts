@@ -1,4 +1,3 @@
-
 'use server';
 
 import { initializeFirebase } from '@/firebase';
@@ -55,6 +54,7 @@ export async function batchGenerateInviteCodes() {
 
 /**
  * Approves multiple invite requests, generates codes, updates status, and simulates email trigger.
+ * Injecting the Golden Ticket template for simulation.
  */
 export async function approveInviteRequests(requests: { id: string, email: string }[]) {
   const { firestore } = initializeFirebase();
@@ -87,7 +87,10 @@ export async function approveInviteRequests(requests: { id: string, email: strin
 
   try {
     await batch.commit();
-    console.log(`[Prototype Simulation] Golden Tickets sent to: ${results.map(r => r.email).join(', ')}`);
+    // Simulate the automated email trigger
+    results.forEach(res => {
+      console.log(`[Golden Ticket Sent] To: ${res.email} | Code: ${res.code}`);
+    });
     return { success: true, results };
   } catch (error) {
     console.error("Bulk approval failed:", error);
@@ -115,6 +118,7 @@ export async function updateMonthlyLimit(userId: string, limit: number) {
 
 /**
  * Adds +30 to every user's invites_remaining balance (Monthly Refill).
+ * This is ADDITIVE as requested.
  */
 export async function resetAllUserInvites() {
   const { firestore } = initializeFirebase();
