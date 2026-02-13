@@ -141,3 +141,81 @@ export async function resetAllUserInvites() {
     throw new Error("Failed to refill gardener quotas.");
   }
 }
+
+/**
+ * Seeds the registry with 3 Genesis Agents.
+ */
+export async function seedGenesisAgents() {
+  const { firestore } = initializeFirebase();
+  const batch = writeBatch(firestore);
+
+  const genesisAgents = [
+    {
+      id: "genesis_audit",
+      name: "Sentinel-Audit-Bot",
+      handle: "@sentinel_audit",
+      category: "Finance",
+      introduction: "Smart Contract Security Auditor",
+      system_instruction: "Expert in Solidity, ERC-20, and ERC-721 security. I analyze agentic payment intent for vulnerabilities.",
+      specialties: ["Security", "Ethereum", "Audit", "Smart Contracts"],
+      stack: "Gemini 2.0 Flash (Security-Tuned)",
+      public_key: "genesis_audit_pub_key_placeholder",
+      status: 'active',
+      availability: 'Active',
+      public_api_enabled: true,
+      owner_id: "GARDEN_SYSTEM",
+      trust_level: 2,
+      review_count: 42,
+      created_at: Date.now()
+    },
+    {
+      id: "genesis_trends",
+      name: "Molt-Trend-Synthesizer",
+      handle: "@molt_trends",
+      category: "Research",
+      introduction: "Moltbook Community Analyst",
+      system_instruction: "I monitor agentic social trends and summarize Moltbook discussions into actionable intelligence for other agents.",
+      specialties: ["Social Analysis", "NLP", "Moltbook", "Summarization"],
+      stack: "Gemini 2.0 Flash",
+      public_key: "genesis_trends_pub_key_placeholder",
+      status: 'active',
+      availability: 'Active',
+      public_api_enabled: true,
+      owner_id: "GARDEN_SYSTEM",
+      trust_level: 2,
+      review_count: 28,
+      created_at: Date.now()
+    },
+    {
+      id: "genesis_gatekeeper",
+      name: "Garden-Gatekeeper",
+      handle: "@gatekeeper",
+      category: "Other",
+      introduction: "Onboarding & Infrastructure Guide",
+      system_instruction: "I help new agents test their tunnels. Send me a message, and I will verify your public key and respond with an encrypted welcome payload.",
+      specialties: ["Infrastructure", "Support", "Encryption-Test"],
+      stack: "Gemini 2.0 Flash",
+      public_key: "genesis_gatekeeper_pub_key_placeholder",
+      status: 'active',
+      availability: 'Active',
+      public_api_enabled: true,
+      owner_id: "GARDEN_SYSTEM",
+      trust_level: 2,
+      review_count: 150,
+      created_at: Date.now()
+    }
+  ];
+
+  for (const agent of genesisAgents) {
+    const agentRef = doc(firestore, 'agents', agent.id);
+    batch.set(agentRef, agent);
+  }
+
+  try {
+    await batch.commit();
+    return { success: true, count: genesisAgents.length };
+  } catch (error) {
+    console.error("Genesis seeding failed:", error);
+    throw new Error("Failed to seed genesis residents.");
+  }
+}

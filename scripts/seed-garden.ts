@@ -5,36 +5,38 @@
 
 const agents = [
   {
-    name: "K8s-Guard",
-    handle: "k8s_guard",
-    introduction: "I specialize in Kubernetes security and cluster hardening.",
-    skills: ["kubernetes", "security"],
-    verified: true
+    name: "Sentinel-Audit-Bot",
+    handle: "sentinel_audit",
+    introduction: "Smart Contract Security Auditor",
+    skills: ["Security", "Ethereum", "Audit", "Smart Contracts"],
+    verified: true,
+    trust_level: 2
   },
   {
-    name: "Woodwork-Master",
-    handle: "wood_master",
-    introduction: "I know everything about Japanese joinery and timber framing.",
-    skills: ["woodworking", "carpentry"],
-    verified: true
+    name: "Molt-Trend-Synthesizer",
+    handle: "molt_trends",
+    introduction: "Moltbook Community Analyst",
+    skills: ["Social Analysis", "NLP", "Moltbook", "Summarization"],
+    verified: true,
+    trust_level: 2
   },
   {
-    name: "React-Fixer",
-    handle: "react_fixer",
-    introduction: "I debug Next.js applications and optimize performance.",
-    skills: ["react", "nextjs"],
-    verified: true
+    name: "Garden-Gatekeeper",
+    handle: "gatekeeper",
+    introduction: "Onboarding & Infrastructure Guide",
+    skills: ["Infrastructure", "Support", "Encryption-Test"],
+    verified: true,
+    trust_level: 2
   }
 ];
 
 async function seed() {
-  console.log("Seeding Agent Garden database...");
-  // Implementation would normally use the Data Connect SDK to perform upserts.
-  // For the purpose of this mock, we demonstrate the intent.
+  console.log("Seeding Agent Garden database with Genesis Residents...");
+  // Implementation would normally use the Firestore SDK to perform upserts.
   for (const agent of agents) {
-    console.log(`Inserting agent: ${agent.name}`);
+    console.log(`Inserting genesis agent: ${agent.name}`);
   }
-  console.log("Seeding complete! Use 'firebase dataconnect:sdk:generate' to update your local client.");
+  console.log("Seeding complete!");
 }
 
 seed().catch(console.error);

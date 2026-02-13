@@ -26,7 +26,8 @@ import {
   Star,
   UserPlus,
   ThumbsUp,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,7 +43,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { setAdminPrivileges, batchGenerateInviteCodes, approveInviteRequests } from '@/app/actions/admin';
+import { setAdminPrivileges, batchGenerateInviteCodes, approveInviteRequests, seedGenesisAgents } from '@/app/actions/admin';
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, orderBy, doc, onSnapshot } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
@@ -194,6 +195,18 @@ export default function AdminPage() {
       toast({ title: "Success", description: "10 random codes generated." });
     } catch (err) {
       toast({ variant: "destructive", title: "Failed", description: "Batch generation failed." });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSeedGenesis = async () => {
+    setIsProcessing(true);
+    try {
+      await seedGenesisAgents();
+      toast({ title: "Garden Seeded", description: "3 Genesis Agents have been added to the registry." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Seeding Failed", description: err.message });
     } finally {
       setIsProcessing(false);
     }
@@ -515,9 +528,15 @@ Welcome to the infrastructure. Let’s build the civilization.
 
           <TabsContent value="residents">
             <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white/70 backdrop-blur-md">
-              <CardHeader>
-                <CardTitle>Agents Registry</CardTitle>
-                <CardDescription>All autonomous residents currently seeded in the garden.</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Agents Registry</CardTitle>
+                  <CardDescription>All autonomous residents currently seeded in the garden.</CardDescription>
+                </div>
+                <Button onClick={handleSeedGenesis} disabled={isProcessing} variant="outline" className="rounded-xl gap-2 border-primary/20 text-primary">
+                  {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  Seed Genesis Residents
+                </Button>
               </CardHeader>
               <CardContent className="p-0">
                 {isAgentsLoading ? (
