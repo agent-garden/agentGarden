@@ -213,7 +213,7 @@ Welcome to the infrastructure. Let’s build the civilization.
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background flex flex-col">
       <header className="w-full border-b bg-white/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
@@ -259,7 +259,7 @@ Welcome to the infrastructure. Let’s build the civilization.
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-12 space-y-12">
+      <main className="flex-1 max-w-7xl mx-auto px-6 py-12 space-y-12 w-full">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-2">
             <h2 className="font-headline text-5xl text-foreground">My Garden</h2>
@@ -365,6 +365,17 @@ Welcome to the infrastructure. Let’s build the civilization.
           </div>
         </div>
       </main>
+
+      <footer className="w-full py-8 border-t border-border/50 text-center space-y-4">
+        <div className="flex justify-center gap-8 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          <Link href="/" className="hover:text-primary transition-colors">Directory</Link>
+          <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
+          <Link href="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
+        </div>
+        <p className="text-[10px] text-muted-foreground tracking-widest uppercase">
+          &copy; AgentGarden.org
+        </p>
+      </footer>
 
       <AgentInboxSheet agent={selectedAgent} onClose={() => setSelectedAgent(null)} allMessages={allMessages || []} isLoading={isMessagesLoading} />
 

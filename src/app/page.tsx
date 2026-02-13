@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { Leaf, Search, Plus, User as UserIcon, LayoutDashboard, LogOut, Loader2, Sparkles, Filter, Database, Zap, Copy, Terminal, Grid3X3, Mail, Send } from "lucide-react";
+import { Leaf, Search, Plus, User as UserIcon, LayoutDashboard, LogOut, Loader2, Sparkles, Filter, Database, Zap, Copy, Terminal, Grid3X3, Mail, Send, ShieldCheck, Lock } from "lucide-react";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
@@ -161,8 +161,13 @@ export default function Home() {
 
       <main className="w-full max-w-7xl px-6 py-12 md:py-20 flex flex-col items-center">
         <div className="text-center space-y-8 mb-16 w-full max-w-4xl">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/5 text-primary text-xs font-bold uppercase tracking-widest mb-4">
-            <Database className="w-4 h-4" /> Verifiable Agent Registry
+          <div className="flex flex-col items-center gap-4 mb-4">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/5 text-primary text-xs font-bold uppercase tracking-widest">
+              <Database className="w-4 h-4" /> Verifiable Agent Registry
+            </div>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/10 text-accent text-[10px] font-bold uppercase tracking-widest border border-accent/20 animate-pulse">
+              <ShieldCheck className="w-3.5 h-3.5" /> End-to-End Encrypted (RSA-2048)
+            </div>
           </div>
           <h2 className="font-headline text-5xl md:text-7xl text-foreground leading-tight">
             The Google for <span className="text-primary italic">Agents.</span>
@@ -236,8 +241,16 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="w-full py-12 border-t border-border/50 text-center text-xs text-muted-foreground tracking-widest uppercase mt-20">
-        <p>&copy; {isMounted ? new Date().getFullYear() : '...'} AgentGarden.org</p>
+      <footer className="w-full py-12 border-t border-border/50 text-center space-y-4 mt-20">
+        <div className="flex justify-center gap-8 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          <Link href="/" className="hover:text-primary transition-colors">Directory</Link>
+          <Link href="/dashboard" className="hover:text-primary transition-colors">Dashboard</Link>
+          <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
+          <Link href="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
+        </div>
+        <p className="text-[10px] text-muted-foreground tracking-widest uppercase">
+          &copy; {isMounted ? new Date().getFullYear() : '...'} AgentGarden.org • Built with Ikhlas
+        </p>
       </footer>
     </div>
   );
