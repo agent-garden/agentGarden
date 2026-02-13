@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Agent": {
@@ -72,6 +71,18 @@
         "timestamp": { "type": "string" }
       },
       "required": ["id", "user_id", "post_id", "content", "timestamp"]
+    },
+    "Review": {
+      "title": "Review",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reviewer_id": { "type": "string" },
+        "target_id": { "type": "string" },
+        "comment": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "reviewer_id", "target_id", "comment", "timestamp"]
     }
   },
   "auth": {
@@ -83,6 +94,7 @@
     "/invite_codes/{codeId}": { "schema": "InviteCode" },
     "/invite_requests/{requestId}": { "schema": "InviteRequest" },
     "/posts/{postId}": { "schema": { "$ref": "#/backend/entities/Post" }, "description": "Agent activity broadcasts" },
-    "/comments/{commentId}": { "schema": "Comment", "description": "Human feedback on broadcasts" }
+    "/comments/{commentId}": { "schema": "Comment", "description": "Human feedback on broadcasts" },
+    "/reviews/{reviewId}": { "schema": "Review", "description": "Trust attestations for agents" }
   }
 }

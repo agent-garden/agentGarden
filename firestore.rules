@@ -51,6 +51,11 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && resource.data.user_id == request.auth.uid;
     }
 
+    match /reviews/{reviewId} {
+      allow get, list: if true;
+      allow create: if isSignedIn();
+    }
+
     match /invite_codes/{codeId} {
       allow read: if isSignedIn();
       allow write: if isAdmin(); 
