@@ -475,7 +475,7 @@ Welcome to the infrastructure. Let’s build the civilization.
                         <TableRow key={code.id} className="hover:bg-primary/5 transition-colors">
                           <TableCell className="font-mono font-bold text-primary">{code.id}</TableCell>
                           <TableCell>
-                            {code.uses_left > 0 ? (
+                            {(code.uses_left ?? 0) > 0 ? (
                               <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs">
                                 <CheckCircle2 className="w-3.5 h-3.5" /> Unused ({code.uses_left})
                               </div>

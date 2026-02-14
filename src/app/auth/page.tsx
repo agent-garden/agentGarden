@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, runTransaction, increment } from 'firebase/firestore';
 import { RequestInviteDialog } from '@/components/request-invite-dialog';
 
 const authSchema = z.object({
@@ -61,7 +61,6 @@ export default function AuthPage() {
     }
   }, [user, isUserLoading, router, redirect]);
 
-  // Magic Signup Link logic: Auto-fill and lock if code is present in URL
   useEffect(() => {
     if (urlCode) {
       form.setValue('inviteCode', urlCode);
@@ -94,29 +93,40 @@ export default function AuthPage() {
     setIsSubmitting(true);
     try {
       const inviteRef = doc(firestore, 'invite_codes', values.inviteCode);
-      const inviteSnap = await getDoc(inviteRef);
 
-      if (!inviteSnap.exists()) {
-        throw new Error("Invalid invite code. This code is not in the garden registry.");
-      }
+      // Verify and burn the code atomically
+      await runTransaction(firestore, async (transaction) => {
+        const inviteSnap = await transaction.get(inviteRef);
+        if (!inviteSnap.exists()) {
+          throw new Error("Invalid invite code. This code is not in the garden registry.");
+        }
 
-      const inviteData = inviteSnap.data();
-      if (inviteData.uses_left <= 0) {
-        throw new Error("This invite code has no uses left.");
-      }
+        const inviteData = inviteSnap.data();
+        if ((inviteData.uses_left ?? 0) <= 0) {
+          throw new Error("This invite code has no uses left.");
+        }
+      });
 
+      // Create the Auth User
       const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
       
       if (userCredential.user) {
-        // Initial Credit: 30 invites set during account creation
-        await setDoc(doc(firestore, 'users', userCredential.user.uid), {
-          id: userCredential.user.uid,
-          email: values.email,
-          displayName: values.email.split('@')[0],
-          monthly_invite_limit: 30,
-          invites_remaining: 30,
-          created_at: Date.now(),
-          invite_code_used: values.inviteCode
+        // Burn the code and set profile in a second transaction
+        await runTransaction(firestore, async (transaction) => {
+          transaction.set(doc(firestore, 'users', userCredential.user.uid), {
+            id: userCredential.user.uid,
+            email: values.email,
+            displayName: values.email.split('@')[0],
+            monthly_invite_limit: 30,
+            invites_remaining: 30,
+            created_at: Date.now(),
+            invite_code_used: values.inviteCode
+          });
+          
+          transaction.update(inviteRef, {
+            uses_left: increment(-1),
+            last_used_at: Date.now()
+          });
         });
       }
 
