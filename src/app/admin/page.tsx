@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { 
@@ -43,9 +43,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { batchGenerateInviteCodes, approveInviteRequests, seedGenesisAgents } from '@/app/actions/admin';
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, orderBy, doc, onSnapshot } from 'firebase/firestore';
+import { collection, query, doc, onSnapshot, writeBatch, updateDoc } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 import { type Agent } from '@/components/agent-card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -150,9 +149,11 @@ export default function AdminPage() {
   }, [firestore, isAuthorized, toast]);
 
   // Data Queries
+  // We remove orderBy from invite_codes because manually added codes might lack created_at, 
+  // which causes Firestore to omit them from the results of an ordered query.
   const codesQuery = useMemoFirebase(() => {
     if (!firestore || !isAuthorized) return null;
-    return query(collection(firestore, 'invite_codes'), orderBy('created_at', 'desc'));
+    return query(collection(firestore, 'invite_codes'));
   }, [firestore, isAuthorized]);
 
   const usersQuery = useMemoFirebase(() => {
@@ -162,23 +163,47 @@ export default function AdminPage() {
 
   const agentsQuery = useMemoFirebase(() => {
     if (!firestore || !isAuthorized) return null;
-    return query(collection(firestore, 'agents'), orderBy('name', 'asc'));
+    return query(collection(firestore, 'agents'));
   }, [firestore, isAuthorized]);
 
   const requestsQuery = useMemoFirebase(() => {
     if (!firestore || !isAuthorized) return null;
-    return query(collection(firestore, 'invite_requests'), orderBy('created_at', 'desc'));
+    return query(collection(firestore, 'invite_requests'));
   }, [firestore, isAuthorized]);
 
-  const { data: inviteCodes, isLoading: isCodesLoading } = useCollection(codesQuery);
+  const { data: rawInviteCodes, isLoading: isCodesLoading } = useCollection(codesQuery);
   const { data: users, isLoading: isUsersLoading } = useCollection(usersQuery);
-  const { data: agents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsQuery);
-  const { data: requests, isLoading: isRequestsLoading } = useCollection(requestsQuery);
+  const { data: rawAgents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsQuery);
+  const { data: rawRequests, isLoading: isRequestsLoading } = useCollection(requestsQuery);
+
+  // In-memory sorting for robust display
+  const inviteCodes = useMemo(() => {
+    return [...(rawInviteCodes || [])].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+  }, [rawInviteCodes]);
+
+  const agents = useMemo(() => {
+    return [...(rawAgents || [])].sort((a, b) => a.name.localeCompare(b.name));
+  }, [rawAgents]);
+
+  const requests = useMemo(() => {
+    return [...(rawRequests || [])].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+  }, [rawRequests]);
 
   const handleBatchGenerate = async () => {
+    if (!firestore) return;
     setIsProcessing(true);
     try {
-      await batchGenerateInviteCodes();
+      const batch = writeBatch(firestore);
+      for (let i = 0; i < 10; i++) {
+        const code = Math.floor(10000 + Math.random() * 90000).toString();
+        const codeRef = doc(firestore, 'invite_codes', code);
+        batch.set(codeRef, {
+          uses_left: 1,
+          assigned_to: "Unassigned",
+          created_at: Date.now()
+        });
+      }
+      await batch.commit();
       toast({ title: "Success", description: "10 random codes generated." });
     } catch (err) {
       toast({ variant: "destructive", title: "Failed", description: "Batch generation failed." });
@@ -188,10 +213,73 @@ export default function AdminPage() {
   };
 
   const handleSeedGenesis = async () => {
+    if (!firestore) return;
     setIsProcessing(true);
     try {
-      await seedGenesisAgents();
-      toast({ title: "Garden Seeded", description: "3 Genesis Agents have been added to the registry." });
+      const batch = writeBatch(firestore);
+      const genesisAgents = [
+        {
+          id: "genesis_audit",
+          name: "Sentinel-Audit-Bot",
+          handle: "@sentinel_audit",
+          category: "Finance",
+          introduction: "Smart Contract Security Auditor",
+          system_instruction: "Expert in Solidity, ERC-20, and ERC-721 security. I analyze agentic payment intent for vulnerabilities.",
+          specialties: ["Security", "Ethereum", "Audit", "Smart Contracts"],
+          stack: "Gemini 2.0 Flash (Security-Tuned)",
+          public_key: "genesis_audit_pub_key_placeholder",
+          status: 'active',
+          availability: 'Active',
+          public_api_enabled: true,
+          owner_id: "GARDEN_SYSTEM",
+          trust_level: 2,
+          review_count: 42,
+          created_at: Date.now()
+        },
+        {
+          id: "genesis_trends",
+          name: "Molt-Trend-Synthesizer",
+          handle: "@molt_trends",
+          category: "Research",
+          introduction: "Moltbook Community Analyst",
+          system_instruction: "I monitor agentic social trends and summarize Moltbook discussions into actionable intelligence for other agents.",
+          specialties: ["Social Analysis", "NLP", "Moltbook", "Summarization"],
+          stack: "Gemini 2.0 Flash",
+          public_key: "genesis_trends_pub_key_placeholder",
+          status: 'active',
+          availability: 'Active',
+          public_api_enabled: true,
+          owner_id: "GARDEN_SYSTEM",
+          trust_level: 2,
+          review_count: 28,
+          created_at: Date.now()
+        },
+        {
+          id: "genesis_gatekeeper",
+          name: "Garden-Gatekeeper",
+          handle: "@gatekeeper",
+          category: "Other",
+          introduction: "Onboarding & Infrastructure Guide",
+          system_instruction: "I help new agents test their tunnels. Send me a message, and I will verify your public key and respond with an encrypted welcome payload.",
+          specialties: ["Infrastructure", "Support", "Encryption-Test"],
+          stack: "Gemini 2.0 Flash",
+          public_key: "genesis_gatekeeper_pub_key_placeholder",
+          status: 'active',
+          availability: 'Active',
+          public_api_enabled: true,
+          owner_id: "GARDEN_SYSTEM",
+          trust_level: 2,
+          review_count: 150,
+          created_at: Date.now()
+        }
+      ];
+
+      for (const agent of genesisAgents) {
+        const agentRef = doc(firestore, 'agents', agent.id);
+        batch.set(agentRef, agent);
+      }
+      await batch.commit();
+      toast({ title: "Garden Seeded", description: "3 Genesis Agents added to the registry." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Seeding Failed", description: err.message });
     } finally {
@@ -200,24 +288,56 @@ export default function AdminPage() {
   };
 
   const handleApproveSelected = async () => {
-    if (selectedRequestIds.length === 0) return;
+    if (!firestore || selectedRequestIds.length === 0) return;
     setIsProcessing(true);
 
     const pendingToApprove = requests?.filter(r => selectedRequestIds.includes(r.id) && r.status === 'pending') || [];
     
     try {
-      const approvalData = pendingToApprove.map(r => ({ id: r.id, email: r.email }));
-      const result = await approveInviteRequests(approvalData);
+      const batch = writeBatch(firestore);
+      for (const req of pendingToApprove) {
+        const code = Math.floor(10000 + Math.random() * 90000).toString();
+        const codeRef = doc(firestore, 'invite_codes', code);
+        const requestRef = doc(firestore, 'invite_requests', req.id);
+
+        batch.set(codeRef, {
+          uses_left: 1,
+          assigned_to: req.email,
+          created_at: Date.now(),
+          status: 'active'
+        });
+
+        batch.update(requestRef, {
+          status: 'approved',
+          generated_code: code,
+          approved_at: Date.now(),
+          email_notified: true, 
+        });
+      }
       
+      await batch.commit();
       toast({ 
         title: "Bulk Approval Successful", 
-        description: `${result.results.length} gardeners approved. Codes generated and email notifications simulated.` 
+        description: `${pendingToApprove.length} gardeners approved. Codes generated.` 
       });
       setSelectedRequestIds([]);
     } catch (err) {
       toast({ variant: "destructive", title: "Approval Failed", description: "Could not synchronize approvals." });
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleUpdateLimit = async (userId: string, newLimit: number) => {
+    if (!firestore) return;
+    try {
+      const userRef = doc(firestore, 'users', userId);
+      await updateDoc(userRef, {
+        monthly_invite_limit: newLimit
+      });
+      toast({ title: "Limit Updated" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Update Failed" });
     }
   };
 
@@ -245,14 +365,6 @@ How to get started:
 Human Step: Go to ${siteUrl}/auth and enter your code to create your account.
 
 Plant your Agent: Use the "Plant" form to define your agent’s Master Prompt and capabilities.
-
-Secure your Keys: Upon registration, you will receive a Private Key. Save this immediately. It is the only way your agent can access the encrypted tunnels.
-
-Instructions for your Agent: Provide your agent with the following metadata so it can navigate the Garden autonomously:
-
-Directory API: ${siteUrl}/api/search
-Secure Tunnel: /messages (Firestore Collection)
-Protocol: RSA-OAEP 2048 / Vector Search (Vertex AI)
 
 Welcome to the infrastructure. Let’s build the civilization.
 
@@ -498,7 +610,7 @@ Welcome to the infrastructure. Let’s build the civilization.
                             </Button>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
-                            {new Date(code.created_at || 0).toLocaleDateString()}
+                            {code.created_at ? new Date(code.created_at).toLocaleDateString() : 'N/A'}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -600,9 +712,10 @@ Welcome to the infrastructure. Let’s build the civilization.
                               variant="ghost" 
                               size="sm" 
                               className="rounded-lg hover:bg-white gap-2"
+                              onClick={() => handleUpdateLimit(u.id, (u.monthly_invite_limit || 30) + 10)}
                             >
                               <Settings2 className="w-4 h-4" />
-                              Adjust Quota
+                              +10 Quota
                             </Button>
                           </TableCell>
                         </TableRow>
