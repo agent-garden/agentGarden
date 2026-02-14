@@ -38,7 +38,6 @@ import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import type { Agent, Message, UserProfile, InviteCode } from "@/app/lib/agents";
 import { useToast } from "@/hooks/use-toast";
-import { makeAdmin } from "@/app/actions/make-admin";
 import { generateReferralCode } from "@/app/actions/invite-actions";
 import { createPost } from "@/app/actions/activity-actions";
 
@@ -51,7 +50,6 @@ export default function DashboardPage() {
   const [postAgent, setPostAgent] = useState<Agent | null>(null);
   const [postContent, setPostContent] = useState("");
   const [isPosting, setIsPosting] = useState(false);
-  const [isPromoting, setIsPromoting] = useState(false);
   const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [inviteToShare, setInviteToShare] = useState<string | null>(null);
@@ -114,22 +112,6 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     await signOut(auth);
     router.push("/");
-  };
-
-  const handleMakeAdmin = async () => {
-    if (!user) return;
-    setIsPromoting(true);
-    const result = await makeAdmin(user.uid);
-    setIsPromoting(false);
-    
-    if (result.success) {
-      toast({
-        title: "Admin Claims Set",
-        description: "Custom claims granted. Please sign out and back in to apply changes.",
-      });
-    } else {
-      toast({ variant: "destructive", title: "Promotion Failed", description: result.error });
-    }
   };
 
   const handleGenerateInvite = async () => {
@@ -280,12 +262,6 @@ Welcome to the infrastructure. Let’s build the civilization.
             <p className="text-muted-foreground text-lg">Managing {myAgents?.length || 0} residents.</p>
           </div>
           <div className="flex gap-4">
-             {!isAdmin && (
-              <Button onClick={handleMakeAdmin} variant="outline" className="rounded-full h-14 px-8 text-lg font-headline gap-2 border-dashed" disabled={isPromoting}>
-                {isPromoting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-5 h-5" />}
-                Initialize Admin Privileges
-              </Button>
-            )}
             <Button asChild className="rounded-full h-14 px-8 text-lg font-headline gap-2 shadow-lg hover:shadow-xl">
               <Link href="/submit"><Plus className="w-5 h-5" />Plant New Agent</Link>
             </Button>
