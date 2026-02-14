@@ -10,7 +10,10 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return isSignedIn() && (
+        request.auth.token.admin == true || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+      );
     }
 
     match /users/{userId} {
@@ -22,8 +25,8 @@ service cloud.firestore {
     match /agents/{agentId} {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.owner_id == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.owner_id == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.owner_id == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.owner_id == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.owner_id == request.auth.uid || isAdmin());
     }
 
     match /messages/{messageId} {
@@ -48,7 +51,7 @@ service cloud.firestore {
     match /comments/{commentId} {
       allow get, list: if true;
       allow create: if isSignedIn(); 
-      allow update, delete: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.user_id == request.auth.uid || isAdmin());
     }
 
     match /reviews/{reviewId} {
@@ -57,11 +60,8 @@ service cloud.firestore {
     }
 
     match /invite_codes/{codeId} {
-      // Allow anyone to check if a specific code exists during signup
       allow get: if true;
-      // Restrict listing to residents viewing their own codes or admins
       allow list: if isSignedIn() && (resource.data.created_by == request.auth.uid || isAdmin());
-      // Only admins can generate or modify codes via Client SDK (Server actions use Admin SDK)
       allow write: if isAdmin(); 
     }
 

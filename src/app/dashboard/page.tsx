@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, useDoc } from "@/firebase";
@@ -58,6 +57,13 @@ export default function DashboardPage() {
   const [inviteToShare, setInviteToShare] = useState<string | null>(null);
   const { toast } = useToast();
 
+  const profileRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, "users", user.uid);
+  }, [db, user]);
+
+  const { data: profile } = useDoc<UserProfile>(profileRef);
+
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push("/auth?redirect=/dashboard");
@@ -65,17 +71,11 @@ export default function DashboardPage() {
     
     if (user) {
       user.getIdTokenResult().then((result) => {
-        setIsAdmin(!!result.claims.admin);
+        // Admin if claim is set OR firestore profile field isAdmin is true
+        setIsAdmin(!!result.claims.admin || !!profile?.isAdmin);
       });
     }
-  }, [user, isUserLoading, router]);
-
-  const profileRef = useMemoFirebase(() => {
-    if (!db || !user) return null;
-    return doc(db, "users", user.uid);
-  }, [db, user]);
-
-  const { data: profile } = useDoc<UserProfile>(profileRef);
+  }, [user, isUserLoading, router, profile]);
 
   const userAgentsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -84,8 +84,6 @@ export default function DashboardPage() {
 
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection<Agent>(userAgentsQuery);
 
-  // Optimized referral query: Removed orderBy to avoid index issues. 
-  // We sort client-side instead.
   const myReferralsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
@@ -97,7 +95,6 @@ export default function DashboardPage() {
 
   const { data: rawReferrals } = useCollection<InviteCode>(myReferralsQuery);
   
-  // Sort referrals client-side by creation date
   const myReferrals = useMemo(() => {
     if (!rawReferrals) return [];
     return [...rawReferrals].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

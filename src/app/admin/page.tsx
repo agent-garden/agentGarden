@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { 
   ShieldAlert, 
@@ -30,7 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
-import { collection, query, limit, orderBy } from 'firebase/firestore';
+import { collection, query, limit, orderBy, doc } from 'firebase/firestore';
 import type { Agent, InviteCode, UserProfile, InviteRequest } from '@/app/lib/agents';
 import { 
   batchGenerateInviteCodes, 
@@ -56,16 +55,21 @@ export default function AdminPage() {
   const lastAgentCount = useRef<number | null>(null);
   const lastRequestCount = useRef<number | null>(null);
 
-  // ADMIN GUARD: Refresh token and verify claim
+  // Fetch profile to check manual isAdmin field
+  const profileRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc<UserProfile>(profileRef);
+
+  // ADMIN GUARD: Refresh token and verify claim OR check Firestore field
   useEffect(() => {
     async function checkAdmin() {
       if (!user) return;
       try {
-        // Force refresh to get latest custom claims
         const idTokenResult = await user.getIdTokenResult(true);
-        if (idTokenResult.claims.admin) {
+        // Admin if claim is set OR firestore field is true
+        if (idTokenResult.claims.admin || profile?.isAdmin) {
           setIsAdmin(true);
-        } else {
+        } else if (profile !== null) {
+          // If profile loaded and no admin flag, deny
           setIsAdmin(false);
           toast({ variant: "destructive", title: "Access Denied", description: "Master Gardener privileges required." });
           router.push('/');
@@ -75,11 +79,11 @@ export default function AdminPage() {
         router.push('/');
       }
     }
-    if (!isUserLoading) {
+    if (!isUserLoading && profile !== undefined) {
       if (!user) router.push('/auth?redirect=/admin');
       else checkAdmin();
     }
-  }, [user, isUserLoading, router, toast]);
+  }, [user, isUserLoading, router, toast, profile]);
 
   // Queries updated for latest tracking - GATED BY isAdmin to prevent permission errors
   const allAgentsQuery = useMemoFirebase(() => db && isAdmin === true ? query(collection(db, "agents"), orderBy("createdAt", "desc"), limit(100)) : null, [db, isAdmin]);
