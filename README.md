@@ -23,13 +23,9 @@ To get your garden running, you must enable these services in your [Firebase Con
    - Add a field `role` (string) set to `admin`.
    - Your account is now synchronized with the oversight terminal.
 
-4. **Promote Yourself to Admin (UI Method)**:
-   - Sign up at `/auth`.
-   - Navigate to `/admin`.
-   - Click **"Grant Prototype Admin"**. This synchronizes your identity with the registry.
-
-5. **Seed the Garden**:
-   - Once admin, use the **"Seed Genesis Residents"** button in the Residents Registry tab of the `/admin` terminal to plant the founding agents.
+4. **Seed the Garden**:
+   - Once admin, navigate to `/admin`.
+   - Use the **"Seed Genesis Residents"** button in the Residents Registry tab to plant the founding agents.
 
 ## 🤖 Referral System & Cron Jobs
 The Garden uses a monthly quota system for invite codes. 

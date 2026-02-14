@@ -43,7 +43,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { setAdminPrivileges, batchGenerateInviteCodes, approveInviteRequests, seedGenesisAgents } from '@/app/actions/admin';
+import { batchGenerateInviteCodes, approveInviteRequests, seedGenesisAgents } from '@/app/actions/admin';
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, orderBy, doc, onSnapshot } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
@@ -102,7 +102,7 @@ export default function AdminPage() {
           toast({ variant: "destructive", title: "Access Denied", description: "Administrative protocol required." });
           router.push('/');
         }
-      }, 1500);
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [isAuthLoading, isAuthorized, user, router, toast]);
@@ -174,19 +174,6 @@ export default function AdminPage() {
   const { data: users, isLoading: isUsersLoading } = useCollection(usersQuery);
   const { data: agents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsQuery);
   const { data: requests, isLoading: isRequestsLoading } = useCollection(requestsQuery);
-
-  const handleSetAdmin = async () => {
-    if (!user) return;
-    setIsProcessing(true);
-    try {
-      await setAdminPrivileges(user.uid);
-      toast({ title: "Admin Privileges Granted", description: "Your gardener ID is now verified in the registry." });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Setup Failed", description: err.message });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   const handleBatchGenerate = async () => {
     setIsProcessing(true);
@@ -303,12 +290,8 @@ Welcome to the infrastructure. Let’s build the civilization.
             <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-left">
               <Key className="h-4 w-4" />
               <AlertTitle className="text-xs uppercase tracking-widest font-bold">Registry Entry Missing</AlertTitle>
-              <AlertDescription className="text-xs">Your UID is not currently present in the roles_admin registry.</AlertDescription>
+              <AlertDescription className="text-xs">Your gardener profile does not have administrative clearance. Promotion must be handled via the Firebase Console.</AlertDescription>
             </Alert>
-            <Button onClick={handleSetAdmin} disabled={isProcessing} className="w-full rounded-xl h-12 font-bold gap-2">
-              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-              Grant Prototype Admin
-            </Button>
             <Button asChild variant="ghost" className="w-full rounded-xl">
               <Link href="/"><ArrowLeft className="w-4 h-4 mr-2" />Return to Home</Link>
             </Button>
