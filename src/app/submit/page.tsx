@@ -14,19 +14,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useUser } from "@/firebase";
-import { AGENT_CATEGORIES } from "@/app/lib/agents";
+import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import { AGENT_CATEGORIES, type UserProfile } from "@/app/lib/agents";
 import { generateAgentKeys } from "@/app/lib/crypto";
 import { registerAgent } from "@/app/actions/register-agent";
+import { doc } from "firebase/firestore";
 
 export default function SubmitAgentPage() {
   const { user, isUserLoading } = useUser();
+  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [showKeyDialog, setShowKeyDialog] = useState(false);
   const [generatedKeys, setGeneratedKeys] = useState<{ public: string; private: string } | null>(null);
+
+  // Fetch allowance to show in UI
+  const profileRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc<UserProfile>(profileRef);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -38,7 +44,6 @@ export default function SubmitAgentPage() {
     stack: "Gemini 2.0 Flash",
     endpointUrl: "",
     publicApiEnabled: true,
-    inviteCode: ""
   });
 
   const downloadPrivateKey = () => {
@@ -59,11 +64,9 @@ export default function SubmitAgentPage() {
     setIsSubmitting(true);
 
     try {
-      // 1. Generate RSA-2048 DNA for the agent
       const keys = await generateAgentKeys();
       setGeneratedKeys({ public: keys.publicKeyBase64, private: keys.privateKeyBase64 });
 
-      // 2. Call Secure Server Action for Registration
       const result = await registerAgent({
         name: formData.name,
         handle: formData.handle,
@@ -75,7 +78,6 @@ export default function SubmitAgentPage() {
         public_key: keys.publicKeyBase64,
         endpoint_url: formData.endpointUrl,
         public_api_enabled: formData.publicApiEnabled,
-        inviteCode: formData.inviteCode,
         owner_id: user.uid
       });
 
@@ -157,9 +159,15 @@ export default function SubmitAgentPage() {
       </header>
 
       <main className="flex-1 w-full max-w-3xl px-6 py-12">
-        <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted-foreground mb-10">
-          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
-        </Link>
+        <div className="flex justify-between items-center mb-10">
+          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+          </Link>
+          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/5 border border-accent/10">
+            <Sparkles className="w-4 h-4 text-accent" />
+            <span className="text-xs font-bold uppercase tracking-widest text-accent">Allowance: {profile?.invites_remaining ?? 0} Seeds</span>
+          </div>
+        </div>
 
         <div className="space-y-10">
           <div className="space-y-3">
@@ -220,23 +228,6 @@ export default function SubmitAgentPage() {
                   <Textarea placeholder="The core behavior instructions..." required className="min-h-[150px]" value={formData.masterPrompt} onChange={(e) => setFormData({...formData, masterPrompt: e.target.value})} />
                 </div>
 
-                <div className="space-y-2 p-6 bg-accent/5 rounded-2xl border border-accent/10">
-                  <div className="flex items-center gap-2 mb-2 text-accent">
-                    <Ticket className="w-5 h-5" />
-                    <Label className="font-bold">Garden Invite Code</Label>
-                  </div>
-                  <Input 
-                    placeholder="Enter valid code" 
-                    required 
-                    className="h-12 border-accent/20 focus-visible:ring-accent"
-                    value={formData.inviteCode} 
-                    onChange={(e) => setFormData({...formData, inviteCode: e.target.value})} 
-                  />
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">
-                    Vetted registry access enabled. Obtain a code from a Master Gardener.
-                  </p>
-                </div>
-
                 <div className="flex items-center justify-between p-6 bg-muted/30 rounded-2xl">
                   <div className="space-y-0.5">
                     <Label>Agent-to-Agent Discovery</Label>
@@ -245,8 +236,8 @@ export default function SubmitAgentPage() {
                   <Switch checked={formData.publicApiEnabled} onCheckedChange={(v) => setFormData({...formData, publicApiEnabled: v})} />
                 </div>
 
-                <Button type="submit" className="w-full h-14 text-xl rounded-full font-headline" disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="mr-3 h-6 w-6 animate-spin" /> : "Publish to Global Registry"}
+                <Button type="submit" className="w-full h-14 text-xl rounded-full font-headline" disabled={isSubmitting || (profile?.invites_remaining ?? 0) <= 0}>
+                  {isSubmitting ? <Loader2 className="mr-3 h-6 w-6 animate-spin" /> : (profile?.invites_remaining ?? 0) > 0 ? "Publish to Global Registry" : "Insufficient Seeds"}
                 </Button>
               </form>
             </CardContent>

@@ -9,7 +9,7 @@ import {
   createUserWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,7 +34,6 @@ export default function AuthPage() {
   const { toast } = useToast();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
 
-  // MAGIC LINK DETECTION: Look for ?code= in URL
   useEffect(() => {
     const code = searchParams.get('code');
     if (code) {
@@ -56,12 +55,17 @@ export default function AuthPage() {
       if (mode === 'signup') {
         if (!inviteCode) throw new Error('Invite code is required for Garden access.');
 
-        // Verify invite code exists
-        const inviteRef = doc(db, 'invite_codes', inviteCode.trim().toUpperCase());
+        const codeToVerify = inviteCode.trim().toUpperCase();
+        const inviteRef = doc(db, 'invite_codes', codeToVerify);
         const inviteDoc = await getDoc(inviteRef);
 
-        if (!inviteDoc.exists() || (inviteDoc.data()?.uses_left !== undefined && inviteDoc.data()?.uses_left <= 0)) {
-          throw new Error('Invalid or expired invite code.');
+        if (!inviteDoc.exists()) {
+          throw new Error('This invite code does not exist in the registry.');
+        }
+
+        const inviteData = inviteDoc.data();
+        if (inviteData?.uses_left !== undefined && inviteData.uses_left <= 0) {
+          throw new Error('This seed has already been depleted.');
         }
 
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -80,9 +84,14 @@ export default function AuthPage() {
           createdAt: new Date().toISOString()
         }, { merge: true });
 
+        // CONSUME THE SEED
+        await updateDoc(inviteRef, {
+          uses_left: increment(-1)
+        });
+
         toast({
           title: "Welcome to the Garden!",
-          description: "Your account is initialized with 30 monthly referral seeds.",
+          description: "Your entry seed has been verified. You have 30 seeds to grow your own garden.",
         });
       } else {
         await signInWithEmailAndPassword(auth, email, password);
