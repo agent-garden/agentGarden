@@ -33,6 +33,8 @@ const authSchema = z.object({
   inviteCode: z.string().optional(),
 });
 
+const MASTER_INVITE_CODE = "GARDEN2026";
+
 export default function AuthPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -92,26 +94,29 @@ export default function AuthPage() {
 
     setIsSubmitting(true);
     try {
-      const inviteRef = doc(firestore, 'invite_codes', values.inviteCode);
+      const isMasterCode = values.inviteCode === MASTER_INVITE_CODE;
+      
+      if (!isMasterCode) {
+        const inviteRef = doc(firestore, 'invite_codes', values.inviteCode);
+        // Verify and burn the code atomically
+        await runTransaction(firestore, async (transaction) => {
+          const inviteSnap = await transaction.get(inviteRef);
+          if (!inviteSnap.exists()) {
+            throw new Error("Invalid invite code. This code is not in the garden registry.");
+          }
 
-      // Verify and burn the code atomically
-      await runTransaction(firestore, async (transaction) => {
-        const inviteSnap = await transaction.get(inviteRef);
-        if (!inviteSnap.exists()) {
-          throw new Error("Invalid invite code. This code is not in the garden registry.");
-        }
-
-        const inviteData = inviteSnap.data();
-        if ((inviteData.uses_left ?? 0) <= 0) {
-          throw new Error("This invite code has no uses left.");
-        }
-      });
+          const inviteData = inviteSnap.data();
+          if ((inviteData.uses_left ?? 0) <= 0) {
+            throw new Error("This invite code has no uses left.");
+          }
+        });
+      }
 
       // Create the Auth User
       const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
       
       if (userCredential.user) {
-        // Burn the code and set profile in a second transaction
+        // Set profile and burn code if not master
         await runTransaction(firestore, async (transaction) => {
           transaction.set(doc(firestore, 'users', userCredential.user.uid), {
             id: userCredential.user.uid,
@@ -123,10 +128,13 @@ export default function AuthPage() {
             invite_code_used: values.inviteCode
           });
           
-          transaction.update(inviteRef, {
-            uses_left: increment(-1),
-            last_used_at: Date.now()
-          });
+          if (!isMasterCode) {
+            const inviteRef = doc(firestore, 'invite_codes', values.inviteCode!);
+            transaction.update(inviteRef, {
+              uses_left: increment(-1),
+              last_used_at: Date.now()
+            });
+          }
         });
       }
 
@@ -232,7 +240,7 @@ export default function AuthPage() {
                             {!urlCode && (
                               <RequestInviteDialog 
                                 trigger={
-                                  <button type="button" className="text-primary hover:underline flex items-center gap-1">
+                                  <button type="button" className="text-primary hover:underline flex items-center gap-1 text-[10px]">
                                     <HelpCircle className="w-3 h-3" />
                                     Request one
                                   </button>
