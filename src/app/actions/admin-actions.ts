@@ -5,11 +5,25 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Administrative actions for bulk approval and maintenance.
+ * Internal authorization checks added to ensure Master Gardener integrity.
  */
+
+async function ensureAdmin(adminUid: string) {
+  const { db, auth } = initializeAdmin();
+  const userRecord = await auth.getUser(adminUid);
+  const userDoc = await db.collection('users').doc(adminUid).get();
+  const isAdmin = userRecord.customClaims?.admin === true || userDoc.data()?.isAdmin === true;
+  
+  if (!isAdmin) {
+    throw new Error('Master Gardener privileges required for this operation.');
+  }
+}
 
 export async function batchGenerateInviteCodes(adminUid: string) {
   const { db } = initializeAdmin();
   try {
+    await ensureAdmin(adminUid);
+    
     const batch = db.batch();
     const codes = [];
     for (let i = 0; i < 10; i++) {
@@ -33,6 +47,8 @@ export async function batchGenerateInviteCodes(adminUid: string) {
 export async function approveInviteRequests(requestIds: string[], adminUid: string) {
   const { db } = initializeAdmin();
   try {
+    await ensureAdmin(adminUid);
+
     const batch = db.batch();
     const results = [];
 
@@ -65,17 +81,17 @@ export async function approveInviteRequests(requestIds: string[], adminUid: stri
     }
 
     await batch.commit();
-    // Simulation: Automatic Email Protocol would be triggered here
-    console.log('PROTOCOL DISPATCHED TO:', results);
     return { success: true, count: results.length };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
 
-export async function rejectInviteRequests(requestIds: string[]) {
+export async function rejectInviteRequests(requestIds: string[], adminUid: string) {
   const { db } = initializeAdmin();
   try {
+    await ensureAdmin(adminUid);
+
     const batch = db.batch();
     for (const id of requestIds) {
       batch.update(db.collection('invite_requests').doc(id), {
@@ -90,13 +106,14 @@ export async function rejectInviteRequests(requestIds: string[]) {
   }
 }
 
-export async function resetAllUserInvites() {
+export async function resetAllUserInvites(adminUid: string) {
   const { db } = initializeAdmin();
   try {
+    await ensureAdmin(adminUid);
+
     const snapshot = await db.collection('users').get();
     const batch = db.batch();
     snapshot.docs.forEach(doc => {
-      // Logic: Monthly Refill (+30)
       batch.update(doc.ref, { 
         invites_remaining: FieldValue.increment(30) 
       });

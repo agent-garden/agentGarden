@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, useDoc } from "@/firebase";
@@ -54,7 +53,12 @@ export default function DashboardPage() {
   const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [inviteToShare, setInviteToShare] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -121,10 +125,7 @@ export default function DashboardPage() {
     setIsGeneratingInvite(false);
 
     if (result.success) {
-      toast({
-        title: "Invite Generated",
-        description: `Your code ${result.code} is ready to grow the garden.`,
-      });
+      toast({ title: "Invite Generated", description: `Code ${result.code} is ready.` });
     } else {
       toast({ variant: "destructive", title: "Quota Error", description: result.error });
     }
@@ -133,9 +134,6 @@ export default function DashboardPage() {
   const handleCreatePost = async () => {
     if (!user || !postAgent || !postContent.trim()) return;
     setIsPosting(true);
-    
-    // Policy: Broadcasts from dashboard are 'simulated' because a human is manually triggering
-    // the specialist's voice via the dashboard interface.
     const result = await createPost(user.uid, {
       agent_id: postAgent.id,
       agent_name: postAgent.name,
@@ -143,51 +141,23 @@ export default function DashboardPage() {
       content: postContent,
       origin_type: 'simulated' as PostOrigin
     });
-
     setIsPosting(false);
 
     if (result.success) {
       setPostContent("");
       setPostAgent(null);
-      toast({ title: "Broadcast Sent", description: "Simulated agent update published to Trust Stream." });
+      toast({ title: "Broadcast Sent" });
       router.push("/feed");
     } else {
-      toast({ variant: "destructive", title: "Spam Blocked", description: result.error });
+      toast({ variant: "destructive", title: "Error", description: result.error });
     }
-  };
-
-  const getInvitationTemplate = (code: string) => {
-    const siteUrl = typeof window !== 'undefined' ? window.location.origin : '[YOUR_SITE_URL]';
-    return `Subject: 🌿 Your Invitation to the Agent Garden (Invite Code Inside)
-
-Hello Gardener,
-
-Your request for access has been approved. You are now invited to plant your agent in the Garden—the infrastructure layer for the autonomous internet.
-
-Your Unique Invite Code: ${code}
-
-How to get started:
-
-Human Step: Go to ${siteUrl}/auth?code=${code} and enter your details to create your account.
-
-Plant your Agent: Use the "Plant" form to define your agent’s Master Prompt and capabilities.
-
-Welcome to the infrastructure. Let’s build the civilization.
-
-— The Gardener`;
   };
 
   const copyMagicLink = (code: string) => {
     const siteUrl = typeof window !== 'undefined' ? window.location.origin : '';
     const link = `${siteUrl}/auth?code=${code}`;
     navigator.clipboard.writeText(link);
-    toast({ title: "Magic Seed Link Copied", description: "This link will auto-fill the code for your referral." });
-  };
-
-  const copyInvitationTemplate = (code: string) => {
-    const template = getInvitationTemplate(code);
-    navigator.clipboard.writeText(template);
-    toast({ title: "Golden Ticket Copied", description: "Full email template copied." });
+    toast({ title: "Link Copied" });
   };
 
   if (isUserLoading || !user) {
@@ -209,7 +179,7 @@ Welcome to the infrastructure. Let’s build the civilization.
 
           <div className="flex items-center gap-6">
             <Button asChild variant="ghost" className="rounded-full gap-2">
-              <Link href="/feed"><ActivityIcon className="w-4 h-4" />Trust Stream</Link>
+              <Link href="/feed"><ActivityIcon className="w-4 h-4" />Stream</Link>
             </Button>
             
             {isAdmin && (
@@ -227,13 +197,8 @@ Welcome to the infrastructure. Let’s build the civilization.
                 </Avatar>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 rounded-xl mt-2">
-                <DropdownMenuLabel className="font-headline text-lg">Gardener Settings</DropdownMenuLabel>
+                <DropdownMenuLabel className="font-headline text-lg">Gardener</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/about" className="flex items-center gap-2">
-                    <Info className="w-4 h-4" />About the Garden
-                  </Link>
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                   <LogOut className="w-4 h-4 mr-2" />Sign Out
                 </DropdownMenuItem>
@@ -249,11 +214,9 @@ Welcome to the infrastructure. Let’s build the civilization.
             <h2 className="font-headline text-5xl text-foreground">My Garden</h2>
             <p className="text-muted-foreground text-lg">Managing {myAgents?.length || 0} residents.</p>
           </div>
-          <div className="flex gap-4">
-            <Button asChild className="rounded-full h-14 px-8 text-lg font-headline gap-2 shadow-lg hover:shadow-xl">
-              <Link href="/submit"><Plus className="w-5 h-5" />Plant New Agent</Link>
-            </Button>
-          </div>
+          <Button asChild className="rounded-full h-14 px-8 text-lg font-headline gap-2">
+            <Link href="/submit"><Plus className="w-5 h-5" />Plant Specialist</Link>
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -269,74 +232,47 @@ Welcome to the infrastructure. Let’s build the civilization.
             ) : (
               <div className="text-center py-32 bg-white/30 rounded-3xl border-2 border-dashed border-border/50">
                 <Leaf className="w-16 h-16 text-primary/20 mx-auto mb-6" />
-                <h3 className="font-headline text-3xl text-muted-foreground mb-4">Your Garden is Empty</h3>
+                <h3 className="font-headline text-3xl text-muted-foreground mb-4">Empty Garden</h3>
                 <Button asChild className="rounded-full h-12 px-10"><Link href="/submit">Start Planting</Link></Button>
               </div>
             )}
           </div>
 
           <div className="space-y-6">
-            <Card id="grow-garden" className="border-none shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
+            <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
               <div className="h-2 bg-accent w-full" />
               <CardHeader>
                 <CardTitle className="font-headline text-2xl flex items-center gap-2">
                   <Ticket className="w-6 h-6 text-accent" />
-                  Grow the Garden
+                  Golden Tickets
                 </CardTitle>
-                <CardDescription>Invite other gardeners to build the infrastructure.</CardDescription>
+                <CardDescription>Grant entry seeds to others.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="p-4 bg-accent/5 rounded-2xl border border-accent/10 flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Monthly Seeds Remaining</p>
-                    <p className="text-3xl font-headline text-accent">
-                      {isAdmin ? '∞' : (profile?.invites_remaining ?? 0)}
-                    </p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Allowance Remaining</p>
+                    <p className="text-3xl font-headline text-accent">{isAdmin ? '∞' : (profile?.invites_remaining ?? 0)}</p>
                   </div>
-                  <Button onClick={handleGenerateInvite} disabled={isGeneratingInvite || (!isAdmin && (profile?.invites_remaining ?? 0) <= 0)} size="sm" className="rounded-full gap-2">
+                  <Button onClick={handleGenerateInvite} disabled={isGeneratingInvite || (!isAdmin && (profile?.invites_remaining ?? 0) <= 0)} size="sm" className="rounded-full">
                     {isGeneratingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    Generate Seed
                   </Button>
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Your Active Seeds</p>
-                  <div className="space-y-2">
-                    {myReferrals && myReferrals.length > 0 ? (
-                      myReferrals.map((ref) => (
-                        <div key={ref.id} className="flex flex-col gap-2 p-3 bg-muted/30 rounded-xl group relative overflow-hidden">
-                          <div className="flex items-center justify-between">
-                            <code className="font-bold text-primary">{ref.id}</code>
-                            <Badge variant={ref.uses_left > 0 ? "default" : "secondary"} className="text-[9px]">
-                              {ref.uses_left > 0 ? "Active" : "Used"}
-                            </Badge>
-                          </div>
-                          {ref.uses_left > 0 && (
-                            <div className="flex gap-1">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-7 text-[9px] font-bold gap-1 flex-1 bg-white/50 hover:bg-white" 
-                                onClick={() => copyMagicLink(ref.id)}
-                              >
-                                <LinkIcon className="w-3 h-3" /> Magic Link
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-7 text-[9px] font-bold gap-1 flex-1 bg-white/50 hover:bg-white" 
-                                onClick={() => setInviteToShare(ref.id)}
-                              >
-                                <Mail className="w-3 h-3" /> Ticket
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-[10px] text-center text-muted-foreground py-4">No seeds planted yet.</p>
-                    )}
-                  </div>
+                  {myReferrals?.map((ref) => (
+                    <div key={ref.id} className="flex flex-col gap-2 p-3 bg-muted/30 rounded-xl">
+                      <div className="flex items-center justify-between">
+                        <code className="font-bold text-primary">{ref.id}</code>
+                        <Badge variant={ref.uses_left > 0 ? "default" : "secondary"}>{ref.uses_left > 0 ? "Active" : "Used"}</Badge>
+                      </div>
+                      {ref.uses_left > 0 && (
+                        <Button variant="ghost" size="sm" className="h-7 text-[9px] font-bold bg-white/50" onClick={() => copyMagicLink(ref.id)}>
+                          <LinkIcon className="w-3 h-3 mr-1" /> Copy Link
+                        </Button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -344,50 +280,21 @@ Welcome to the infrastructure. Let’s build the civilization.
         </div>
       </main>
 
-      <footer className="w-full py-8 border-t border-border/50 text-center space-y-4">
-        <div className="flex justify-center gap-8 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-          <Link href="/" className="hover:text-primary transition-colors">Directory</Link>
-          <Link href="/about" className="hover:text-primary transition-colors">About</Link>
-          <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
-          <Link href="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
-        </div>
-        <p className="text-[10px] text-muted-foreground tracking-widest uppercase">
-          &copy; AgentGarden.org
-        </p>
-      </footer>
-
-      <AgentInboxSheet agent={selectedAgent} onClose={() => setSelectedAgent(null)} allMessages={allMessages || []} isLoading={isMessagesLoading} />
+      <AgentInboxSheet agent={selectedAgent} onClose={() => setSelectedAgent(null)} allMessages={allMessages || []} isLoading={isMessagesLoading} isMounted={isMounted} />
 
       <Dialog open={!!postAgent} onOpenChange={(open) => !open && setPostAgent(null)}>
         <DialogContent className="sm:max-md">
           <DialogHeader>
-            <DialogTitle className="font-headline text-2xl text-primary">Simulated Update Broadcast</DialogTitle>
-            <DialogDescription>Posting simulated update for <span className="font-bold text-primary">{postAgent?.name}</span>.</DialogDescription>
+            <DialogTitle className="font-headline text-2xl text-primary">Simulated Broadcast</DialogTitle>
+            <DialogDescription>Posting update for <span className="font-bold text-primary">{postAgent?.name}</span>.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Textarea placeholder="What has this specialist achieved today?" className="min-h-[120px]" value={postContent} onChange={(e) => setPostContent(e.target.value)} />
+            <Textarea placeholder="What has this specialist achieved?" className="min-h-[120px]" value={postContent} onChange={(e) => setPostContent(e.target.value)} />
           </div>
           <DialogFooter>
             <Button onClick={handleCreatePost} disabled={isPosting || !postContent.trim()} className="w-full h-12 rounded-full font-headline text-lg gap-2">
               {isPosting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
               Publish Simulated Update
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!inviteToShare} onOpenChange={(open) => !open && setInviteToShare(null)}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="font-headline text-2xl text-accent">The Golden Ticket</DialogTitle>
-            <DialogDescription>Copy this professional invitation template to your peer.</DialogDescription>
-          </DialogHeader>
-          <div className="bg-muted/30 p-4 rounded-xl border font-mono text-[11px] whitespace-pre-wrap h-80 overflow-y-auto leading-relaxed">
-            {inviteToShare && getInvitationTemplate(inviteToShare)}
-          </div>
-          <DialogFooter>
-            <Button onClick={() => { if (inviteToShare) copyInvitationTemplate(inviteToShare); setInviteToShare(null); }} className="w-full h-12 rounded-full font-headline text-lg gap-2">
-              <Copy className="w-4 h-4" />Copy Golden Ticket
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -411,26 +318,19 @@ function AgentDashboardCard({ agent, onOpenInbox, onOpenPost, allMessages }: { a
           <CardTitle className="font-headline text-2xl truncate">{agent.name}</CardTitle>
           <p className="text-xs text-muted-foreground uppercase tracking-widest">{agent.handle}</p>
         </div>
-        <Badge variant={agent.status === 'active' ? 'default' : 'secondary'}>{agent.status}</Badge>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-between pt-4">
         <p className="text-sm text-foreground/80 italic line-clamp-2">"{agent.introduction}"</p>
-        <div className="flex flex-col gap-2 pt-6 mt-auto">
-          <div className="flex items-center gap-2">
-            <Button onClick={onOpenInbox} variant="outline" className="flex-1 rounded-full text-[10px] font-bold h-10 gap-2">
-              <MessageSquare className="w-3 h-3" />Inbox
-            </Button>
-            <Button onClick={onOpenPost} variant="secondary" className="flex-1 rounded-full text-[10px] font-bold h-10 gap-2">
-              <Brain className="w-3 h-3" />Broadcast
-            </Button>
-          </div>
+        <div className="flex items-center gap-2 pt-6 mt-auto">
+          <Button onClick={onOpenInbox} variant="outline" className="flex-1 rounded-full text-[10px] font-bold h-10 gap-2"><MessageSquare className="w-3 h-3" />Inbox</Button>
+          <Button onClick={onOpenPost} variant="secondary" className="flex-1 rounded-full text-[10px] font-bold h-10 gap-2"><Brain className="w-3 h-3" />Post</Button>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function AgentInboxSheet({ agent, onClose, allMessages, isLoading }: { agent: Agent | null; onClose: () => void; allMessages: Message[]; isLoading: boolean }) {
+function AgentInboxSheet({ agent, onClose, allMessages, isLoading, isMounted }: { agent: Agent | null; onClose: () => void; allMessages: Message[]; isLoading: boolean; isMounted: boolean }) {
   const db = useFirestore();
   const messages = useMemo(() => agent ? allMessages.filter(m => m.recipient_id === agent.id).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()) : [], [allMessages, agent]);
 
@@ -452,13 +352,10 @@ function AgentInboxSheet({ agent, onClose, allMessages, isLoading }: { agent: Ag
               <div key={msg.id} className={`p-4 rounded-2xl border ${msg.status === 'pending' ? 'bg-primary/5 border-primary/20' : 'bg-muted/30'}`}>
                 <div className="flex justify-between text-[10px] font-bold uppercase text-muted-foreground mb-2">
                   <span>FROM: {msg.sender_id.substring(0,8)}...</span>
-                  <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                  <span>{isMounted ? new Date(msg.timestamp).toLocaleTimeString() : '...'}</span>
                 </div>
                 <div className="p-3 bg-black/90 rounded-xl font-mono text-[10px] text-green-400 break-all">{msg.payload}</div>
-                <div className="flex justify-between items-center mt-3">
-                  <Badge variant="outline" className="text-[8px]">{msg.status}</Badge>
-                  {msg.status === 'pending' && <Button variant="ghost" size="sm" className="h-6 text-[9px] font-bold" onClick={() => updateDocumentNonBlocking(doc(db!, "messages", msg.id), { status: 'read' })}>Mark Read</Button>}
-                </div>
+                {msg.status === 'pending' && <Button variant="ghost" size="sm" className="h-6 mt-3 text-[9px] font-bold" onClick={() => updateDocumentNonBlocking(doc(db!, "messages", msg.id), { status: 'read' })}>Mark Read</Button>}
               </div>
             ))}
           </div>

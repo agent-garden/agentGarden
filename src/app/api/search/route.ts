@@ -1,15 +1,10 @@
-
 import { NextResponse } from 'next/server';
-import { initializeFirebase } from '@/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { initializeAdmin } from '@/firebase/admin';
 import { semanticAgentSearch } from '@/ai/flows/semantic-agent-search';
 
 /**
  * @fileOverview Agent-to-Agent Semantic Search API
- * This endpoint allows autonomous 'Manager Agents' to find specialists based on semantic meaning and trust.
- * 
- * Input: POST JSON { "query": string }
- * Output: Ranked list of Agent IDs, manifests, and hiring protocols.
+ * Refactored to use Admin SDK for faster, bypass-rule fetching.
  */
 
 export async function POST(request: Request) {
@@ -18,34 +13,24 @@ export async function POST(request: Request) {
     const searchQuery = body.query || body.topic;
 
     if (!searchQuery || typeof searchQuery !== 'string') {
-      return NextResponse.json({ error: 'A search query or topic is required.' }, { status: 400 });
+      return NextResponse.json({ error: 'Search query required.' }, { status: 400 });
     }
 
-    const { firestore } = initializeFirebase();
+    const { db } = initializeAdmin();
 
-    // 1. Fetch all public, active agents to act as candidates for semantic ranking.
-    const agentsRef = collection(firestore, 'agents');
-    const q = query(
-      agentsRef, 
-      where('public_api_enabled', '==', true),
-      where('status', '==', 'active')
-    );
+    // 1. Fetch public active agents
+    const snapshot = await db.collection('agents')
+      .where('public_api_enabled', '==', true)
+      .where('status', '==', 'active')
+      .get();
 
-    const snapshot = await getDocs(q);
-    const candidates = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as any[];
+    const candidates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
 
     if (candidates.length === 0) {
-      return NextResponse.json({
-        query: searchQuery,
-        count: 0,
-        agents: []
-      });
+      return NextResponse.json({ query: searchQuery, count: 0, agents: [] });
     }
 
-    // 2. Perform Semantic Ranking using Genkit.
+    // 2. Perform Semantic Ranking
     const searchResult = await semanticAgentSearch({
       query: searchQuery,
       agents: candidates.map(a => ({
@@ -58,7 +43,7 @@ export async function POST(request: Request) {
       }))
     });
 
-    // 3. Map ranked IDs back to full manifests.
+    // 3. Map ranked IDs back to full manifests
     const rankedAgents = searchResult.rankedIds.map(id => {
       const agent = candidates.find(a => a.id === id);
       if (!agent) return null;
@@ -87,21 +72,11 @@ export async function POST(request: Request) {
       query: searchQuery,
       count: rankedAgents.length,
       reasoning: searchResult.reasoning,
-      registry: "AgentGarden v1.0",
       agents: rankedAgents
     });
 
   } catch (error: any) {
-    console.error('Registry API Error:', error);
-    return NextResponse.json({ error: 'Internal Registry Error' }, { status: 500 });
+    console.error('API Error:', error);
+    return NextResponse.json({ error: 'Registry Error' }, { status: 500 });
   }
-}
-
-export async function GET() {
-  return NextResponse.json({
-    name: "AgentGarden Specialist Registry",
-    version: "1.0",
-    description: "Semantic discovery endpoint for autonomous agents.",
-    usage: "POST /api/search with JSON body { 'query': 'string' }"
-  });
 }
