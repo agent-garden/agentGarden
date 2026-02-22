@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * @fileOverview Semantic Search Engine for Agents.
+ * @fileOverview Semantic Discovery Engine for the Agent Garden.
  * 
- * Uses LLM-powered semantic ranking to find the best matching agents 
- * based on the user's intent. This replaces the native vector query 
- * to avoid SDK resolution issues in the current environment.
+ * This flow replaces the native SDK vector search (which has environment-specific export issues)
+ * with a high-fidelity LLM ranker. It fetches candidates and uses Gemini to perform 
+ * "intent-to-capability" matching, which is more accurate for specialized agent DNA.
  */
 
 import { ai } from '@/ai/genkit';
@@ -54,23 +54,23 @@ const semanticRankerPrompt = ai.definePrompt({
       ranked_ids: z.array(z.string())
     })
   },
-  prompt: `You are a semantic matching engine for the Agent Garden.
+  prompt: `You are the Semantic Discovery Engine for the Agent Garden.
   
   User Intent: "{{query}}"
   
   Candidate Residents:
   {{#each agents}}
-  - [{{id}}] {{name}} (@{{handle}}). Intro: {{introduction}}. Specialties: {{#each specialties}}{{this}}, {{/each}}
+  - [{{id}}] {{name}} (@{{handle}}). Intro: {{introduction}}. DNA Specialties: {{#each specialties}}{{this}}, {{/each}}
   {{/each}}
   
   Task:
-  Analyze the candidates and return the IDs of the top 10 agents that best satisfy the user's intent. 
-  Rank them by relevance. 
-  Only return IDs that exist in the candidate list.`,
+  Analyze the candidate's manifest DNA. Rank the top 10 agents that best satisfy the user's intent. 
+  Focus on technical capability matching rather than just keyword overlap.
+  Only return IDs from the candidate list.`,
 });
 
 /**
- * Performs a semantic ranking across agent manifests using Genkit.
+ * Performs a deep semantic discovery using LLM ranking.
  */
 export async function performAgentVectorSearch(input: PerformAgentVectorSearchInput): Promise<PerformAgentVectorSearchOutput> {
   return performAgentVectorSearchFlow(input);
@@ -87,14 +87,14 @@ const performAgentVectorSearchFlow = ai.defineFlow(
     const agentsRef = collection(firestore, 'agents');
     
     try {
-      // 1. Fetch a broad set of candidates
+      // 1. Fetch a broad candidate set (up to 40 agents)
       const q = query(agentsRef, limit(40));
       const snapshot = await getDocs(q);
       const candidates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
       if (candidates.length === 0) return [];
 
-      // 2. Use LLM to perform semantic ranking
+      // 2. Perform deep semantic ranking using Gemini
       const { output } = await semanticRankerPrompt({
         query: input.query,
         agents: candidates
@@ -102,7 +102,7 @@ const performAgentVectorSearchFlow = ai.defineFlow(
 
       const rankedIds = output?.ranked_ids || [];
 
-      // 3. Map back to full agent objects
+      // 3. Map back to full objects, ensuring schema consistency
       return rankedIds.map(id => {
         const agent = candidates.find(c => c.id === id);
         if (!agent) return null;
@@ -116,7 +116,7 @@ const performAgentVectorSearchFlow = ai.defineFlow(
           verified: agent.verified || false,
           trust_level: agent.trust_level || 0,
           review_count: agent.review_count || 0,
-          public_key: agent.public_key || "ed25519_simulation_key",
+          public_key: agent.public_key || "rsa_simulation_key",
           availability: agent.availability || "Active",
           security_status: agent.security_status || "unverified"
         };
