@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck, Cpu, Code, Zap, ExternalLink, Copy, Info, MessageSquare, Send, Loader2, ShieldAlert, Shield } from "lucide-react";
+import { ShieldCheck, Cpu, Code, Zap, ExternalLink, Copy, Info, MessageSquare, Send, Loader2, ShieldAlert, Shield, Coins, Lock, Check } from "lucide-react";
 import type { Agent } from "@/app/lib/agents";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,12 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
@@ -36,38 +42,35 @@ export function AgentCard({ agent }: { agent: Agent }) {
   const [isHiring, setIsHiring] = useState(false);
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
 
   const copyId = () => {
     navigator.clipboard.writeText(agent.id);
-    toast({
-      title: "ID Copied",
-      description: "Ready for Manager Agent deployment.",
-    });
+    toast({ title: "ID Copied" });
+  };
+
+  const copyPublicKey = () => {
+    const key = agent.manifest?.communication.rsa_public_key || agent.public_key || "";
+    navigator.clipboard.writeText(key);
+    setCopiedKey(true);
+    toast({ title: "Public Key Copied", description: "Identity verified." });
+    setTimeout(() => setCopiedKey(false), 2000);
   };
 
   const handleHire = async () => {
     if (!user) {
-      toast({
-        variant: "destructive",
-        title: "Authentication Required",
-        description: "You must be signed in to hire a specialist.",
-      });
+      toast({ variant: "destructive", title: "Authentication Required" });
       return;
     }
-
     if (!message.trim()) return;
 
     setIsSending(true);
     try {
+      const publicKey = agent.manifest?.communication.rsa_public_key || agent.public_key || "";
       let payload = "";
       
-      if (agent.public_key) {
-        try {
-          payload = await encryptWithPublicKey(agent.public_key, message);
-        } catch (err) {
-          console.error("Encryption failed:", err);
-          payload = btoa(message);
-        }
+      if (publicKey) {
+        payload = await encryptWithPublicKey(publicKey, message);
       } else {
         payload = btoa(message);
       }
@@ -82,18 +85,11 @@ export function AgentCard({ agent }: { agent: Agent }) {
         createdAt: serverTimestamp()
       });
 
-      toast({
-        title: "Message Encrypted & Sent",
-        description: `Handshake initiated with ${agent.name}.`,
-      });
+      toast({ title: "Tunnel Handshake Success", description: `Message encrypted for ${agent.name}.` });
       setMessage("");
       setIsHiring(false);
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Tunnel Error",
-        description: "Could not establish a connection to the agent.",
-      });
+      toast({ variant: "destructive", title: "Handshake Failed" });
     } finally {
       setIsSending(false);
     }
@@ -108,6 +104,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
   };
 
   const security = getSecurityConfig(agent.security_status || 'unverified');
+  const manifest = agent.manifest;
 
   return (
     <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm group hover:scale-[1.02] transition-all flex flex-col overflow-hidden h-full">
@@ -147,7 +144,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
       <CardContent className="flex-1 space-y-6 pt-4 flex flex-col">
         <div className="relative">
           <p className="text-sm text-foreground/80 italic leading-relaxed line-clamp-3 h-[60px]">
-            "{agent.introduction}"
+            "{manifest?.identity.description || agent.introduction}"
           </p>
           <TooltipProvider>
             <Tooltip>
@@ -157,7 +154,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
                 </div>
               </TooltipTrigger>
               <TooltipContent className="max-w-xs text-xs">
-                {agent.introduction}
+                {manifest?.identity.description || agent.introduction}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -165,27 +162,23 @@ export function AgentCard({ agent }: { agent: Agent }) {
         
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            {agent.specialties.slice(0, 4).map(tag => (
+            {(manifest?.capabilities.skills || agent.specialties).slice(0, 4).map(tag => (
               <Badge key={tag} variant="secondary" className="bg-primary/5 text-primary text-[10px] uppercase font-bold px-2 py-0 border-none">
                 #{tag}
               </Badge>
             ))}
-            {agent.specialties.length > 4 && (
-              <Badge variant="ghost" className="text-[10px] font-bold text-muted-foreground">
-                +{agent.specialties.length - 4} More
-              </Badge>
-            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-t pt-4">
-            <div className="flex items-center gap-2 truncate">
-              <Code className="w-3 h-3 text-primary/50 shrink-0" />
-              <span className="truncate">{agent.stack || 'Gemini Flash'}</span>
+          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-t pt-4">
+            <div className="flex items-center gap-2">
+              <Coins className="w-3 h-3 text-accent" />
+              <span>{manifest?.economics.accepted_tokens.join(', ') || 'USDC'}</span>
             </div>
-            <div className="flex items-center gap-2 truncate">
-              <Badge variant="outline" className="text-[8px] h-4 px-1 border-primary/20 text-muted-foreground uppercase font-bold">
-                Lvl {agent.trust_level} {agent.trust_level > 1 ? 'Peer-Verified' : agent.trust_level > 0 ? 'Human-Verified' : 'Unverified'}
-              </Badge>
+            <div className="flex items-center gap-2">
+              <Lock className="w-3 h-3 text-primary/50" />
+              <button onClick={copyPublicKey} className="hover:text-primary transition-colors flex items-center gap-1">
+                {copiedKey ? <Check className="w-2.5 h-2.5 text-green-500" /> : 'RSA-2048'}
+              </button>
             </div>
           </div>
         </div>
@@ -202,30 +195,38 @@ export function AgentCard({ agent }: { agent: Agent }) {
               <DialogHeader>
                 <DialogTitle className="font-headline text-2xl flex items-center gap-2">
                   <MessageSquare className="w-6 h-6 text-primary" />
-                  Encrypted Tunnel Handshake
+                  Manifest Handshake
                 </DialogTitle>
                 <DialogDescription>
-                  Send an encrypted task request to <span className="text-primary font-bold">{agent.name}</span>. Only this agent's private key can unlock your message.
+                  Reviewing specialist DNA before secure tunnel initiation.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="message">Task Specification</Label>
-                  <Textarea 
-                    id="message" 
-                    placeholder="Describe the task or goal for this specialist..." 
-                    className="min-h-[120px]"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                  />
-                </div>
-                <div className="p-3 bg-muted/50 rounded-xl flex items-start gap-3 border border-border/50">
-                  <ShieldCheck className="w-5 h-5 text-accent shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-muted-foreground leading-relaxed">
-                    Identity verified via public key: <code className="bg-black/5 px-1">{agent.public_key?.substring(0, 16)}...</code>. Your message will be encrypted using RSA-OAEP before submission.
-                  </p>
-                </div>
-              </div>
+
+              <Tabs defaultValue="task" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 rounded-full h-10 bg-muted/50 p-1 mb-4">
+                  <TabsTrigger value="task" className="rounded-full text-[10px] uppercase">Initiate</TabsTrigger>
+                  <TabsTrigger value="dna" className="rounded-full text-[10px] uppercase">Manifest DNA</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="task" className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Task Specification</Label>
+                    <Textarea 
+                      placeholder="Describe the goals for this specialist..." 
+                      className="min-h-[120px]"
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                    />
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="dna">
+                  <div className="bg-black/95 p-4 rounded-xl font-mono text-[9px] text-green-400 h-[200px] overflow-y-auto">
+                    <pre>{JSON.stringify(manifest || agent, null, 2)}</pre>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
               <DialogFooter>
                 <Button 
                   onClick={handleHire} 
@@ -233,7 +234,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
                   className="w-full h-12 rounded-full gap-2 font-headline text-lg"
                 >
                   {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  {isSending ? "Securing Connection..." : "Initiate Handshake"}
+                  {isSending ? "Securing Tunnel..." : "Confirm Protocol"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -241,7 +242,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
 
           <Button variant="outline" className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10 hover:bg-accent hover:text-white transition-all gap-2" asChild>
             <a href={agent.endpoint_url || "#"} target="_blank" rel="noopener noreferrer">
-              Protocol
+              Endpoint
               <ExternalLink className="w-3 h-3" />
             </a>
           </Button>

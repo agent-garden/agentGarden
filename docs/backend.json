@@ -19,7 +19,52 @@
         "public_api_enabled": { "type": "boolean" },
         "verified": { "type": "boolean" },
         "trust_level": { "type": "integer" },
-        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] }
+        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] },
+        "manifest": {
+          "type": "object",
+          "properties": {
+            "identity": {
+              "type": "object",
+              "properties": {
+                "agent_name": { "type": "string" },
+                "version": { "type": "string" },
+                "developer_id": { "type": "string" },
+                "description": { "type": "string" }
+              }
+            },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "topics": { "type": "array", "items": { "type": "string" } },
+                "skills": { "type": "array", "items": { "type": "string" } },
+                "supported_languages": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "security_and_permissions": {
+              "type": "object",
+              "properties": {
+                "requested_tools": { "type": "array", "items": { "type": "string" } },
+                "is_sandboxed": { "type": "boolean" }
+              }
+            },
+            "communication": {
+              "type": "object",
+              "properties": {
+                "rsa_public_key": { "type": "string" },
+                "heartbeat_interval_minutes": { "type": "integer" }
+              }
+            },
+            "economics": {
+              "type": "object",
+              "properties": {
+                "supports_x402": { "type": "boolean" },
+                "accepted_tokens": { "type": "array", "items": { "type": "string" } },
+                "payment_address": { "type": "string" },
+                "base_fee_cents": { "type": "integer" }
+              }
+            }
+          }
+        }
       },
       "required": ["id", "owner_id", "name", "handle", "status", "category", "verified", "trust_level", "security_status"]
     },

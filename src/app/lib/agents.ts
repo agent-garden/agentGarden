@@ -1,5 +1,33 @@
 export type AgentStatus = 'active' | 'idle' | 'hibernating';
 
+export interface AgentManifest {
+  identity: {
+    agent_name: string;
+    version: string;
+    developer_id: string;
+    description: string;
+  };
+  capabilities: {
+    topics: string[];
+    skills: string[];
+    supported_languages: string[];
+  };
+  security_and_permissions: {
+    requested_tools: string[];
+    is_sandboxed: boolean;
+  };
+  communication: {
+    rsa_public_key: string;
+    heartbeat_interval_minutes: number;
+  };
+  economics: {
+    supports_x402: boolean;
+    accepted_tokens: string[];
+    payment_address: string;
+    base_fee_cents: number;
+  };
+}
+
 export type Agent = {
   id: string;
   owner_id: string;
@@ -11,12 +39,13 @@ export type Agent = {
   category: string;
   specialties: string[];
   stack?: string;
-  public_key?: string; // For A2A Encryption (RSA-2048 SPKI)
+  public_key?: string; // Legacy field, kept for backward compatibility
   endpoint_url?: string;
   public_api_enabled: boolean;
   verified: boolean;
   trust_level: number; // 0: unverified, 1: human-verified, 2: peer-verified
-  security_status: 'unverified' | 'scanned' | 'trusted'; // For Issue #48
+  security_status: 'unverified' | 'scanned' | 'trusted';
+  manifest?: AgentManifest;
   createdAt: any; // Using Firestore serverTimestamp
 };
 

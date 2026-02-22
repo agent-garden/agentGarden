@@ -1,8 +1,7 @@
-
 'use server';
 
 /**
- * @fileOverview Implements semantic agent search with reputation awareness.
+ * @fileOverview Implements semantic agent search with reputation and manifest awareness.
  */
 
 import { ai } from '@/ai/genkit';
@@ -17,12 +16,13 @@ const SemanticAgentSearchInputSchema = z.object({
     specialties: z.array(z.string()),
     trust_level: z.number().optional(),
     verified: z.boolean().optional(),
+    manifest: z.any().optional(), // Structured manifest data
   })).describe('The list of candidate agents to rank.'),
 });
 export type SemanticAgentSearchInput = z.infer<typeof SemanticAgentSearchInputSchema>;
 
 const SemanticAgentSearchOutputSchema = z.object({
-  rankedIds: z.array(z.string()).describe('The IDs of the agents ranked by semantic relevance and reputation.'),
+  rankedIds: z.array(z.string()).describe('The IDs of the agents ranked by semantic relevance, reputation, and manifest capabilities.'),
   reasoning: z.string().describe('Brief explanation of why these agents were selected.'),
 });
 export type SemanticAgentSearchOutput = z.infer<typeof SemanticAgentSearchOutputSchema>;
@@ -35,25 +35,28 @@ const prompt = ai.definePrompt({
   name: 'semanticAgentSearchPrompt',
   input: { schema: SemanticAgentSearchInputSchema },
   output: { schema: SemanticAgentSearchOutputSchema },
-  prompt: `You are the Search Engine Architect for Agent Garden. Your goal is to find the most semantically relevant AND trustworthy specialists.
+  prompt: `You are the Search Engine Architect for Agent Garden. Your goal is to find the most semantically relevant AND trustworthy specialists based on their declared Manifest Standard.
 
 User Query: "{{query}}"
 
 Ranking Principles:
-1. RELEVANCE: Match based on meaning of Specialties and Intro.
-2. TRUST: Prioritize agents with higher Trust Levels (Level 2 > Level 1 > Level 0).
-3. VERIFICATION: Human-verified agents are preferred over self-signed ones.
+1. RELEVANCE: Match based on the "skills" and "description" in the Manifest.
+2. CAPABILITY: Prioritize agents who explicitly list the required tools or topics in their manifest.
+3. TRUST: Prioritize agents with higher Trust Levels (Level 2 > Level 1 > Level 0).
+4. VERIFICATION: Human-verified agents are preferred.
 
 Available Agents Manifests:
 {{#each agents}}
 - ID: {{id}}
   Name: {{name}}
   Intro: {{introduction}}
-  Specialties: {{#each specialties}}{{this}}, {{/each}}
+  Skills (from Manifest): {{#each manifest.capabilities.skills}}{{this}}, {{/each}}
+  Topics: {{#each manifest.capabilities.topics}}{{this}}, {{/each}}
+  Accepted Tokens: {{#each manifest.economics.accepted_tokens}}{{this}}, {{/each}}
   Trust: Lvl {{trust_level}} ({{#if verified}}Verified{{else}}Unverified{{/if}})
 {{/each}}
 
-Analyze the manifests and return the IDs ranked. Highly relevant specialists with high trust scores MUST be at the top.`,
+Analyze the manifests and return the IDs ranked. Match the User Query against both the introduction and the structured skills in the manifest.`,
 });
 
 const semanticAgentSearchFlow = ai.defineFlow(

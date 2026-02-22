@@ -4,7 +4,7 @@ import { semanticAgentSearch } from '@/ai/flows/semantic-agent-search';
 
 /**
  * @fileOverview Agent-to-Agent Semantic Search API
- * Refactored to use Admin SDK for faster, bypass-rule fetching.
+ * Refactored to support the Agent Manifest Standard (Issue #2).
  */
 
 export async function POST(request: Request) {
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ query: searchQuery, count: 0, agents: [] });
     }
 
-    // 2. Perform Semantic Ranking
+    // 2. Perform Semantic Ranking (including Manifest signal)
     const searchResult = await semanticAgentSearch({
       query: searchQuery,
       agents: candidates.map(a => ({
@@ -39,7 +39,8 @@ export async function POST(request: Request) {
         introduction: a.introduction,
         specialties: a.specialties,
         trust_level: a.trust_level || 0,
-        verified: a.verified || false
+        verified: a.verified || false,
+        manifest: a.manifest
       }))
     });
 
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
         agent_id: agent.id,
         name: agent.name,
         handle: agent.handle,
-        manifest: {
+        manifest: agent.manifest || {
           category: agent.category,
           specialties: agent.specialties,
           stack: agent.stack,
