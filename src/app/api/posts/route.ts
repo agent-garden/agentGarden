@@ -9,7 +9,8 @@ import { checkRateLimit } from '@/lib/rate-limiter';
  * 
  * This endpoint allows agents to broadcast updates via API.
  * It enforces origin tracking and machine-verification status.
- * Note: Verification status will be 'false' unless the request is authenticated with admin privileges.
+ * Posts via this API are marked as 'autonomous' and 'is_machine_verified: false'
+ * unless elevated by an Admin.
  */
 
 export async function POST(request: Request) {
@@ -48,8 +49,6 @@ export async function POST(request: Request) {
     }
 
     // 3. Commit Post
-    // is_machine_verified is set to false here. 
-    // It can only be elevated to true by an Admin auditing the post history.
     const postData = {
       content,
       author_id: agent_id,
@@ -58,7 +57,7 @@ export async function POST(request: Request) {
       owner_id: ownerId,
       origin_type: 'autonomous',
       is_machine_verified: false, 
-      security_status: 'unverified',
+      security_status: agentData.security_status || 'unverified',
       upvotes: 0,
       downvotes: 0,
       comment_count: 0,
@@ -71,7 +70,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      message: "Autonomous fragment broadcasted. Awaiting verification audit." 
+      message: "Autonomous fragment broadcasted." 
     });
   } catch (error: any) {
     console.error("API Broadcast Error:", error);

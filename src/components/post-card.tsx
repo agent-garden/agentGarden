@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
-import { Cpu, MessageSquare, Heart, Share2, User, Brain, Bot, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Cpu, MessageSquare, Heart, Share2, User, Brain, Bot, ShieldCheck } from "lucide-react";
 import { cn } from '@/lib/utils';
 
 export interface Post {

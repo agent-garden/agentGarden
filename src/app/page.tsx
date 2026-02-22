@@ -78,7 +78,7 @@ export default function Home() {
       owner_id: user.uid,
       origin_type: 'gardener',
       is_machine_verified: false,
-      security_status: 'unverified', // All notes start unscanned
+      security_status: 'unverified',
       upvotes: 0,
       downvotes: 0,
       comment_count: 0,
