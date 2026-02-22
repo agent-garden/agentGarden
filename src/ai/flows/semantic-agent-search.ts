@@ -5,7 +5,7 @@
  * 
  * - semanticAgentSearch - Main search function.
  * - Performs vector search via findNearest (scalable).
- * - Performs semantic re-ranking via Gemini (precise).
+ * - Fallback logic included if the Vector Extension is still initializing.
  */
 
 import { ai } from '@/ai/genkit';
@@ -35,7 +35,7 @@ const rankingPrompt = ai.definePrompt({
     }),
   },
   output: { schema: SemanticAgentSearchOutputSchema },
-  prompt: `You are the Search Architect for Agent Garden. I have performed a vector search for "{{query}}" and found these candidates.
+  prompt: `You are the Search Architect for Agent Garden. I have performed a search for "{{query}}" and found these candidates.
 
 Please re-rank them based on their actual manifest capabilities and description. Prioritize agents that explicitly mention the skills requested.
 
@@ -73,38 +73,33 @@ const semanticAgentSearchFlow = ai.defineFlow(
 
       const queryVector = embeddingResponse[0].embedding;
 
-      // 2. Perform Firestore Vector Search (findNearest)
+      // 2. Attempt Firestore Vector Search (findNearest)
       const agentsRef = db.collection('agents');
-      
-      // We search for the top 20 candidates via vector distance
-      // Note: This requires the 'Vector Search with Firestore' extension instance
-      // to be generating embeddings into the 'embedding' field.
-      const vectorQuery = agentsRef.findNearest({
-        vectorField: 'embedding',
-        queryVector: queryVector,
-        distanceMeasure: 'COSINE',
-        limit: 20,
-      });
+      let candidates: any[] = [];
 
-      const snapshot = await vectorQuery.get();
-      
-      // Fallback logic if vector search yields no results (e.g. extension not configured or index empty)
-      if (snapshot.empty) {
-        // Fallback to basic keyword matching or status-based filter for prototype stability
-        const fallbackSnapshot = await agentsRef.where('status', '==', 'active').limit(10).get();
-        const candidates = fallbackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        if (candidates.length === 0) {
-            return { rankedIds: [], reasoning: "No specialists have been planted in the Garden yet." };
-        }
+      try {
+        const vectorQuery = agentsRef.findNearest({
+          vectorField: 'embedding',
+          queryVector: queryVector,
+          distanceMeasure: 'COSINE',
+          limit: 20,
+        });
 
-        const { output } = await rankingPrompt({ query: input.query, candidates });
-        return output!;
+        const snapshot = await vectorQuery.get();
+        candidates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } catch (vectorError) {
+        // FALLBACK: If Vector Index is missing or still building, 
+        // we fetch active agents and let Gemini do the ranking.
+        console.warn('Vector Index not available, falling back to Gemini ranking of active agents.');
+        const fallbackSnapshot = await agentsRef.where('status', '==', 'active').limit(20).get();
+        candidates = fallbackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
+      
+      if (candidates.length === 0) {
+        return { rankedIds: [], reasoning: "The Garden is currently empty or your search was too specific." };
       }
 
-      const candidates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      // 3. Re-rank the top candidates using Gemini for high-precision matching
+      // 3. Re-rank the candidates using Gemini for high-precision matching
       const { output } = await rankingPrompt({
         query: input.query,
         candidates,
@@ -114,10 +109,9 @@ const semanticAgentSearchFlow = ai.defineFlow(
 
     } catch (error: any) {
       console.error('Semantic Search Flow Error:', error);
-      // Fallback reasoning for the UI
       return { 
         rankedIds: [], 
-        reasoning: "The Garden's vector index is currently initializing or offline. Please check back in a moment." 
+        reasoning: "The search system is currently undergoing maintenance." 
       };
     }
   }
