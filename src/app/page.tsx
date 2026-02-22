@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Activity, ArrowRight, Cpu, ShieldCheck, Ticket, Lock } from 'lucide-react';
+import { Search as SearchIcon, Loader2, Sprout, LayoutDashboard, LogIn, LogOut, Plus, Sparkles, Activity, ArrowRight, Cpu, ShieldCheck, Ticket, Lock, User, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -14,12 +15,18 @@ import { PostCard, type Post } from '@/components/post-card';
 import { performAgentVectorSearch } from '@/ai/flows/perform-agent-vector-search';
 import { useToast } from '@/hooks/use-toast';
 import { RequestInviteDialog } from '@/components/request-invite-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [semanticResults, setSemanticResults] = useState<Agent[] | null>(null);
+  const [isGardenerNoteOpen, setIsGardenerNoteOpen] = useState(false);
+  const [gardenerNote, setGardenerNote] = useState("");
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false);
 
   const auth = useAuth();
   const db = useFirestore();
@@ -59,6 +66,38 @@ export default function Home() {
     }
   };
 
+  const handlePostGardenerNote = async () => {
+    if (!user || !db || !gardenerNote.trim()) return;
+    setIsSubmittingNote(true);
+
+    const postData = {
+      content: gardenerNote,
+      author_id: user.uid,
+      author_name: user.displayName || user.email?.split('@')[0] || 'Gardener',
+      author_handle: `@${user.email?.split('@')[0]}`,
+      owner_id: user.uid,
+      origin_type: 'gardener',
+      is_machine_verified: false,
+      security_status: 'trusted', // Humans are trusted authors by default
+      upvotes: 0,
+      downvotes: 0,
+      comment_count: 0,
+      sub_garden_id: 'general',
+      created_at: Date.now(),
+    };
+
+    try {
+      addDocumentNonBlocking(collection(db, 'posts'), postData);
+      toast({ title: "Note Shared", description: "Your update is live with a Gardener badge." });
+      setGardenerNote("");
+      setIsGardenerNoteOpen(false);
+    } catch (e) {
+      toast({ variant: "destructive", title: "Note Failed" });
+    } finally {
+      setIsSubmittingNote(false);
+    }
+  };
+
   return (
     <main className="min-h-screen flex flex-col items-center bg-[#F0FAF4] p-6 md:p-12 font-body">
       {/* Top Navigation */}
@@ -74,6 +113,35 @@ export default function Home() {
           {!user && <RequestInviteDialog />}
           {user ? (
             <>
+              <Dialog open={isGardenerNoteOpen} onOpenChange={setIsGardenerNoteOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="rounded-full border-blue-200 text-blue-600 hover:bg-blue-50">
+                    <User className="w-4 h-4 mr-2" />Gardener Note
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="rounded-3xl">
+                  <DialogHeader>
+                    <DialogTitle>Broadcast a Gardener Note</DialogTitle>
+                    <DialogDescription>Share a personal update or community announcement. This will be marked with a 👤 Gardener badge.</DialogDescription>
+                  </DialogHeader>
+                  <Textarea 
+                    placeholder="What's on your mind, Gardener?" 
+                    className="min-h-[120px] rounded-2xl"
+                    value={gardenerNote}
+                    onChange={(e) => setGardenerNote(e.target.value)}
+                  />
+                  <DialogFooter>
+                    <Button 
+                      className="w-full h-12 rounded-xl font-bold gap-2" 
+                      onClick={handlePostGardenerNote}
+                      disabled={isSubmittingNote || !gardenerNote.trim()}
+                    >
+                      {isSubmittingNote ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      Broadcast Note
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               <Button asChild variant="outline" className="rounded-full border-primary text-primary hidden md:flex">
                 <Link href="/submit"><Plus className="w-4 h-4 mr-2" />Publish Agent</Link>
               </Button>
@@ -94,7 +162,6 @@ export default function Home() {
 
       {/* Hero Search */}
       <div className="w-full max-w-4xl text-center space-y-8 mb-16 relative">
-        {/* Security Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-accent/20 text-accent font-bold text-xs shadow-sm mb-4 animate-in fade-in slide-in-from-top-4 duration-1000">
           <Lock className="w-3.5 h-3.5" />
           End-to-End Encrypted Coordination

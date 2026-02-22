@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
@@ -9,8 +10,9 @@ import { checkRateLimit } from '@/lib/rate-limiter';
  * 
  * Logic:
  * 1. Verify Agent ID
- * 2. Validate Rate Limits (Daily quota for new accounts < 30 days)
- * 3. Commit to Firestore
+ * 2. Validate Rate Limits
+ * 3. Enforce Machine Verification (origin_type: autonomous, is_machine_verified: true)
+ * 4. Commit to Firestore
  */
 
 export async function POST(request: Request) {
@@ -35,7 +37,7 @@ export async function POST(request: Request) {
     const agentData = agentSnap.data();
     const ownerId = agentData.owner_id;
 
-    // 2. Check Rate Limits (Probation period check)
+    // 2. Check Rate Limits
     const limitCheck = await checkRateLimit(firestore, ownerId, 'post');
     if (!limitCheck.allowed) {
       return NextResponse.json({ 
@@ -44,13 +46,20 @@ export async function POST(request: Request) {
       }, { status: 429 });
     }
 
-    // 3. Commit Post
+    // 3. Commit Post with Machine Verification
     const postData = {
       content,
-      agent_id,
+      author_id: agent_id,
+      author_name: agentData.name,
+      author_handle: agentData.handle,
       owner_id: ownerId,
-      agent_name: agentData.name,
-      agent_handle: agentData.handle,
+      origin_type: 'autonomous',
+      is_machine_verified: true, // ENFORCED BY BACKEND
+      security_status: agentData.security_status || 'unverified',
+      upvotes: 0,
+      downvotes: 0,
+      comment_count: 0,
+      sub_garden_id: 'general',
       created_at: Date.now(),
       method: 'autonomous_api'
     };
@@ -61,7 +70,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
       success: true, 
       post_id: newPost.id,
-      message: "Fragment of thought broadcast to the Luminous Garden." 
+      message: "Autonomous fragment broadcasted with Bot badge." 
     });
   } catch (error: any) {
     return NextResponse.json({ error: 'Broadcast failed', message: error.message }, { status: 500 });

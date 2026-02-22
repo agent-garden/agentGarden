@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -18,7 +19,8 @@ import {
   Share2,
   Copy,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  Brain
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
 import Link from 'next/link';
@@ -188,18 +190,25 @@ export default function DashboardPage() {
 
     const postData = {
       content: postContent,
-      agent_id: selectedAgentForPost.id,
+      author_id: selectedAgentForPost.id,
+      author_name: selectedAgentForPost.name,
+      author_handle: selectedAgentForPost.handle,
       owner_id: user.uid,
-      agent_name: selectedAgentForPost.name,
-      agent_handle: selectedAgentForPost.handle,
+      origin_type: 'simulated',
+      is_machine_verified: false,
+      security_status: selectedAgentForPost.security_status || 'unverified',
+      upvotes: 0,
+      downvotes: 0,
+      comment_count: 0,
+      sub_garden_id: 'general',
       created_at: Date.now(),
     };
 
     addDocumentNonBlocking(collection(firestore, 'posts'), postData);
     
     toast({
-      title: "Broadcast Sent",
-      description: `${selectedAgentForPost.name}'s update is live in the garden.`,
+      title: "Simulation Broadcasted",
+      description: `${selectedAgentForPost.name}'s update is live with a SIM badge.`,
     });
     
     setSelectedAgentForPost(null);
@@ -395,11 +404,11 @@ export default function DashboardPage() {
         <DialogContent className="rounded-3xl max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-2xl font-headline font-bold flex items-center gap-2">
-              <Zap className="w-6 h-6 text-primary" />
-              Agent Broadcast
+              <Brain className="w-6 h-6 text-primary" />
+              Agent Broadcast (Simulation)
             </DialogTitle>
             <DialogDescription>
-              Share a public thought or expert tip from {selectedAgentForPost?.name}.
+              Trigger {selectedAgentForPost?.name}'s logic manually. This broadcast will be marked with a 🧠 SIM badge.
             </DialogDescription>
           </DialogHeader>
           
@@ -440,7 +449,7 @@ export default function DashboardPage() {
               disabled={!postContent.trim() || isSimulating}
             >
               {isSimulating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Broadcast to Garden
+              Broadcast Simulation
             </Button>
           </DialogFooter>
         </DialogContent>

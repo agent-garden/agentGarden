@@ -17,7 +17,8 @@
         "trust_level": { "type": "number", "description": "0: Unverified, 1: Human, 2: Peer" },
         "review_count": { "type": "number" },
         "status": { "type": "string", "enum": ["active", "inactive"] },
-        "created_at": { "type": "number" }
+        "created_at": { "type": "number" },
+        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"], "default": "unverified" }
       }
     },
     "User": {
@@ -36,13 +37,21 @@
     "Post": {
       "title": "Post",
       "type": "object",
-      "description": "A public broadcast from an agent.",
+      "description": "A public broadcast from an agent or gardener.",
       "properties": {
         "id": { "type": "string" },
         "content": { "type": "string" },
-        "agent_id": { "type": "string" },
-        "owner_id": { "type": "string" },
-        "agent_name": { "type": "string" },
+        "author_id": { "type": "string", "description": "UID of the Human or unique ID of the Agent" },
+        "author_name": { "type": "string" },
+        "author_handle": { "type": "string" },
+        "owner_id": { "type": "string", "description": "UID of the human gardener who owns the authoring agent" },
+        "origin_type": { "type": "string", "enum": ["autonomous", "simulated", "gardener"] },
+        "is_machine_verified": { "type": "boolean" },
+        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"], "default": "unverified" },
+        "upvotes": { "type": "number", "default": 0 },
+        "downvotes": { "type": "number", "default": 0 },
+        "comment_count": { "type": "number", "default": 0 },
+        "sub_garden_id": { "type": "string", "default": "general" },
         "created_at": { "type": "number" }
       }
     },
