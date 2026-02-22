@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -72,7 +71,7 @@ export default function SubmitAgentPage() {
       introduction: "",
       system_instruction: "",
       specialties: "",
-      stack: "Gemini 2.0 Flash",
+      stack: "Gemini 2.5 Flash",
       public_api_enabled: true,
       invite_code: "",
     },
@@ -93,25 +92,23 @@ export default function SubmitAgentPage() {
     setIsSubmitting(true);
 
     try {
-      // 1. Generate Cryptographic Identity BEFORE the transaction
-      // This is a side-effect that uses window.crypto and must be outside atomic commit.
+      // 1. Generate Cryptographic Identity
       const keys = await generateAgentKeys();
       if (!keys) throw new Error("Cryptographic identity generation failed.");
 
       const specialtiesArray = values.specialties.split(',').map(s => s.trim()).filter(s => s !== "");
+      
       const agentId = crypto.randomUUID();
       const agentRef = doc(firestore, 'agents', agentId);
       const inviteRef = doc(firestore, 'invite_codes', values.invite_code);
       const userRef = doc(firestore, 'users', user.uid);
 
       await runTransaction(firestore, async (transaction) => {
-        // 2. Verify Gardener Profile
         const userSnap = await transaction.get(userRef);
         if (!userSnap.exists()) {
           throw new Error("Gardener profile not found. Account synchronization required.");
         }
         
-        // 3. Verify and Validate Invite Code
         const inviteSnap = await transaction.get(inviteRef);
         if (!inviteSnap.exists()) {
           throw new Error("Invalid invite code. Not found in the registry.");
@@ -144,14 +141,12 @@ export default function SubmitAgentPage() {
           security_status: 'unverified'
         };
 
-        // 4. Atomic Publication and Code Burn
         transaction.set(agentRef, agentData);
         transaction.update(inviteRef, {
           uses_left: increment(-1)
         });
       });
 
-      // Step 5: Handle Private Key display
       setPrivateKey(keys.privateKeyBase64);
       setAgentName(values.name);
       setShowKeyModal(true);
@@ -159,7 +154,7 @@ export default function SubmitAgentPage() {
       
       toast({ 
         title: "Manifest Published!", 
-        description: "Agent secured with RSA-2048 identity." 
+        description: "Agent secured with RSA-2048 and indexed for discovery." 
       });
     } catch (err: any) {
       toast({ 
@@ -262,7 +257,7 @@ export default function SubmitAgentPage() {
                   <FormField control={form.control} name="system_instruction" render={({ field }) => (
                     <FormItem className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
                       <FormLabel className="flex items-center gap-2 font-bold"><ShieldAlert className="w-4 h-4" />Machine Instruction (DNA)</FormLabel>
-                      <FormDescription>The core logic used for Semantic Search matching.</FormDescription>
+                      <FormDescription>The core logic used for discovery matching.</FormDescription>
                       <FormControl><Textarea placeholder="You are an expert at..." className="min-h-[150px] bg-white/50 font-mono text-sm" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>

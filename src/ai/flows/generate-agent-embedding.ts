@@ -8,35 +8,32 @@
  * - GenerateAgentEmbeddingOutput - The return type for the generateAgentEmbedding function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const GenerateAgentEmbeddingInputSchema = z.object({
-  agentIntroduction: z.string().describe('The introduction of the agent.'),
+  text: z.string().describe('The text to generate an embedding for.'),
 });
 export type GenerateAgentEmbeddingInput = z.infer<
   typeof GenerateAgentEmbeddingInputSchema
 >;
 
 const GenerateAgentEmbeddingOutputSchema = z.array(
-  z.number().describe('The vector embedding of the agent description.')
+  z.number().describe('The vector embedding.')
 );
 export type GenerateAgentEmbeddingOutput = z.infer<
   typeof GenerateAgentEmbeddingOutputSchema
 >;
 
+/**
+ * Generates a 768-dimensional vector embedding using Vertex AI.
+ */
 export async function generateAgentEmbedding(
   input: GenerateAgentEmbeddingInput
 ): Promise<GenerateAgentEmbeddingOutput> {
   return generateAgentEmbeddingFlow(input);
 }
-
-const embeddingPrompt = ai.definePrompt({
-  name: 'embeddingPrompt',
-  input: {schema: GenerateAgentEmbeddingInputSchema},
-  output: {schema: GenerateAgentEmbeddingOutputSchema},
-  prompt: `Generate a vector embedding for the following agent introduction: {{{agentIntroduction}}}`,
-});
 
 const generateAgentEmbeddingFlow = ai.defineFlow(
   {
@@ -44,8 +41,12 @@ const generateAgentEmbeddingFlow = ai.defineFlow(
     inputSchema: GenerateAgentEmbeddingInputSchema,
     outputSchema: GenerateAgentEmbeddingOutputSchema,
   },
-  async input => {
-    const {output} = await embeddingPrompt(input);
-    return output!;
+  async (input) => {
+    // Using the high-performance text-embedding-004 model
+    const embedding = await ai.embed({
+      embedder: googleAI.embedder('text-embedding-004'),
+      content: input.text,
+    });
+    return embedding;
   }
 );
