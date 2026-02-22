@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { ArrowLeft, Loader2, Sprout, Send, ShieldAlert, Tag, Globe, Cpu, Lock, CheckCircle, Key, Copy, Check, Download, Ticket } from 'lucide-react';
+import { ArrowLeft, Loader2, Sprout, Send, ShieldAlert, Tag, Globe, Cpu, Lock, CheckCircle, Key, Copy, Check, Download, Ticket, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ import { useToast } from '@/hooks/use-toast';
 import { generateAgentKeys } from '@/lib/crypto';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { auditAgentSecurity } from '@/ai/flows/audit-agent-security';
 
 const categories = ["Coding", "Writing", "Finance", "Research", "Creative", "Other"] as const;
 
@@ -96,6 +97,12 @@ export default function SubmitAgentPage() {
       const keys = await generateAgentKeys();
       if (!keys) throw new Error("Cryptographic identity generation failed.");
 
+      // 2. Perform Automated Security Audit (Issue #48)
+      const auditResult = await auditAgentSecurity({
+        name: values.name,
+        system_instruction: values.system_instruction
+      });
+
       const specialtiesArray = values.specialties.split(',').map(s => s.trim()).filter(s => s !== "");
       
       const agentId = crypto.randomUUID();
@@ -106,12 +113,12 @@ export default function SubmitAgentPage() {
       await runTransaction(firestore, async (transaction) => {
         const userSnap = await transaction.get(userRef);
         if (!userSnap.exists()) {
-          throw new Error("Gardener profile not found. Account synchronization required.");
+          throw new Error("Gardener profile not found.");
         }
         
         const inviteSnap = await transaction.get(inviteRef);
         if (!inviteSnap.exists()) {
-          throw new Error("Invalid invite code. Not found in the registry.");
+          throw new Error("Invalid invite code.");
         }
 
         const inviteData = inviteSnap.data();
@@ -138,7 +145,7 @@ export default function SubmitAgentPage() {
           trust_level: 1, 
           review_count: 0,
           created_at: Date.now(),
-          security_status: 'unverified'
+          security_status: auditResult.status // Initial status from Genkit scan
         };
 
         transaction.set(agentRef, agentData);
@@ -154,7 +161,7 @@ export default function SubmitAgentPage() {
       
       toast({ 
         title: "Manifest Published!", 
-        description: "Agent secured with RSA-2048 and indexed for discovery." 
+        description: `Agent secured and scanned. Security Status: ${auditResult.status.toUpperCase()}` 
       });
     } catch (err: any) {
       toast({ 
@@ -257,7 +264,7 @@ export default function SubmitAgentPage() {
                   <FormField control={form.control} name="system_instruction" render={({ field }) => (
                     <FormItem className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
                       <FormLabel className="flex items-center gap-2 font-bold"><ShieldAlert className="w-4 h-4" />Machine Instruction (DNA)</FormLabel>
-                      <FormDescription>The core logic used for discovery matching.</FormDescription>
+                      <FormDescription>The core logic used for semantic discovery.</FormDescription>
                       <FormControl><Textarea placeholder="You are an expert at..." className="min-h-[150px] bg-white/50 font-mono text-sm" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -275,10 +282,10 @@ export default function SubmitAgentPage() {
                     )} />
                     <div className="flex items-center justify-between rounded-xl border p-4 bg-primary/5">
                       <div className="space-y-0.5">
-                        <div className="text-base flex items-center gap-2 font-bold"><CheckCircle className="w-4 h-4 text-primary" />Verified Status</div>
-                        <p className="text-xs text-muted-foreground">Linked to your gardener handle.</p>
+                        <div className="text-base flex items-center gap-2 font-bold"><ShieldCheck className="w-4 h-4 text-primary" />Automated Scan</div>
+                        <p className="text-xs text-muted-foreground">DNA will be audited for security risks.</p>
                       </div>
-                      <Badge variant="outline" className="bg-white">AUTO</Badge>
+                      <Badge variant="outline" className="bg-white">REQUIRED</Badge>
                     </div>
                   </div>
                 </div>

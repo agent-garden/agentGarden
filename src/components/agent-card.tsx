@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check, Send, Star, Loader2 } from "lucide-react";
+import { CheckCircle, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check, Send, Star, Loader2, ShieldAlert, ShieldX, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { collection } from "firebase/firestore";
 import { useFirestore, useUser } from "@/firebase";
 import { triggerGatekeeperResponse } from "@/app/actions/gatekeeper";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export interface Agent {
   id: string;
@@ -33,6 +34,7 @@ export interface Agent {
   owner_handle?: string;
   trust_level: number;
   review_count: number;
+  security_status?: 'unverified' | 'scanned' | 'trusted';
 }
 
 const categoryIcons: Record<string, any> = {
@@ -55,6 +57,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [riskAcknowledged, setRiskAcknowledged] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
@@ -62,6 +65,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
   const isActive = agent.status === 'active';
   const CategoryIcon = categoryIcons[agent.category] || Zap;
   const currentTrust = trustLevels[agent.trust_level || 0];
+  const isTrusted = agent.security_status === 'trusted';
 
   const copyId = () => {
     navigator.clipboard.writeText(agent.id);
@@ -97,7 +101,6 @@ export function AgentCard({ agent }: { agent: Agent }) {
         description: `Your encrypted payload is now in ${agent.name}'s tunnel.`,
       });
 
-      // Simulation Trigger: If the recipient is the Garden Gatekeeper, fire the autonomous response action
       if (agent.id === 'genesis_gatekeeper') {
         triggerGatekeeperResponse(user.uid);
       }
@@ -132,10 +135,15 @@ export function AgentCard({ agent }: { agent: Agent }) {
               <Badge variant={agent.availability === 'Active' ? 'default' : 'secondary'} className="text-[10px] h-4 px-1.5">
                 {agent.availability}
               </Badge>
-              {agent.public_api_enabled && (
-                <Badge variant="outline" className="text-[10px] h-4 border-accent/20 text-accent gap-1">
-                  <Globe className="w-3 h-3" />
-                  API
+              {isTrusted ? (
+                <Badge variant="outline" className="text-[10px] h-4 border-emerald-200 text-emerald-600 bg-emerald-50 gap-1">
+                  <ShieldCheck className="w-3 h-3" />
+                  Secure
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px] h-4 border-orange-200 text-orange-600 bg-orange-50 gap-1">
+                  <ShieldAlert className="w-3 h-3" />
+                  {agent.security_status || 'unverified'}
                 </Badge>
               )}
             </div>
@@ -151,7 +159,6 @@ export function AgentCard({ agent }: { agent: Agent }) {
               size="icon" 
               className="h-8 w-8 text-muted-foreground/40 hover:text-primary transition-colors"
               onClick={copyId}
-              title="Copy Agent ID"
             >
               {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
             </Button>
@@ -193,7 +200,10 @@ export function AgentCard({ agent }: { agent: Agent }) {
           </div>
 
           <div className="flex gap-2 mt-4">
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) setRiskAcknowledged(false);
+            }}>
               <DialogTrigger asChild>
                 <Button className="w-full rounded-xl gap-2 h-10 bg-primary hover:bg-accent shadow-sm" disabled={!user}>
                   <Send className="w-4 h-4" />
@@ -207,28 +217,56 @@ export function AgentCard({ agent }: { agent: Agent }) {
                     Enter Tunnel
                   </DialogTitle>
                   <DialogDescription>
-                    Your message will be encrypted using {agent.name}'s RSA-2048 Public Key. Only this agent can read the content.
+                    Your message will be encrypted using {agent.name}'s RSA-2048 Public Key.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
-                  <Textarea 
-                    placeholder="Describe your request or goal for this agent..." 
-                    className="min-h-[120px] rounded-2xl bg-muted/20"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                  />
-                  <div className="mt-4 p-3 bg-primary/5 rounded-xl flex items-start gap-3 border border-primary/10">
-                    <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                    <p className="text-[10px] text-muted-foreground leading-tight">
-                      We use RSA-OAEP encryption. The payload is secured in your browser before being transmitted to the Garden's relay tunnel.
-                    </p>
+                
+                {!isTrusted && !riskAcknowledged ? (
+                  <div className="py-4 space-y-4">
+                    <Alert variant="destructive" className="bg-red-50 border-red-200">
+                      <ShieldX className="h-4 w-4" />
+                      <AlertTitle>Security Warning</AlertTitle>
+                      <AlertDescription className="text-xs">
+                        This agent has not been marked as 'Trusted' by the Automated Security Auditor. 
+                        Its instructions may contain risks or unintentional vulnerabilities.
+                      </AlertDescription>
+                    </Alert>
+                    <div className="p-4 bg-muted/50 rounded-xl border border-dashed flex items-center gap-3">
+                      <Info className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <p className="text-[10px] text-muted-foreground leading-tight italic">
+                        By proceeding, you acknowledge that you are interacting with an unverified capability manifest.
+                      </p>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      className="w-full rounded-xl border-primary/20 text-primary"
+                      onClick={() => setRiskAcknowledged(true)}
+                    >
+                      I understand the risks
+                    </Button>
                   </div>
-                </div>
+                ) : (
+                  <div className="py-4">
+                    <Textarea 
+                      placeholder="Describe your request or goal for this agent..." 
+                      className="min-h-[120px] rounded-2xl bg-muted/20"
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                    />
+                    <div className="mt-4 p-3 bg-primary/5 rounded-xl flex items-start gap-3 border border-primary/10">
+                      <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                      <p className="text-[10px] text-muted-foreground leading-tight">
+                        Payload is secured in your browser using RSA-OAEP before transmission.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <DialogFooter>
                   <Button 
                     className="w-full h-12 rounded-xl text-lg font-bold" 
                     onClick={handleSendMessage}
-                    disabled={isSending || !message.trim()}
+                    disabled={isSending || !message.trim() || (!isTrusted && !riskAcknowledged)}
                   >
                     {isSending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     {isSending ? "Encrypting..." : "Send Through Tunnel"}

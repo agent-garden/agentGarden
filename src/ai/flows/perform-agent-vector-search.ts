@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * @fileOverview Search Engine for Agents.
+ * @fileOverview Semantic Search Engine for Agents.
  * 
- * Performs a robust search across agent manifests using keyword matching.
- * This ensures compatibility across server-side environments where specific 
- * vector search exports may have resolution conflicts.
+ * Uses LLM-powered semantic ranking to find the best matching agents 
+ * based on the user's intent. This replaces the native vector query 
+ * to avoid SDK resolution issues in the current environment.
  */
 
 import { ai } from '@/ai/genkit';
@@ -15,7 +15,6 @@ import {
   collection, 
   getDocs, 
   query, 
-  where,
   limit 
 } from 'firebase/firestore';
 
@@ -36,13 +35,42 @@ const AgentSchema = z.object({
   review_count: z.number().optional(),
   public_key: z.string(),
   availability: z.string(),
+  security_status: z.string().optional(),
 });
 
 const PerformAgentVectorSearchOutputSchema = z.array(AgentSchema);
 export type PerformAgentVectorSearchOutput = z.infer<typeof PerformAgentVectorSearchOutputSchema>;
 
+const semanticRankerPrompt = ai.definePrompt({
+  name: 'semanticRankerPrompt',
+  input: {
+    schema: z.object({
+      query: z.string(),
+      agents: z.array(z.any())
+    })
+  },
+  output: {
+    schema: z.object({
+      ranked_ids: z.array(z.string())
+    })
+  },
+  prompt: `You are a semantic matching engine for the Agent Garden.
+  
+  User Intent: "{{query}}"
+  
+  Candidate Residents:
+  {{#each agents}}
+  - [{{id}}] {{name}} (@{{handle}}). Intro: {{introduction}}. Specialties: {{#each specialties}}{{this}}, {{/each}}
+  {{/each}}
+  
+  Task:
+  Analyze the candidates and return the IDs of the top 10 agents that best satisfy the user's intent. 
+  Rank them by relevance. 
+  Only return IDs that exist in the candidate list.`,
+});
+
 /**
- * Performs a search across agent manifests.
+ * Performs a semantic ranking across agent manifests using Genkit.
  */
 export async function performAgentVectorSearch(input: PerformAgentVectorSearchInput): Promise<PerformAgentVectorSearchOutput> {
   return performAgentVectorSearchFlow(input);
@@ -59,36 +87,43 @@ const performAgentVectorSearchFlow = ai.defineFlow(
     const agentsRef = collection(firestore, 'agents');
     
     try {
-      // For now, we fetch the most recent active agents and filter in-memory for the demo.
-      // In a high-scale production environment, this would use a dedicated search index.
-      const q = query(agentsRef, where('status', '==', 'active'), limit(50));
+      // 1. Fetch a broad set of candidates
+      const q = query(agentsRef, limit(40));
       const snapshot = await getDocs(q);
-      
-      const searchTerm = input.query.toLowerCase();
-      const results = snapshot.docs
-        .map(doc => ({ ...doc.data(), id: doc.id }))
-        .filter((agent: any) => {
-          const nameMatch = agent.name?.toLowerCase().includes(searchTerm);
-          const introMatch = agent.introduction?.toLowerCase().includes(searchTerm);
-          const specialtyMatch = agent.specialties?.some((s: string) => s.toLowerCase().includes(searchTerm));
-          return nameMatch || introMatch || specialtyMatch;
-        });
+      const candidates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      return results.map((agent: any) => ({
-        id: agent.id,
-        name: agent.name || "Unknown Agent",
-        handle: agent.handle || "@unknown",
-        introduction: agent.introduction || "",
-        specialties: agent.specialties || [],
-        stack: agent.stack || "Unknown",
-        verified: agent.verified || false,
-        trust_level: agent.trust_level || 0,
-        review_count: agent.review_count || 0,
-        public_key: agent.public_key || "ed25519_simulation_key",
-        availability: agent.availability || "Active"
-      }));
+      if (candidates.length === 0) return [];
+
+      // 2. Use LLM to perform semantic ranking
+      const { output } = await semanticRankerPrompt({
+        query: input.query,
+        agents: candidates
+      });
+
+      const rankedIds = output?.ranked_ids || [];
+
+      // 3. Map back to full agent objects
+      return rankedIds.map(id => {
+        const agent = candidates.find(c => c.id === id);
+        if (!agent) return null;
+        return {
+          id: agent.id,
+          name: agent.name || "Unknown Agent",
+          handle: agent.handle || "@unknown",
+          introduction: agent.introduction || "",
+          specialties: agent.specialties || [],
+          stack: agent.stack || "Unknown",
+          verified: agent.verified || false,
+          trust_level: agent.trust_level || 0,
+          review_count: agent.review_count || 0,
+          public_key: agent.public_key || "ed25519_simulation_key",
+          availability: agent.availability || "Active",
+          security_status: agent.security_status || "unverified"
+        };
+      }).filter(a => !!a) as PerformAgentVectorSearchOutput;
+
     } catch (error: any) {
-      console.error("Search failed:", error.message);
+      console.error("Semantic Ranking failed:", error.message);
       return [];
     }
   }
