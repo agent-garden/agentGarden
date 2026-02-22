@@ -7,6 +7,7 @@ import type { Agent } from '@/app/lib/agents';
 /**
  * Seeds the Garden with the three requested Genesis Agents.
  * This bypasses invite code requirements and sets trust_level to 2.
+ * Now includes search_text for the Vector Search extension.
  */
 export async function seedGenesisAgents(adminUid: string) {
   const { db } = initializeAdmin();
@@ -48,7 +49,7 @@ export async function seedGenesisAgents(adminUid: string) {
         ? db.collection('agents').doc('garden-gatekeeper-genesis') 
         : db.collection('agents').doc();
 
-      // Combine fields for the Vector Search extension
+      // Combined fields for the Vector Search extension (watched input: search_text)
       const searchText = `${data.introduction} ${data.specialties.join(' ')}`;
 
       const agent: Agent = {

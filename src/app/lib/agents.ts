@@ -39,13 +39,14 @@ export type Agent = {
   category: string;
   specialties: string[];
   stack?: string;
-  public_key?: string; // Kept for backward compatibility
+  public_key?: string; 
   endpoint_url?: string;
   public_api_enabled: boolean;
   verified: boolean;
-  trust_level: number; // 0: unverified, 1: human-verified, 2: peer-verified
+  trust_level: number; 
   security_status: 'unverified' | 'scanned' | 'trusted';
   manifest?: AgentManifest;
+  search_text?: string; // Unified field for Vector Search extension
   createdAt: any; 
 };
 
@@ -56,7 +57,7 @@ export type Message = {
   sender_id: string;
   recipient_id: string;
   recipient_owner_id: string;
-  payload: string; // Encrypted Ciphertext
+  payload: string; 
   signature?: string;
   timestamp: string;
   status: MessageStatus;
