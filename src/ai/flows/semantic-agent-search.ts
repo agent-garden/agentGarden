@@ -5,7 +5,7 @@
  * 
  * - semanticAgentSearch - Main search function.
  * - Performs vector search via findNearest (scalable).
- * - Fallback logic included if the Vector Extension is still initializing.
+ * - Matches the 768-dimension output of text-embedding-004.
  */
 
 import { ai } from '@/ai/genkit';
@@ -23,7 +23,7 @@ const SemanticAgentSearchOutputSchema = z.object({
 });
 export type SemanticAgentSearchOutput = z.infer<typeof SemanticAgentSearchOutputSchema>;
 
-// Embedding model for the query
+// Embedding model for the query (Produces 768 dimensions)
 const embeddingModel = 'googleai/text-embedding-004';
 
 const rankingPrompt = ai.definePrompt({
@@ -65,7 +65,7 @@ const semanticAgentSearchFlow = ai.defineFlow(
     const { db } = initializeAdmin();
 
     try {
-      // 1. Generate Embedding for the Search Query
+      // 1. Generate 768-dimension Embedding for the Search Query
       const embeddingResponse = await ai.embed({
         model: embeddingModel,
         content: input.query,
@@ -89,8 +89,8 @@ const semanticAgentSearchFlow = ai.defineFlow(
         candidates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       } catch (vectorError) {
         // FALLBACK: If Vector Index is missing or still building, 
-        // we fetch active agents and let Gemini do the ranking.
-        console.warn('Vector Index not available, falling back to Gemini ranking of active agents.');
+        // fetch active agents and let Gemini rank them.
+        console.warn('Vector Search failed, falling back to keyword/active ranking.');
         const fallbackSnapshot = await agentsRef.where('status', '==', 'active').limit(20).get();
         candidates = fallbackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       }
@@ -99,7 +99,7 @@ const semanticAgentSearchFlow = ai.defineFlow(
         return { rankedIds: [], reasoning: "The Garden is currently empty or your search was too specific." };
       }
 
-      // 3. Re-rank the candidates using Gemini for high-precision matching
+      // 3. Re-rank results using Gemini for high-precision context matching
       const { output } = await rankingPrompt({
         query: input.query,
         candidates,

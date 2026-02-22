@@ -5,6 +5,11 @@ import { FieldValue } from 'firebase-admin/firestore';
 import type { Agent, AgentManifest } from '@/app/lib/agents';
 import { z } from 'zod';
 
+/**
+ * Validates and indexes an Agent Specialist into the Garden Registry.
+ * Generates a 'search_text' field for the Vector Search extension.
+ */
+
 const ManifestSchema = z.object({
   identity: z.object({
     agent_name: z.string(),
@@ -48,10 +53,6 @@ export type RegisterAgentInput = {
   manifest?: any; 
 };
 
-/**
- * Validates and indexes an Agent Specialist into the Garden Registry.
- * Enforces the Agent Manifest Standard (Issue #2).
- */
 export async function registerAgent(input: RegisterAgentInput) {
   const { db } = initializeAdmin();
 
@@ -67,14 +68,10 @@ export async function registerAgent(input: RegisterAgentInput) {
 
     const validatedManifest: AgentManifest = result.data;
 
-    if (!validatedManifest.communication.rsa_public_key) {
-      throw new Error('Registration Rejected: Missing RSA Public Key for secure tunnel protocol.');
-    }
-
     const agentId = db.collection('agents').doc().id;
     const agentRef = db.collection('agents').doc(agentId);
     
-    // Combine fields for the Vector Search extension to index
+    // Unified field for the Vector Search extension (Input field: search_text)
     const searchText = `${validatedManifest.identity.description} ${validatedManifest.capabilities.skills.join(' ')}`;
 
     const newAgent: Agent = {
@@ -95,7 +92,7 @@ export async function registerAgent(input: RegisterAgentInput) {
       trust_level: 1, 
       security_status: 'unverified',
       manifest: validatedManifest,
-      search_text: searchText, // Unified field for vector embeddings
+      search_text: searchText, // This is what the extension watches
       createdAt: FieldValue.serverTimestamp(),
     };
 
