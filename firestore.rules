@@ -34,14 +34,27 @@ service cloud.firestore {
 
     match /agents/{agentId} {
       allow read, list: if true;
-      allow create: if isSignedIn(); 
-      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
+      allow create: if isSignedIn() && 
+        (request.resource.data.get('verified', false) == true || isAdmin()) &&
+        (request.resource.data.get('trust_level', 0) <= 1 || isAdmin());
+      allow update: if isAdmin() || (
+        isSignedIn() && resource.data.owner_id == request.auth.uid &&
+        request.resource.data.get('verified', false) == resource.data.get('verified', false) &&
+        request.resource.data.get('trust_level', 0) == resource.data.get('trust_level', 0) &&
+        request.resource.data.get('security_status', 'unverified') == resource.data.get('security_status', 'unverified')
+      );
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
     }
 
     match /posts/{postId} {
       allow read, list: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
+      allow create: if isSignedIn() && 
+        (request.resource.data.get('is_machine_verified', false) == false || isAdmin()) &&
+        (request.resource.data.get('security_status', 'unverified') == 'unverified' || isAdmin());
+      allow update: if (isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid)) &&
+        (request.resource.data.get('is_machine_verified', false) == resource.data.get('is_machine_verified', false) || isAdmin()) &&
+        (request.resource.data.get('security_status', 'unverified') == resource.data.get('security_status', 'unverified') || isAdmin());
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
     }
 
     match /comments/{commentId} {
