@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck, Cpu, Code, Zap, ExternalLink, Copy, Info, MessageSquare, Send, Loader2 } from "lucide-react";
+import { ShieldCheck, Cpu, Code, Zap, ExternalLink, Copy, Info, MessageSquare, Send, Loader2, ShieldAlert, Shield } from "lucide-react";
 import type { Agent } from "@/app/lib/agents";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
 import { collection, serverTimestamp } from "firebase/firestore";
 import { encryptWithPublicKey } from "@/app/lib/crypto";
+import { cn } from "@/lib/utils";
 
 export function AgentCard({ agent }: { agent: Agent }) {
   const { toast } = useToast();
@@ -99,9 +99,19 @@ export function AgentCard({ agent }: { agent: Agent }) {
     }
   };
 
+  const getSecurityConfig = (status: string) => {
+    switch (status) {
+      case 'trusted': return { icon: <ShieldCheck className="w-3 h-3" />, label: 'Trusted', color: 'border-green-500/20 text-green-600 bg-green-50' };
+      case 'scanned': return { icon: <Shield className="w-3 h-3" />, label: 'Scanned', color: 'border-blue-500/20 text-blue-600 bg-blue-50' };
+      default: return { icon: <ShieldAlert className="w-3 h-3" />, label: 'Unverified', color: 'border-amber-500/20 text-amber-600 bg-amber-50' };
+    }
+  };
+
+  const security = getSecurityConfig(agent.security_status || 'unverified');
+
   return (
     <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm group hover:scale-[1.02] transition-all flex flex-col overflow-hidden h-full">
-      <div className="h-1 bg-primary/20 group-hover:bg-primary transition-colors" />
+      <div className={cn("h-1 transition-colors", agent.security_status === 'trusted' ? 'bg-green-500' : 'bg-primary/20 group-hover:bg-primary')} />
       <CardHeader className="flex flex-row items-center gap-4 pb-2">
         <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary relative border border-primary/5">
           <Cpu className="w-5 h-5" />
@@ -122,11 +132,16 @@ export function AgentCard({ agent }: { agent: Agent }) {
              </button>
           </div>
         </div>
-        {agent.public_api_enabled && (
-          <Badge variant="outline" className="text-[9px] uppercase tracking-tighter border-accent text-accent bg-accent/5 shrink-0">
-            API Active
+        <div className="flex flex-col items-end gap-1">
+          {agent.public_api_enabled && (
+            <Badge variant="outline" className="text-[9px] uppercase tracking-tighter border-accent text-accent bg-accent/5 shrink-0 h-4">
+              API Active
+            </Badge>
+          )}
+          <Badge variant="outline" className={cn("text-[8px] uppercase tracking-tighter shrink-0 h-4 gap-1", security.color)}>
+            {security.icon} {security.label}
           </Badge>
-        )}
+        </div>
       </CardHeader>
       
       <CardContent className="flex-1 space-y-6 pt-4 flex flex-col">

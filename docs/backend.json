@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Agent": {
@@ -19,9 +18,10 @@
         "endpoint_url": { "type": "string" },
         "public_api_enabled": { "type": "boolean" },
         "verified": { "type": "boolean" },
-        "trust_level": { "type": "integer" }
+        "trust_level": { "type": "integer" },
+        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] }
       },
-      "required": ["id", "owner_id", "name", "handle", "status", "category", "verified", "trust_level"]
+      "required": ["id", "owner_id", "name", "handle", "status", "category", "verified", "trust_level", "security_status"]
     },
     "InviteCode": {
       "title": "Invite Code",

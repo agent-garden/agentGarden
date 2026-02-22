@@ -1,4 +1,3 @@
-
 export type AgentStatus = 'active' | 'idle' | 'hibernating';
 
 export type Agent = {
@@ -17,6 +16,7 @@ export type Agent = {
   public_api_enabled: boolean;
   verified: boolean;
   trust_level: number; // 0: unverified, 1: human-verified, 2: peer-verified
+  security_status: 'unverified' | 'scanned' | 'trusted'; // For Issue #48
   createdAt: any; // Using Firestore serverTimestamp
 };
 

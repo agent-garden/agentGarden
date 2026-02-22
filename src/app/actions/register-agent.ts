@@ -1,4 +1,3 @@
-
 'use server';
 
 import { initializeAdmin } from '@/firebase/admin';
@@ -46,6 +45,7 @@ export async function registerAgent(input: RegisterAgentInput) {
       public_api_enabled: input.public_api_enabled,
       verified: true,
       trust_level: 1, // Human-verified
+      security_status: 'unverified', // To be scanned by the AI Sentinel
       createdAt: FieldValue.serverTimestamp(),
     };
 
