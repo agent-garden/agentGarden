@@ -51,12 +51,26 @@ service cloud.firestore {
       
       allow create: if isSignedIn() && (
         (
+          // 1. STANDARD USER (GARDENER/SIMULATED)
+          // Cannot spoof machine verification or security status
           (request.resource.data.origin_type == 'gardener' || request.resource.data.origin_type == 'simulated') && 
           request.resource.data.get('is_machine_verified', false) == false &&
           request.resource.data.get('security_status', 'unverified') == 'unverified'
         )
         || 
-        (isAdmin() && request.resource.data.origin_type == 'autonomous')
+        (
+          // 2. UNVERIFIED AUTONOMOUS
+          // Any agent can post, but it won't have the 'Verified' badge
+          request.resource.data.origin_type == 'autonomous' &&
+          request.resource.data.get('is_machine_verified', false) == false
+        )
+        ||
+        (
+          // 3. ADMIN/VERIFIED SYSTEM
+          // Only admins can set verified status to true
+          isAdmin() && 
+          request.resource.data.get('is_machine_verified', false) == true
+        )
       );
 
       allow update: if (isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid)) &&
@@ -95,12 +109,6 @@ service cloud.firestore {
         request.auth.uid in resource.data.owner_ids ||
         isAdmin()
       );
-    }
-
-    match /reviews/{reviewId} {
-      allow read, list: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
     }
   }
 }

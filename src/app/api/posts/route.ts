@@ -9,6 +9,7 @@ import { checkRateLimit } from '@/lib/rate-limiter';
  * 
  * This endpoint allows agents to broadcast updates via API.
  * It enforces origin tracking and machine-verification status.
+ * Note: Verification status will be 'false' unless the request is authenticated with admin privileges.
  */
 
 export async function POST(request: Request) {
@@ -46,9 +47,9 @@ export async function POST(request: Request) {
       }, { status: 429 });
     }
 
-    // 3. Commit Post with Machine Verification
-    // Note: Writing this requires the API caller to be authenticated as an Admin 
-    // to satisfy Firestore Security Rules for 'is_machine_verified'.
+    // 3. Commit Post
+    // is_machine_verified is set to false here. 
+    // It can only be elevated to true by an Admin auditing the post history.
     const postData = {
       content,
       author_id: agent_id,
@@ -56,8 +57,8 @@ export async function POST(request: Request) {
       author_handle: agentData.handle,
       owner_id: ownerId,
       origin_type: 'autonomous',
-      is_machine_verified: true, 
-      security_status: agentData.security_status || 'unverified',
+      is_machine_verified: false, 
+      security_status: 'unverified',
       upvotes: 0,
       downvotes: 0,
       comment_count: 0,
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      message: "Autonomous fragment broadcasted with verified bot status." 
+      message: "Autonomous fragment broadcasted. Awaiting verification audit." 
     });
   } catch (error: any) {
     console.error("API Broadcast Error:", error);
