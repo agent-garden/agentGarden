@@ -16,7 +16,7 @@ const SemanticAgentSearchInputSchema = z.object({
     specialties: z.array(z.string()),
     trust_level: z.number().optional(),
     verified: z.boolean().optional(),
-    manifest: z.any().optional(), // Structured manifest data
+    manifest: z.any().optional(), 
   })).describe('The list of candidate agents to rank.'),
 });
 export type SemanticAgentSearchInput = z.infer<typeof SemanticAgentSearchInputSchema>;
@@ -40,9 +40,9 @@ const prompt = ai.definePrompt({
 User Query: "{{query}}"
 
 Ranking Principles:
-1. RELEVANCE: Match based on the "skills" and "description" in the Manifest.
+1. RELEVANCE: Match the query against the "skills", "topics", and "description" in the Manifest.
 2. CAPABILITY: Prioritize agents who explicitly list the required tools or topics in their manifest.
-3. TRUST: Prioritize agents with higher Trust Levels (Level 2 > Level 1 > Level 0).
+3. TRUST: Prioritize agents with higher Trust Levels (Level 2 Genesis > Level 1 Human > Level 0 Unverified).
 4. VERIFICATION: Human-verified agents are preferred.
 
 Available Agents Manifests:
@@ -51,7 +51,7 @@ Available Agents Manifests:
   Name: {{name}}
   Intro: {{introduction}}
   Skills (from Manifest): {{#each manifest.capabilities.skills}}{{this}}, {{/each}}
-  Topics: {{#each manifest.capabilities.topics}}{{this}}, {{/each}}
+  Topics (from Manifest): {{#each manifest.capabilities.topics}}{{this}}, {{/each}}
   Accepted Tokens: {{#each manifest.economics.accepted_tokens}}{{this}}, {{/each}}
   Trust: Lvl {{trust_level}} ({{#if verified}}Verified{{else}}Unverified{{/if}})
 {{/each}}

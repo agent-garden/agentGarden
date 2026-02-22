@@ -14,8 +14,8 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
-import { AGENT_CATEGORIES, type UserProfile } from "@/app/lib/agents";
+import { useUser } from "@/firebase";
+import { AGENT_CATEGORIES } from "@/app/lib/agents";
 import { generateAgentKeys } from "@/app/lib/crypto";
 import { registerAgent } from "@/app/actions/register-agent";
 
@@ -35,7 +35,7 @@ export default function SubmitAgentPage() {
     masterPrompt: "",
     category: "General",
     specialties: "",
-    stack: "Gemini 2.0 Flash",
+    stack: "Gemini 2.5 Flash",
     endpointUrl: "",
     publicApiEnabled: true,
     // Manifest Fields
@@ -64,10 +64,11 @@ export default function SubmitAgentPage() {
 
     setIsSubmitting(true);
     try {
+      // 1. Generate Secure Identity (RSA-2048)
       const keys = await generateAgentKeys();
       setGeneratedKeys({ public: keys.publicKeyBase64, private: keys.privateKeyBase64 });
 
-      // Construct the Agent Manifest Standard
+      // 2. Construct the Agent Manifest Standard JSON
       const manifest = {
         identity: {
           agent_name: formData.name,
@@ -96,6 +97,7 @@ export default function SubmitAgentPage() {
         }
       };
 
+      // 3. Register with Backend
       const result = await registerAgent({
         name: formData.name,
         handle: formData.handle,
@@ -132,7 +134,7 @@ export default function SubmitAgentPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center pb-20">
-      <header className="w-full max-w-7xl px-6 py-8 border-b">
+      <header className="w-full max-w-7xl px-6 py-8 border-b bg-white/50 backdrop-blur-md sticky top-0 z-50">
         <Link href="/" className="flex items-center gap-2 group">
           <Leaf className="text-primary w-8 h-8 group-hover:rotate-12 transition-transform" />
           <h1 className="font-headline text-3xl text-primary tracking-tight">Agent Garden</h1>
@@ -144,14 +146,14 @@ export default function SubmitAgentPage() {
           <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </Link>
 
-        <div className="space-y-3">
-          <h2 className="font-headline text-5xl text-foreground">Manifest New Specialist</h2>
+        <div className="space-y-3 text-center md:text-left">
+          <h2 className="font-headline text-5xl text-foreground leading-none">Manifest New Specialist</h2>
           <p className="text-muted-foreground text-lg">Define the machine standard for autonomous coordination.</p>
         </div>
 
         <form onSubmit={handleSubmit}>
           <Tabs defaultValue="identity" className="w-full space-y-8">
-            <TabsList className="grid w-full grid-cols-3 rounded-full h-14 bg-muted/50 p-1">
+            <TabsList className="grid w-full grid-cols-3 rounded-full h-14 bg-muted/50 p-1 border">
               <TabsTrigger value="identity" className="rounded-full gap-2 font-headline text-lg"><Cpu className="w-5 h-5" /> Identity</TabsTrigger>
               <TabsTrigger value="capabilities" className="rounded-full gap-2 font-headline text-lg"><Sparkles className="w-5 h-5" /> Capabilities</TabsTrigger>
               <TabsTrigger value="economics" className="rounded-full gap-2 font-headline text-lg"><Coins className="w-5 h-5" /> Economics</TabsTrigger>
@@ -160,8 +162,8 @@ export default function SubmitAgentPage() {
             <TabsContent value="identity">
               <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm p-8 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2"><Label>Agent Display Name</Label><Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} /></div>
-                  <div className="space-y-2"><Label>Public Handle (@handle)</Label><Input required value={formData.handle} onChange={(e) => setFormData({...formData, handle: e.target.value})} /></div>
+                  <div className="space-y-2"><Label>Agent Display Name</Label><Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g. Sentinel Bot" /></div>
+                  <div className="space-y-2"><Label>Public Handle (@handle)</Label><Input required value={formData.handle} onChange={(e) => setFormData({...formData, handle: e.target.value})} placeholder="@sentinel_bot" /></div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2"><Label>Version (e.g., 1.0.0)</Label><Input required value={formData.version} onChange={(e) => setFormData({...formData, version: e.target.value})} /></div>
@@ -173,9 +175,10 @@ export default function SubmitAgentPage() {
                     </Select>
                   </div>
                 </div>
-                <div className="space-y-2"><Label>Public Introduction</Label><Textarea required value={formData.introduction} onChange={(e) => setFormData({...formData, introduction: e.target.value})} /></div>
+                <div className="space-y-2"><Label>Public Introduction (Search Signal)</Label><Textarea required value={formData.introduction} onChange={(e) => setFormData({...formData, introduction: e.target.value})} placeholder="Describe what this agent does for others..." /></div>
                 <div className="space-y-2 p-6 bg-primary/5 rounded-2xl border border-primary/10">
                   <Label className="font-bold flex items-center gap-2 text-primary"><Lock className="w-5 h-5" /> Internal System Instruction (Machine DNA)</Label>
+                  <p className="text-[10px] text-muted-foreground mb-2">This is the hidden prompt that governs agent behavior. Use with caution.</p>
                   <Textarea required className="min-h-[150px] font-mono text-sm" value={formData.masterPrompt} onChange={(e) => setFormData({...formData, masterPrompt: e.target.value})} />
                 </div>
               </Card>
@@ -183,10 +186,10 @@ export default function SubmitAgentPage() {
 
             <TabsContent value="capabilities">
               <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm p-8 space-y-6">
-                <div className="space-y-2"><Label>Specialties / Skills (comma-separated)</Label><Input required placeholder="typescript, blockchain, audit" value={formData.specialties} onChange={(e) => setFormData({...formData, specialties: e.target.value})} /></div>
-                <div className="space-y-2"><Label>Topics of Expertise</Label><Input required placeholder="Finance, Web3, Architecture" value={formData.topics} onChange={(e) => setFormData({...formData, topics: e.target.value})} /></div>
+                <div className="space-y-2"><Label>Skills (comma-separated)</Label><Input required placeholder="typescript, blockchain, audit, nextjs" value={formData.specialties} onChange={(e) => setFormData({...formData, specialties: e.target.value})} /></div>
+                <div className="space-y-2"><Label>Topics of Expertise</Label><Input required placeholder="Finance, Web3, Architecture, Security" value={formData.topics} onChange={(e) => setFormData({...formData, topics: e.target.value})} /></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2"><Label>Supported Languages</Label><Input value={formData.languages} onChange={(e) => setFormData({...formData, languages: e.target.value})} /></div>
+                  <div className="space-y-2"><Label>Supported Languages</Label><Input value={formData.languages} onChange={(e) => setFormData({...formData, languages: e.target.value})} placeholder="en, es, fr" /></div>
                   <div className="space-y-2"><Label>AI Model Stack</Label><Input value={formData.stack} onChange={(e) => setFormData({...formData, stack: e.target.value})} /></div>
                 </div>
               </Card>
@@ -195,9 +198,9 @@ export default function SubmitAgentPage() {
             <TabsContent value="economics">
               <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm p-8 space-y-6">
                 <div className="flex items-center gap-2 mb-4"><Coins className="text-primary w-6 h-6" /><h3 className="font-headline text-2xl">Financial Settlement Standard</h3></div>
-                <div className="space-y-2"><Label>Payment Address (Solana/Ethereum)</Label><Input placeholder="Your wallet address..." value={formData.paymentAddress} onChange={(e) => setFormData({...formData, paymentAddress: e.target.value})} /></div>
+                <div className="space-y-2"><Label>Payment Address (Solana/Ethereum)</Label><Input placeholder="0x... or Wallet Address" value={formData.paymentAddress} onChange={(e) => setFormData({...formData, paymentAddress: e.target.value})} /></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2"><Label>Accepted Tokens (comma-separated)</Label><Input value={formData.acceptedTokens} onChange={(e) => setFormData({...formData, acceptedTokens: e.target.value})} /></div>
+                  <div className="space-y-2"><Label>Accepted Tokens (comma-separated)</Label><Input value={formData.acceptedTokens} onChange={(e) => setFormData({...formData, acceptedTokens: e.target.value})} placeholder="USDC, SOL, ETH" /></div>
                   <div className="space-y-2"><Label>Base Task Fee (Cents)</Label><Input type="number" value={formData.baseFee} onChange={(e) => setFormData({...formData, baseFee: e.target.value})} /></div>
                 </div>
                 <div className="pt-6 border-t flex items-center justify-between">
@@ -216,15 +219,16 @@ export default function SubmitAgentPage() {
       </main>
 
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl rounded-3xl p-8">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-headline flex items-center gap-2"><Key className="text-primary w-6 h-6" /> Secure Identity Generated</DialogTitle>
+            <DialogTitle className="text-3xl font-headline flex items-center gap-2"><Key className="text-primary w-8 h-8" /> Secure Identity Generated</DialogTitle>
+            <DialogDescription className="text-base">The specialist has been initialized with a unique cryptographic identity.</DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3"><AlertCircle className="text-amber-600 shrink-0 w-5 h-5" /><p className="text-sm text-amber-900 leading-relaxed font-medium">Download the Private Key now. It is the only way to unlock secure tunnels sent to this specialist.</p></div>
-            <Button onClick={downloadPrivateKey} variant="outline" className="w-full h-12 rounded-xl gap-2 font-bold border-2 border-primary/20"><Download className="w-4 h-4" /> Download private_key.txt</Button>
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex gap-3"><AlertCircle className="text-amber-600 shrink-0 w-6 h-6" /><p className="text-sm text-amber-900 leading-relaxed font-medium">Download the Private Key now. It is stored in memory and will be lost forever if you close this window without saving. This is the only way to unlock secure tunnels sent to this specialist.</p></div>
+            <Button onClick={downloadPrivateKey} variant="outline" className="w-full h-14 rounded-2xl gap-3 font-bold border-2 border-primary/20 hover:bg-primary/5 transition-all text-lg"><Download className="w-5 h-5" /> Download private_key.txt</Button>
           </div>
-          <DialogFooter><Button onClick={finalizeRegistration} className="w-full h-12 rounded-full">Manifest Verified</Button></DialogFooter>
+          <DialogFooter><Button onClick={finalizeRegistration} className="w-full h-14 rounded-full text-xl font-headline">Manifest Verified</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
