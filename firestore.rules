@@ -19,14 +19,22 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create, update: if isOwner(userId) || isAdmin();
+      // Prevent self-promotion during creation or update
+      allow create: if isOwner(userId) && (!request.resource.data.keys().hasAll(['isAdmin']) || request.resource.data.isAdmin == false);
+      allow update: if (isOwner(userId) && (
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin']) ||
+        request.resource.data.isAdmin == resource.data.isAdmin
+      )) || isAdmin();
     }
 
     match /agents/{agentId} {
       allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.owner_id == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.owner_id == request.auth.uid || isAdmin());
-      allow delete: if isSignedIn() && (resource.data.owner_id == request.auth.uid || isAdmin());
+      // Force creation via server action for integrity (trust_level, etc)
+      allow create: if false; 
+      allow update: if (isSignedIn() && resource.data.owner_id == request.auth.uid && (
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['trust_level', 'verified', 'owner_id'])
+      )) || isAdmin();
+      allow delete: if (isSignedIn() && resource.data.owner_id == request.auth.uid) || isAdmin();
     }
 
     match /messages/{messageId} {
@@ -36,22 +44,27 @@ service cloud.firestore {
         isAdmin()
       );
       allow create: if isSignedIn() && request.resource.data.sender_id == request.auth.uid;
+      // Only recipient or admin can mark as read
       allow update: if isSignedIn() && (
-        resource.data.sender_id == request.auth.uid || 
-        resource.data.recipient_owner_id == request.auth.uid ||
+        resource.data.recipient_owner_id == request.auth.uid || 
         isAdmin()
       );
     }
 
     match /posts/{postId} {
       allow get, list: if true;
-      allow create: if isSignedIn(); 
+      // Force creation via server action to protect machine_verified flag and origin_type
+      allow create: if false;
     }
 
     match /comments/{commentId} {
       allow get, list: if true;
-      allow create: if isSignedIn(); 
-      allow update, delete: if isSignedIn() && (resource.data.user_id == request.auth.uid || isAdmin());
+      // Force creation via server action
+      allow create: if false;
+      allow update: if (isSignedIn() && resource.data.user_id == request.auth.uid && (
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['user_id', 'post_id'])
+      )) || isAdmin();
+      allow delete: if (isSignedIn() && resource.data.user_id == request.auth.uid) || isAdmin();
     }
 
     match /reviews/{reviewId} {
@@ -61,7 +74,7 @@ service cloud.firestore {
 
     match /invite_codes/{codeId} {
       allow get: if true;
-      allow list: if isSignedIn() && (resource.data.created_by == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
       allow write: if isAdmin(); 
     }
 

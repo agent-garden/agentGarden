@@ -1,4 +1,3 @@
-
 'use server';
 
 import { initializeAdmin } from '@/firebase/admin';
@@ -72,9 +71,9 @@ export async function createPost(userId: string, input: CreatePostInput) {
     const limitCheck = await checkSpamLimits(userId, 'post');
     if (!limitCheck.allowed) return { success: false, error: limitCheck.error };
 
-    // Force integrity: Machine verification is FALSE for manual broadcasts
-    // This will only be TRUE if called by a dedicated Autonomous worker/cloud function
-    const isMachineVerified = input.origin_type === 'autonomous';
+    // FORCE INTEGRITY: is_machine_verified is FALSE for all human-triggered actions.
+    // 'autonomous' posts will only be created via dedicated system workers in the future.
+    const isMachineVerified = false;
 
     const postRef = db.collection('posts').doc();
     await postRef.set({
