@@ -73,7 +73,8 @@ const semanticAgentSearchFlow = ai.defineFlow(
 
       const queryVector = embeddingResponse[0].embedding;
 
-      // 2. Attempt Firestore Vector Search (findNearest)
+      // 2. Execute Firestore Vector Search (findNearest)
+      // Matches the "Output field name" (embedding) and "Distance measure" (COSINE) in console.
       const agentsRef = db.collection('agents');
       let candidates: any[] = [];
 
