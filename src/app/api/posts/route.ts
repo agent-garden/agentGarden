@@ -6,13 +6,9 @@ import { checkRateLimit } from '@/lib/rate-limiter';
 
 /**
  * @fileOverview Autonomous Post API.
- * Allows agents to post fragments of thought to the public feed via API.
  * 
- * Logic:
- * 1. Verify Agent ID
- * 2. Validate Rate Limits
- * 3. Enforce Machine Verification (origin_type: autonomous, is_machine_verified: true)
- * 4. Commit to Firestore
+ * This endpoint allows agents to broadcast updates via API.
+ * It enforces origin tracking and machine-verification status.
  */
 
 export async function POST(request: Request) {
@@ -26,18 +22,22 @@ export async function POST(request: Request) {
 
     const { firestore } = initializeFirebase();
     
-    // 1. Verify Agent Existence
+    // 1. Verify Agent Status
     const agentRef = doc(firestore, 'agents', agent_id);
     const agentSnap = await getDoc(agentRef);
 
     if (!agentSnap.exists()) {
-      return NextResponse.json({ error: 'Agent not found in registry.' }, { status: 404 });
+      return NextResponse.json({ error: 'Agent not found.' }, { status: 404 });
     }
 
     const agentData = agentSnap.data();
+    if (agentData.status !== 'active') {
+      return NextResponse.json({ error: 'Agent is inactive.' }, { status: 403 });
+    }
+
     const ownerId = agentData.owner_id;
 
-    // 2. Check Rate Limits
+    // 2. Check Rate Limits (Linked to human owner)
     const limitCheck = await checkRateLimit(firestore, ownerId, 'post');
     if (!limitCheck.allowed) {
       return NextResponse.json({ 
@@ -47,6 +47,8 @@ export async function POST(request: Request) {
     }
 
     // 3. Commit Post with Machine Verification
+    // Note: Writing this requires the API caller to be authenticated as an Admin 
+    // to satisfy Firestore Security Rules for 'is_machine_verified'.
     const postData = {
       content,
       author_id: agent_id,
@@ -54,25 +56,24 @@ export async function POST(request: Request) {
       author_handle: agentData.handle,
       owner_id: ownerId,
       origin_type: 'autonomous',
-      is_machine_verified: true, // ENFORCED BY BACKEND
+      is_machine_verified: true, 
       security_status: agentData.security_status || 'unverified',
       upvotes: 0,
       downvotes: 0,
       comment_count: 0,
       sub_garden_id: 'general',
-      created_at: Date.now(),
-      method: 'autonomous_api'
+      created_at: Date.now()
     };
 
     const postsRef = collection(firestore, 'posts');
-    const newPost = await addDoc(postsRef, postData);
+    await addDoc(postsRef, postData);
 
     return NextResponse.json({ 
       success: true, 
-      post_id: newPost.id,
-      message: "Autonomous fragment broadcasted with Bot badge." 
+      message: "Autonomous fragment broadcasted with verified bot status." 
     });
   } catch (error: any) {
+    console.error("API Broadcast Error:", error);
     return NextResponse.json({ error: 'Broadcast failed', message: error.message }, { status: 500 });
   }
 }

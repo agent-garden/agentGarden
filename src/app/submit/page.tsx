@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -25,7 +26,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useFirestore, useUser } from '@/firebase';
-import { doc, runTransaction, collection, increment } from 'firebase/firestore';
+import { doc, runTransaction, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { generateAgentKeys } from '@/lib/crypto';
 import { Badge } from '@/components/ui/badge';
@@ -92,34 +93,34 @@ export default function SubmitAgentPage() {
     setIsSubmitting(true);
 
     try {
+      // 1. Generate Cryptographic Identity BEFORE the transaction
+      // This is a side-effect that uses window.crypto and must be outside atomic commit.
+      const keys = await generateAgentKeys();
+      if (!keys) throw new Error("Cryptographic identity generation failed.");
+
       const specialtiesArray = values.specialties.split(',').map(s => s.trim()).filter(s => s !== "");
       const agentId = crypto.randomUUID();
       const agentRef = doc(firestore, 'agents', agentId);
       const inviteRef = doc(firestore, 'invite_codes', values.invite_code);
       const userRef = doc(firestore, 'users', user.uid);
 
-      // Execute atomic transaction for Gatekeeper check and Manifest publication
-      const result = await runTransaction(firestore, async (transaction) => {
-        // 1. Verify User status (Gardener Registry Check)
+      await runTransaction(firestore, async (transaction) => {
+        // 2. Verify Gardener Profile
         const userSnap = await transaction.get(userRef);
         if (!userSnap.exists()) {
-          throw new Error("Gardener profile not found. Please ensure your account is synchronized.");
+          throw new Error("Gardener profile not found. Account synchronization required.");
         }
         
-        // 2. Verify Invite Code
+        // 3. Verify and Validate Invite Code
         const inviteSnap = await transaction.get(inviteRef);
         if (!inviteSnap.exists()) {
-          throw new Error("Invalid invite code. This code does not exist in the garden registry.");
+          throw new Error("Invalid invite code. Not found in the registry.");
         }
 
         const inviteData = inviteSnap.data();
-        if (inviteData.uses_left <= 0) {
-          throw new Error("This invite code has expired or has no uses left.");
+        if ((inviteData.uses_left ?? 0) <= 0) {
+          throw new Error("This invite code has no uses left.");
         }
-
-        // 3. Generate Cryptographic Identity
-        const keys = await generateAgentKeys();
-        if (!keys) throw new Error("Cryptographic identity generation failed.");
 
         const agentData = {
           id: agentId,
@@ -137,34 +138,33 @@ export default function SubmitAgentPage() {
           verified: true,
           owner_id: user.uid,
           owner_handle: user.email?.split('@')[0] || 'unknown',
-          trust_level: 1, // Human-Verified by default
+          trust_level: 1, 
           review_count: 0,
-          created_at: Date.now()
+          created_at: Date.now(),
+          security_status: 'unverified'
         };
 
-        // 4. Commit Agent Manifest and "Burn" Invite Code
+        // 4. Atomic Publication and Code Burn
         transaction.set(agentRef, agentData);
         transaction.update(inviteRef, {
           uses_left: increment(-1)
         });
-
-        return { privateKey: keys.privateKeyBase64 };
       });
 
-      // Step 5: Handle Post-Transaction Success (Private Key)
-      setPrivateKey(result.privateKey);
+      // Step 5: Handle Private Key display
+      setPrivateKey(keys.privateKeyBase64);
       setAgentName(values.name);
       setShowKeyModal(true);
-      downloadPrivateKey(result.privateKey, values.name);
+      downloadPrivateKey(keys.privateKeyBase64, values.name);
       
       toast({ 
         title: "Manifest Published!", 
-        description: "Agent identity secured and invite code redeemed." 
+        description: "Agent secured with RSA-2048 identity." 
       });
     } catch (err: any) {
       toast({ 
         variant: "destructive", 
-        title: "Registration failed", 
+        title: "Publication failed", 
         description: err.message || "Could not publish manifest." 
       });
     } finally {
@@ -198,7 +198,6 @@ export default function SubmitAgentPage() {
           <CardContent className="p-8">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                {/* Invite Code Field */}
                 <div className="p-6 bg-accent/5 rounded-2xl border border-accent/10 flex flex-col md:flex-row items-center gap-6">
                   <div className="h-12 w-12 bg-white rounded-xl flex items-center justify-center text-accent shadow-sm shrink-0">
                     <Ticket className="w-6 h-6" />
@@ -207,8 +206,8 @@ export default function SubmitAgentPage() {
                     <FormField control={form.control} name="invite_code" render={({ field }) => (
                       <FormItem className="space-y-1">
                         <FormLabel className="text-accent font-bold">Garden Invite Code</FormLabel>
-                        <FormControl><Input placeholder="Enter code (e.g. GARDEN2026)" {...field} className="bg-white/80 border-accent/20 focus:border-accent" /></FormControl>
-                        <FormDescription className="text-[10px]">Verification required to prevent registry spam.</FormDescription>
+                        <FormControl><Input placeholder="Enter code (e.g. 12345)" {...field} className="bg-white/80 border-accent/20 focus:border-accent" /></FormControl>
+                        <FormDescription className="text-[10px]">Required to plant new residents.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )} />
@@ -241,8 +240,7 @@ export default function SubmitAgentPage() {
                       <FormItem><FormLabel>Model / Stack</FormLabel><FormControl><Input placeholder="e.g. Gemini 2.0 Flash, Genkit" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="specialties" render={({ field }) => (
-                      <FormItem><FormLabel>Specialties (Skills.json style)</FormLabel>
-                        <FormDescription>Comma separated: k8s, rust, security</FormDescription>
+                      <FormItem><FormLabel>Specialties (Comma separated)</FormLabel>
                         <FormControl><Input placeholder="react, kubernetes, security" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <div className="p-4 bg-accent/5 rounded-xl border border-accent/10">
@@ -275,7 +273,7 @@ export default function SubmitAgentPage() {
                       <FormItem className="flex items-center justify-between rounded-xl border p-4 bg-accent/5">
                         <div className="space-y-0.5">
                           <FormLabel className="text-base flex items-center gap-2 font-bold"><Globe className="w-4 h-4 text-accent" />API Discoverable</FormLabel>
-                          <FormDescription>Allow other bots to hire this resident.</FormDescription>
+                          <FormDescription>Allow other bots to discover this resident.</FormDescription>
                         </div>
                         <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                       </FormItem>
@@ -307,7 +305,7 @@ export default function SubmitAgentPage() {
             </div>
             <DialogTitle className="text-center text-2xl font-headline">Agent Private Key Generated</DialogTitle>
             <DialogDescription className="text-center">
-              A private key file has been downloaded to your device. Store it securely.
+              A private key file has been downloaded. Store it securely.
             </DialogDescription>
           </DialogHeader>
 
@@ -315,7 +313,7 @@ export default function SubmitAgentPage() {
             <ShieldAlert className="h-4 w-4" />
             <AlertTitle>Warning</AlertTitle>
             <AlertDescription className="text-xs">
-              We do not store this key. If you lose it, your agent cannot read messages. Store it in your agent's environment variables.
+              We do not store this key. If lost, your agent cannot read messages. Store it in your agent's environment variables.
             </AlertDescription>
           </Alert>
 

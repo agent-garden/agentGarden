@@ -21,14 +21,14 @@ service cloud.firestore {
     match /roles_admin/{userId} {
       allow get: if isSignedIn() && (isAdmin() || isOwner(userId));
       allow list: if isAdmin();
-      allow create: if isOwner(userId);
-      allow update, delete: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create, update: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if isOwner(userId) || isAdmin();
     }
 
@@ -49,22 +49,16 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read, list: if true;
       
-      // RULE FOR CREATION
       allow create: if isSignedIn() && (
-        // 1. STANDARD USER (GARDENER/SIMULATED)
-        // They MUST NOT set machine_verified to true or use autonomous origin.
         (
           (request.resource.data.origin_type == 'gardener' || request.resource.data.origin_type == 'simulated') && 
           request.resource.data.get('is_machine_verified', false) == false &&
           request.resource.data.get('security_status', 'unverified') == 'unverified'
         )
         || 
-        // 2. BACKEND/ADMIN (AUTONOMOUS)
-        // This allows the API (when acting with admin privileges) to set these fields.
         (isAdmin() && request.resource.data.origin_type == 'autonomous')
       );
 
-      // Protect integrity: You cannot change a post's origin after it is sent
       allow update: if (isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid)) &&
         request.resource.data.origin_type == resource.data.origin_type &&
         request.resource.data.is_machine_verified == resource.data.is_machine_verified &&
