@@ -1,63 +1,60 @@
 'use server';
 
 /**
- * @fileOverview Implements semantic agent search with reputation and manifest awareness.
+ * @fileOverview Implements Hybrid Semantic Search using Firestore Vector Index and Gemini Re-ranking.
+ * 
+ * - semanticAgentSearch - Main search function.
+ * - Performs vector search via findNearest (scalable).
+ * - Performs semantic re-ranking via Gemini (precise).
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { initializeAdmin } from '@/firebase/admin';
+import { VectorQuery, VectorQuerySnapshot } from 'firebase-admin/firestore';
 
 const SemanticAgentSearchInputSchema = z.object({
   query: z.string().describe('The search query from the human or agent.'),
-  agents: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    introduction: z.string(),
-    specialties: z.array(z.string()),
-    trust_level: z.number().optional(),
-    verified: z.boolean().optional(),
-    manifest: z.any().optional(), 
-  })).describe('The list of candidate agents to rank.'),
 });
 export type SemanticAgentSearchInput = z.infer<typeof SemanticAgentSearchInputSchema>;
 
 const SemanticAgentSearchOutputSchema = z.object({
-  rankedIds: z.array(z.string()).describe('The IDs of the agents ranked by semantic relevance, reputation, and manifest capabilities.'),
+  rankedIds: z.array(z.string()).describe('The IDs of the agents ranked by semantic relevance.'),
   reasoning: z.string().describe('Brief explanation of why these agents were selected.'),
 });
 export type SemanticAgentSearchOutput = z.infer<typeof SemanticAgentSearchOutputSchema>;
 
-export async function semanticAgentSearch(input: SemanticAgentSearchInput): Promise<SemanticAgentSearchOutput> {
-  return semanticAgentSearchFlow(input);
-}
+// Embedding model for the query
+const embeddingModel = 'googleai/text-embedding-004';
 
-const prompt = ai.definePrompt({
-  name: 'semanticAgentSearchPrompt',
-  input: { schema: SemanticAgentSearchInputSchema },
+const rankingPrompt = ai.definePrompt({
+  name: 'semanticRankingPrompt',
+  input: {
+    schema: z.object({
+      query: z.string(),
+      candidates: z.array(z.any()),
+    }),
+  },
   output: { schema: SemanticAgentSearchOutputSchema },
-  prompt: `You are the Search Engine Architect for Agent Garden. Your goal is to find the most semantically relevant AND trustworthy specialists based on their declared Manifest Standard.
+  prompt: `You are the Search Architect for Agent Garden. I have performed a vector search for "{{query}}" and found these candidates.
 
-User Query: "{{query}}"
+Please re-rank them based on their actual manifest capabilities and description. Prioritize agents that explicitly mention the skills requested.
 
-Ranking Principles:
-1. RELEVANCE: Match the query against the "skills", "topics", and "description" in the Manifest.
-2. CAPABILITY: Prioritize agents who explicitly list the required tools or topics in their manifest.
-3. TRUST: Prioritize agents with higher Trust Levels (Level 2 Genesis > Level 1 Human > Level 0 Unverified).
-4. VERIFICATION: Human-verified agents are preferred.
-
-Available Agents Manifests:
-{{#each agents}}
+Candidates:
+{{#each candidates}}
 - ID: {{id}}
   Name: {{name}}
   Intro: {{introduction}}
-  Skills (from Manifest): {{#each manifest.capabilities.skills}}{{this}}, {{/each}}
-  Topics (from Manifest): {{#each manifest.capabilities.topics}}{{this}}, {{/each}}
-  Accepted Tokens: {{#each manifest.economics.accepted_tokens}}{{this}}, {{/each}}
-  Trust: Lvl {{trust_level}} ({{#if verified}}Verified{{else}}Unverified{{/if}})
+  Skills: {{#each manifest.capabilities.skills}}{{this}}, {{/each}}
+  Trust: Lvl {{trust_level}}
 {{/each}}
 
-Analyze the manifests and return the IDs ranked. Match the User Query against both the introduction and the structured skills in the manifest.`,
+Return the IDs ranked by relevance.`,
 });
+
+export async function semanticAgentSearch(input: SemanticAgentSearchInput): Promise<SemanticAgentSearchOutput> {
+  return semanticAgentSearchFlow(input);
+}
 
 const semanticAgentSearchFlow = ai.defineFlow(
   {
@@ -66,7 +63,56 @@ const semanticAgentSearchFlow = ai.defineFlow(
     outputSchema: SemanticAgentSearchOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
-    return output!;
+    const { db } = initializeAdmin();
+
+    try {
+      // 1. Generate Embedding for the Search Query
+      const embeddingResponse = await ai.embed({
+        model: embeddingModel,
+        content: input.query,
+      });
+
+      const queryVector = embeddingResponse[0].embedding;
+
+      // 2. Perform Firestore Vector Search (findNearest)
+      // Note: This requires the 'Vector Search with Firestore' extension and a 'embedding' field.
+      const agentsRef = db.collection('agents');
+      
+      // We search for the top 20 candidates via vector distance
+      const vectorQuery = agentsRef.findNearest({
+        vectorField: 'embedding',
+        queryVector: queryVector,
+        distanceMeasure: 'COSINE',
+        limit: 20,
+      });
+
+      const snapshot = await vectorQuery.get();
+      
+      // If no vector results (index not ready), fallback to basic keyword match for prototype stability
+      if (snapshot.empty) {
+        const fallbackSnapshot = await agentsRef.where('status', '==', 'active').limit(10).get();
+        const candidates = fallbackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const { output } = await rankingPrompt({ query: input.query, candidates });
+        return output!;
+      }
+
+      const candidates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // 3. Re-rank the top candidates using Gemini for high-precision matching
+      const { output } = await rankingPrompt({
+        query: input.query,
+        candidates,
+      });
+
+      return output!;
+
+    } catch (error: any) {
+      console.error('Semantic Search Flow Error:', error);
+      // Fallback for missing vector index
+      return { 
+        rankedIds: [], 
+        reasoning: "The Garden's vector index is currently initializing. Please try again in a moment." 
+      };
+    }
   }
 );

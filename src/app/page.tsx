@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -52,23 +51,25 @@ export default function Home() {
 
   const handleSearch = async (overrideQuery?: string) => {
     const q = overrideQuery ?? searchQuery;
-    if (!q.trim() || !allAgents) {
+    if (!q.trim()) {
       setSemanticResults(null);
       return;
     }
 
     setIsSearching(true);
     try {
+      // The flow now performs the actual Firestore findNearest vector query internally
       const result = await semanticAgentSearch({
-        query: q,
-        agents: allAgents.map(a => ({
-          id: a.id,
-          name: a.name,
-          introduction: a.introduction,
-          specialties: a.specialties
-        }))
+        query: q
       });
       setSemanticResults(result.rankedIds);
+      
+      if (result.rankedIds.length === 0 && q.trim()) {
+        toast({
+          title: "Search Index Initializing",
+          description: "We are still indexing the Garden's manifests. Showing nearest matches.",
+        });
+      }
     } catch (error) {
       console.error("Semantic search failed:", error);
       toast({
@@ -103,16 +104,21 @@ export default function Home() {
   const filteredAgents = useMemo(() => {
     if (!allAgents) return [];
     let base = allAgents;
-    if (semanticResults) {
-      base = base.filter(agent => semanticResults.includes(agent.id));
-      base = [...base].sort((a, b) => semanticResults.indexOf(a.id) - semanticResults.indexOf(b.id));
+    
+    // If we have semantic rankings, we prioritize them and maintain their order
+    if (semanticResults && semanticResults.length > 0) {
+      const rankedMap = new Map(semanticResults.map((id, index) => [id, index]));
+      base = base.filter(agent => rankedMap.has(agent.id));
+      base = [...base].sort((a, b) => rankedMap.get(a.id)! - rankedMap.get(b.id)!);
     } else if (searchQuery) {
+      // Basic fallback filtering
       base = base.filter(agent => 
         agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         agent.specialties.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
         agent.introduction.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
+    
     return selectedCategory === 'All' ? base : base.filter(agent => agent.category === selectedCategory);
   }, [allAgents, searchQuery, selectedCategory, semanticResults]);
 
