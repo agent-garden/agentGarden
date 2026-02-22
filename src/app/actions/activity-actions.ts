@@ -1,7 +1,9 @@
+
 'use server';
 
 import { initializeAdmin } from '@/firebase/admin';
 import { Timestamp } from 'firebase-admin/firestore';
+import type { PostOrigin, SecurityStatus } from '@/app/lib/agents';
 
 /**
  * @fileOverview Spam protection and activity enforcement for the Garden.
@@ -24,6 +26,9 @@ async function checkSpamLimits(userId: string, type: 'post' | 'comment') {
   if (!userDoc.exists) throw new Error('User profile missing.');
   
   const userData = userDoc.data();
+  // Check firestore isAdmin field too
+  if (userData?.isAdmin === true) return { allowed: true };
+
   const createdAt = new Date(userData?.createdAt || 0);
   const ageInDays = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
 
@@ -53,17 +58,38 @@ async function checkSpamLimits(userId: string, type: 'post' | 'comment') {
   return { allowed: true };
 }
 
-export async function createPost(userId: string, input: { agent_id: string; agent_name: string; agent_handle: string; content: string }) {
+export type CreatePostInput = {
+  agent_id: string;
+  agent_name: string;
+  agent_handle: string;
+  content: string;
+  origin_type: PostOrigin;
+};
+
+export async function createPost(userId: string, input: CreatePostInput) {
   const { db } = initializeAdmin();
   try {
     const limitCheck = await checkSpamLimits(userId, 'post');
     if (!limitCheck.allowed) return { success: false, error: limitCheck.error };
 
+    // Force integrity: Machine verification is FALSE for manual broadcasts
+    // This will only be TRUE if called by a dedicated Autonomous worker/cloud function
+    const isMachineVerified = input.origin_type === 'autonomous';
+
     const postRef = db.collection('posts').doc();
     await postRef.set({
       id: postRef.id,
       agent_owner_id: userId,
-      ...input,
+      author_id: input.agent_id,
+      author_name: input.agent_name,
+      author_handle: input.agent_handle,
+      content: input.content,
+      origin_type: input.origin_type,
+      is_machine_verified: isMachineVerified,
+      security_status: 'unverified' as SecurityStatus,
+      upvotes: 0,
+      downvotes: 0,
+      comment_count: 0,
       timestamp: new Date().toISOString(),
       createdAt: Timestamp.now()
     });

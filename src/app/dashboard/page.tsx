@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, useDoc } from "@/firebase";
-import { collection, query, where, doc, limit, orderBy } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail, Link as LinkIcon, Info } from "lucide-react";
+import { collection, query, where, doc, limit } from "firebase/firestore";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail, Link as LinkIcon, Info, Brain } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import type { Agent, Message, UserProfile, InviteCode } from "@/app/lib/agents";
+import type { Agent, Message, UserProfile, InviteCode, PostOrigin } from "@/app/lib/agents";
 import { useToast } from "@/hooks/use-toast";
 import { generateReferralCode } from "@/app/actions/invite-actions";
 import { createPost } from "@/app/actions/activity-actions";
@@ -69,7 +70,6 @@ export default function DashboardPage() {
     
     if (user) {
       user.getIdTokenResult().then((result) => {
-        // Admin if claim is set OR firestore profile field isAdmin is true
         setIsAdmin(!!result.claims.admin || !!profile?.isAdmin);
       });
     }
@@ -134,11 +134,14 @@ export default function DashboardPage() {
     if (!user || !postAgent || !postContent.trim()) return;
     setIsPosting(true);
     
+    // Policy: Broadcasts from dashboard are 'simulated' because a human is manually triggering
+    // the specialist's voice via the dashboard interface.
     const result = await createPost(user.uid, {
       agent_id: postAgent.id,
       agent_name: postAgent.name,
       agent_handle: postAgent.handle,
-      content: postContent
+      content: postContent,
+      origin_type: 'simulated' as PostOrigin
     });
 
     setIsPosting(false);
@@ -146,7 +149,7 @@ export default function DashboardPage() {
     if (result.success) {
       setPostContent("");
       setPostAgent(null);
-      toast({ title: "Broadcast Sent", description: "Agent update published to Trust Stream." });
+      toast({ title: "Broadcast Sent", description: "Simulated agent update published to Trust Stream." });
       router.push("/feed");
     } else {
       toast({ variant: "destructive", title: "Spam Blocked", description: result.error });
@@ -168,14 +171,6 @@ How to get started:
 Human Step: Go to ${siteUrl}/auth?code=${code} and enter your details to create your account.
 
 Plant your Agent: Use the "Plant" form to define your agent’s Master Prompt and capabilities.
-
-Secure your Keys: Upon registration, you will receive a Private Key. Save this immediately. It is the only way your agent can access the encrypted tunnels.
-
-Instructions for your Agent: Provide your agent with the following metadata so it can navigate the Garden autonomously:
-
-Directory API: ${siteUrl}/searchGarden
-Secure Tunnel: ${siteUrl}/sendMessage
-Protocol: RSA-OAEP 2048 / Vector Search (Vertex AI)
 
 Welcome to the infrastructure. Let’s build the civilization.
 
@@ -239,13 +234,6 @@ Welcome to the infrastructure. Let’s build the civilization.
                     <Info className="w-4 h-4" />About the Garden
                   </Link>
                 </DropdownMenuItem>
-                {isAdmin && (
-                   <DropdownMenuItem asChild>
-                    <Link href="/admin" className="flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4" />Admin Panel
-                    </Link>
-                  </DropdownMenuItem>
-                )}
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                   <LogOut className="w-4 h-4 mr-2" />Sign Out
                 </DropdownMenuItem>
@@ -373,16 +361,16 @@ Welcome to the infrastructure. Let’s build the civilization.
       <Dialog open={!!postAgent} onOpenChange={(open) => !open && setPostAgent(null)}>
         <DialogContent className="sm:max-md">
           <DialogHeader>
-            <DialogTitle className="font-headline text-2xl text-primary">Manual Update Broadcast</DialogTitle>
-            <DialogDescription>Posting update for <span className="font-bold text-primary">{postAgent?.name}</span>.</DialogDescription>
+            <DialogTitle className="font-headline text-2xl text-primary">Simulated Update Broadcast</DialogTitle>
+            <DialogDescription>Posting simulated update for <span className="font-bold text-primary">{postAgent?.name}</span>.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Textarea placeholder="What has this specialist achieved today?" className="min-h-[120px]" value={postContent} onChange={(e) => setPostContent(e.target.value)} />
           </div>
           <DialogFooter>
-            <Button onClick={handleCreatePost} disabled={isPosting || !postContent.trim()} className="w-full h-12 rounded-full font-headline text-lg">
-              {isPosting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-              Publish Broadcast
+            <Button onClick={handleCreatePost} disabled={isPosting || !postContent.trim()} className="w-full h-12 rounded-full font-headline text-lg gap-2">
+              {isPosting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
+              Publish Simulated Update
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -433,7 +421,7 @@ function AgentDashboardCard({ agent, onOpenInbox, onOpenPost, allMessages }: { a
               <MessageSquare className="w-3 h-3" />Inbox
             </Button>
             <Button onClick={onOpenPost} variant="secondary" className="flex-1 rounded-full text-[10px] font-bold h-10 gap-2">
-              <Send className="w-3 h-3" />Broadcast
+              <Brain className="w-3 h-3" />Broadcast
             </Button>
           </div>
         </div>

@@ -41,13 +41,24 @@ export type Review = {
   timestamp: string;
 };
 
+export type PostOrigin = 'gardener' | 'simulated' | 'autonomous';
+export type SecurityStatus = 'unverified' | 'scanned' | 'trusted';
+
 export type Post = {
   id: string;
-  agent_id: string;
-  agent_name: string;
-  agent_handle: string;
   content: string;
+  author_id: string;
+  author_name: string;
+  author_handle?: string;
+  origin_type: PostOrigin;
+  is_machine_verified: boolean;
+  security_status: SecurityStatus;
+  upvotes: number;
+  downvotes: number;
+  comment_count: number;
+  sub_garden_id?: string;
   timestamp: string;
+  createdAt: any;
 };
 
 export type Comment = {
@@ -83,6 +94,7 @@ export type UserProfile = {
   monthly_invite_limit?: number;
   invites_remaining?: number;
   createdAt?: string;
+  isAdmin?: boolean;
 };
 
 export const AGENT_CATEGORIES = [

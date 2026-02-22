@@ -1,22 +1,24 @@
+
 'use client';
 
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, orderBy, limit, where } from "firebase/firestore";
-import { Leaf, ArrowLeft, Sparkles, Award, User, Clock, Loader2, MessageSquare, Send, Plus } from "lucide-react";
+import { collection, query, orderBy, limit } from "firebase/firestore";
+import { Leaf, ArrowLeft, Sparkles, Award, User, Clock, Loader2, MessageSquare, Send, Plus, Brain, Cpu, ShieldCheck, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import type { Review, Post, Comment } from "@/app/lib/agents";
-import { useState, useEffect, useMemo } from "react";
+import type { Review, Post, Comment, PostOrigin } from "@/app/lib/agents";
+import { useState, useEffect } from "react";
 import { createComment } from "@/app/actions/activity-actions";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Garden Feed Page
- * Displays broadcasts and allows human interaction via protected comments.
+ * Displays broadcasts with Machine-Verified attribution.
  */
 
 export default function FeedPage() {
@@ -104,7 +106,7 @@ export default function FeedPage() {
             ) : posts && posts.length > 0 ? (
               <div className="space-y-8">
                 {posts.map((post) => (
-                  <PostWithComments 
+                  <PostCard 
                     key={post.id} 
                     post={post} 
                     comments={comments?.filter(c => c.post_id === post.id) || []} 
@@ -165,7 +167,7 @@ export default function FeedPage() {
   );
 }
 
-function PostWithComments({ post, comments, user, isMounted }: { post: Post; comments: Comment[]; user: any; isMounted: boolean }) {
+function PostCard({ post, comments, user, isMounted }: { post: Post; comments: Comment[]; user: any; isMounted: boolean }) {
   const [commentText, setCommentText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -189,19 +191,41 @@ function PostWithComments({ post, comments, user, isMounted }: { post: Post; com
     }
   };
 
+  const getOriginConfig = (origin: PostOrigin) => {
+    switch (origin) {
+      case 'gardener': return { icon: <User className="w-3 h-3" />, label: 'Gardener', color: 'bg-primary/5 text-primary border-primary/10' };
+      case 'simulated': return { icon: <Brain className="w-3 h-3" />, label: 'Simulated', color: 'bg-accent/5 text-accent border-accent/10' };
+      case 'autonomous': return { icon: <Cpu className="w-3 h-3" />, label: 'Autonomous', color: 'bg-purple-50 text-purple-600 border-purple-100' };
+      default: return { icon: <User className="w-3 h-3" />, label: 'Unknown', color: 'bg-muted text-muted-foreground' };
+    }
+  };
+
+  const origin = getOriginConfig(post.origin_type || 'gardener');
+
   return (
     <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden group">
-      <div className="h-1 bg-primary/20 group-hover:bg-primary transition-colors" />
+      <div className={cn("h-1 transition-colors", post.origin_type === 'autonomous' ? 'bg-purple-400' : 'bg-primary/20 group-hover:bg-primary')} />
       <CardContent className="p-6 space-y-6">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            <MessageSquare className="w-6 h-6" />
+          <div className={cn("w-12 h-12 rounded-full flex items-center justify-center relative", post.origin_type === 'autonomous' ? 'bg-purple-50 text-purple-500' : 'bg-primary/10 text-primary')}>
+            {post.origin_type === 'autonomous' ? <Cpu className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
+            {post.is_machine_verified && (
+              <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 border shadow-sm">
+                <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
+              </div>
+            )}
           </div>
           <div className="flex-1 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-col">
-                <span className="font-headline text-2xl text-primary">{post.agent_name}</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{post.agent_handle}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-headline text-2xl text-primary leading-tight">{post.author_name}</span>
+                  <Badge variant="outline" className={cn("text-[9px] font-bold uppercase tracking-widest gap-1 h-5", origin.color)}>
+                    {origin.icon} {origin.label}
+                  </Badge>
+                  {post.security_status === 'trusted' && <ShieldCheck className="w-4 h-4 text-accent" />}
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{post.author_handle}</span>
               </div>
               <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase font-bold">
                 <Clock className="w-3 h-3" />
@@ -245,15 +269,17 @@ function PostWithComments({ post, comments, user, isMounted }: { post: Post; com
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
               />
-              <Button 
-                onClick={handleAddComment} 
-                disabled={isSubmitting || !commentText.trim()} 
-                size="sm" 
-                className="rounded-full h-8 text-[10px] uppercase font-bold px-6"
-              >
-                {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Send className="w-3 h-3 mr-2" />}
-                Post Feedback
-              </Button>
+              <div className="flex justify-end">
+                <Button 
+                  onClick={handleAddComment} 
+                  disabled={isSubmitting || !commentText.trim()} 
+                  size="sm" 
+                  className="rounded-full h-8 text-[10px] uppercase font-bold px-6"
+                >
+                  {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Send className="w-3 h-3 mr-2" />}
+                  Post Feedback
+                </Button>
+              </div>
             </div>
           </div>
         )}

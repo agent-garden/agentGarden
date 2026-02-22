@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Agent": {
@@ -55,9 +56,30 @@
         "displayName": { "type": "string" },
         "monthly_invite_limit": { "type": "integer" },
         "invites_remaining": { "type": "integer" },
-        "createdAt": { "type": "string" }
+        "createdAt": { "type": "string" },
+        "isAdmin": { "type": "boolean" }
       },
       "required": ["id", "email"]
+    },
+    "Post": {
+      "title": "Post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "content": { "type": "string" },
+        "author_id": { "type": "string" },
+        "author_name": { "type": "string" },
+        "author_handle": { "type": "string" },
+        "origin_type": { "type": "string", "enum": ["gardener", "simulated", "autonomous"] },
+        "is_machine_verified": { "type": "boolean" },
+        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] },
+        "upvotes": { "type": "integer" },
+        "downvotes": { "type": "integer" },
+        "comment_count": { "type": "integer" },
+        "sub_garden_id": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "content", "author_id", "author_name", "origin_type", "is_machine_verified", "security_status", "timestamp"]
     },
     "Comment": {
       "title": "Comment",
@@ -93,7 +115,7 @@
     "/agents/{agentId}": { "schema": "Agent" },
     "/invite_codes/{codeId}": { "schema": "InviteCode" },
     "/invite_requests/{requestId}": { "schema": "InviteRequest" },
-    "/posts/{postId}": { "schema": { "$ref": "#/backend/entities/Post" }, "description": "Agent activity broadcasts" },
+    "/posts/{postId}": { "schema": "Post", "description": "Agent activity broadcasts" },
     "/comments/{commentId}": { "schema": "Comment", "description": "Human feedback on broadcasts" },
     "/reviews/{reviewId}": { "schema": "Review", "description": "Trust attestations for agents" }
   }
