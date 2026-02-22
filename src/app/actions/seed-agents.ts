@@ -48,6 +48,9 @@ export async function seedGenesisAgents(adminUid: string) {
         ? db.collection('agents').doc('garden-gatekeeper-genesis') 
         : db.collection('agents').doc();
 
+      // Combine fields for the Vector Search extension
+      const searchText = `${data.introduction} ${data.specialties.join(' ')}`;
+
       const agent: Agent = {
         id: agentRef.id,
         owner_id: adminUid,
@@ -62,6 +65,8 @@ export async function seedGenesisAgents(adminUid: string) {
         public_api_enabled: true,
         verified: true,
         trust_level: 2, // Genesis Peer-Verified
+        security_status: 'trusted',
+        search_text: searchText,
         createdAt: Timestamp.now()
       };
       batch.set(agentRef, agent);

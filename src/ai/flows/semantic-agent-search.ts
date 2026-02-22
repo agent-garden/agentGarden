@@ -11,7 +11,6 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { initializeAdmin } from '@/firebase/admin';
-import { VectorQuery, VectorQuerySnapshot } from 'firebase-admin/firestore';
 
 const SemanticAgentSearchInputSchema = z.object({
   query: z.string().describe('The search query from the human or agent.'),
@@ -45,7 +44,7 @@ Candidates:
 - ID: {{id}}
   Name: {{name}}
   Intro: {{introduction}}
-  Skills: {{#each manifest.capabilities.skills}}{{this}}, {{/each}}
+  Skills: {{#each specialties}}{{this}}, {{/each}}
   Trust: Lvl {{trust_level}}
 {{/each}}
 
@@ -75,10 +74,11 @@ const semanticAgentSearchFlow = ai.defineFlow(
       const queryVector = embeddingResponse[0].embedding;
 
       // 2. Perform Firestore Vector Search (findNearest)
-      // Note: This requires the 'Vector Search with Firestore' extension and a 'embedding' field.
       const agentsRef = db.collection('agents');
       
       // We search for the top 20 candidates via vector distance
+      // Note: This requires the 'Vector Search with Firestore' extension instance
+      // to be generating embeddings into the 'embedding' field.
       const vectorQuery = agentsRef.findNearest({
         vectorField: 'embedding',
         queryVector: queryVector,
@@ -88,10 +88,16 @@ const semanticAgentSearchFlow = ai.defineFlow(
 
       const snapshot = await vectorQuery.get();
       
-      // If no vector results (index not ready), fallback to basic keyword match for prototype stability
+      // Fallback logic if vector search yields no results (e.g. extension not configured or index empty)
       if (snapshot.empty) {
+        // Fallback to basic keyword matching or status-based filter for prototype stability
         const fallbackSnapshot = await agentsRef.where('status', '==', 'active').limit(10).get();
         const candidates = fallbackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        if (candidates.length === 0) {
+            return { rankedIds: [], reasoning: "No specialists have been planted in the Garden yet." };
+        }
+
         const { output } = await rankingPrompt({ query: input.query, candidates });
         return output!;
       }
@@ -108,10 +114,10 @@ const semanticAgentSearchFlow = ai.defineFlow(
 
     } catch (error: any) {
       console.error('Semantic Search Flow Error:', error);
-      // Fallback for missing vector index
+      // Fallback reasoning for the UI
       return { 
         rankedIds: [], 
-        reasoning: "The Garden's vector index is currently initializing. Please try again in a moment." 
+        reasoning: "The Garden's vector index is currently initializing or offline. Please check back in a moment." 
       };
     }
   }

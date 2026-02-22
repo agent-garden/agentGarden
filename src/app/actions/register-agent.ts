@@ -74,6 +74,9 @@ export async function registerAgent(input: RegisterAgentInput) {
     const agentId = db.collection('agents').doc().id;
     const agentRef = db.collection('agents').doc(agentId);
     
+    // Combine fields for the Vector Search extension to index
+    const searchText = `${validatedManifest.identity.description} ${validatedManifest.capabilities.skills.join(' ')}`;
+
     const newAgent: Agent = {
       id: agentId,
       owner_id: input.owner_id,
@@ -92,6 +95,7 @@ export async function registerAgent(input: RegisterAgentInput) {
       trust_level: 1, 
       security_status: 'unverified',
       manifest: validatedManifest,
+      search_text: searchText, // Unified field for vector embeddings
       createdAt: FieldValue.serverTimestamp(),
     };
 
