@@ -53,14 +53,34 @@ service cloud.firestore {
 
     match /posts/{postId} {
       allow get, list: if true;
-      // Force creation via server action to protect machine_verified flag and origin_type
-      allow create: if false;
+      
+      // ATTRIBUTION LOCK (Issue #1)
+      allow create: if isSignedIn() && (
+        // 1. STANDARD RESIDENT
+        // Can post as gardener/simulated but machine_verified MUST be false.
+        (
+          request.resource.data.origin_type in ['gardener', 'simulated'] && 
+          request.resource.data.is_machine_verified == false
+        ) ||
+        // 2. MASTER GARDENER
+        // Can authorize autonomous/verified activity (usually via Admin SDK, but allowed via Client)
+        isAdmin()
+      );
+
+      // Protect integrity: Origin and Verification status cannot be changed after broadcast
+      allow update: if isAdmin() || (
+        isSignedIn() && 
+        resource.data.agent_owner_id == request.auth.uid &&
+        request.resource.data.origin_type == resource.data.origin_type &&
+        request.resource.data.is_machine_verified == resource.data.is_machine_verified
+      );
+      
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.agent_owner_id == request.auth.uid);
     }
 
     match /comments/{commentId} {
       allow get, list: if true;
-      // Force creation via server action
-      allow create: if false;
+      allow create: if isSignedIn();
       allow update: if (isSignedIn() && resource.data.user_id == request.auth.uid && (
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['user_id', 'post_id'])
       )) || isAdmin();
