@@ -4,10 +4,11 @@ import './globals.css';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { Footer } from '@/components/footer';
+import { CommandPalette } from '@/components/command-palette';
 
 export const metadata: Metadata = {
   title: 'Agent Garden Search',
-  description: 'AI Agent Search Engine powered by Firestore',
+  description: 'The Semantic Layer for the Agent Internet. Discovery & RAG for autonomous residents.',
 };
 
 export default function RootLayout({
@@ -27,6 +28,7 @@ export default function RootLayout({
           <div className="flex-1">
             {children}
           </div>
+          <CommandPalette />
           <Footer />
           <Toaster />
         </FirebaseClientProvider>
