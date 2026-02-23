@@ -2,13 +2,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
-import { Cpu, MessageSquare, Heart, Share2, User, ShieldCheck, Sprout } from "lucide-react";
+import { Cpu, MessageSquare, Heart, Share2, User, ShieldCheck, Sprout, ArrowBigUp, ArrowBigDown } from "lucide-react";
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
+import { castVote } from '@/lib/voting';
+import { doc } from 'firebase/firestore';
 
 export interface Post {
   id: string;
@@ -29,10 +32,33 @@ export interface Post {
 
 export function PostCard({ post }: { post: Post }) {
   const [mounted, setMounted] = useState(false);
+  const { user } = useUser();
+  const firestore = useFirestore();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const voteRef = useMemoFirebase(() => {
+    if (!firestore || !user || !post.id) return null;
+    return doc(firestore, 'posts', post.id, 'votes', user.uid);
+  }, [firestore, user, post.id]);
+
+  const { data: userVote } = useDoc(voteRef);
+  const currentVote = userVote?.value || 0;
+
+  const handleVote = async (value: number) => {
+    if (!user || !firestore) return;
+    
+    // Determine author type based on origin_type
+    const authorType = post.origin_type === 'gardener' ? 'user' : 'agent';
+    
+    try {
+      await castVote(firestore, post.id, post.author_id, user.uid, value, authorType);
+    } catch (err) {
+      console.error("Failed to cast vote");
+    }
+  };
 
   const renderBadge = () => {
     switch (post.origin_type) {
@@ -80,15 +106,6 @@ export function PostCard({ post }: { post: Post }) {
             <span>{post.author_handle}</span>
             <span>•</span>
             <span>{mounted ? formatDistanceToNow(post.created_at) : '...'} ago</span>
-            {post.sub_garden_name && (
-              <>
-                <span>•</span>
-                <Link href={`/gardens/${post.sub_garden_id}`} className="text-primary hover:underline flex items-center gap-1">
-                  <Sprout className="w-3 h-3" />
-                  {post.sub_garden_name}
-                </Link>
-              </>
-            )}
           </div>
         </div>
       </CardHeader>
@@ -96,18 +113,40 @@ export function PostCard({ post }: { post: Post }) {
         <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap font-body">
           {post.content}
         </p>
-        <div className="flex items-center justify-between pt-3 border-t border-primary/5 text-muted-foreground">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-1.5 hover:text-primary transition-colors cursor-pointer group">
-              <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
+        <div className="flex items-center justify-between pt-3 border-t border-primary/5">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center bg-muted/50 rounded-full px-2 py-1 gap-1">
+              <button 
+                onClick={() => handleVote(1)}
+                className={cn(
+                  "p-1 rounded-full transition-colors",
+                  currentVote === 1 ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary"
+                )}
+              >
+                <ArrowBigUp className={cn("w-5 h-5", currentVote === 1 && "fill-current")} />
+              </button>
+              <span className={cn(
+                "text-xs font-bold min-w-[1rem] text-center",
+                currentVote === 1 ? "text-primary" : currentVote === -1 ? "text-accent" : "text-muted-foreground"
+              )}>
+                {post.upvotes || 0}
+              </span>
+              <button 
+                onClick={() => handleVote(-1)}
+                className={cn(
+                  "p-1 rounded-full transition-colors",
+                  currentVote === -1 ? "text-accent bg-accent/10" : "text-muted-foreground hover:text-accent"
+                )}
+              >
+                <ArrowBigDown className={cn("w-5 h-5", currentVote === -1 && "fill-current")} />
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors cursor-pointer group">
+              <MessageSquare className="w-4 h-4" />
               <span className="text-[10px] font-bold">{post.comment_count}</span>
             </div>
-            <div className="flex items-center gap-1.5 hover:text-accent transition-colors cursor-pointer group">
-              <Heart className="w-4 h-4 group-hover:scale-110 transition-transform" />
-              <span className="text-[10px] font-bold">{post.upvotes}</span>
-            </div>
           </div>
-          <button className="hover:text-primary transition-colors">
+          <button className="text-muted-foreground hover:text-primary transition-colors">
             <Share2 className="w-4 h-4" />
           </button>
         </div>

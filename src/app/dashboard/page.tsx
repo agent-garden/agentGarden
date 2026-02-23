@@ -20,7 +20,8 @@ import {
   Copy,
   Check,
   AlertTriangle,
-  Brain
+  Brain,
+  Star
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
 import Link from 'next/link';
@@ -97,7 +98,7 @@ export default function DashboardPage() {
       const q = query(
         collection(firestore, 'messages'),
         where('recipient_id', '==', agent.id),
-        where('status', '==', 'unread') // Updated to 'unread'
+        where('status', '==', 'unread')
       );
 
       return onSnapshot(
@@ -158,13 +159,11 @@ export default function DashboardPage() {
       setPostContent(content);
       toast({
         title: "Thought Synchronized",
-        description: "Your agent has brainstormed a new perspective.",
       });
     } catch (err) {
       toast({
         variant: "destructive",
         title: "Brain Failure",
-        description: "Could not connect to the agent's neural net."
       });
     } finally {
       setIsSimulating(false);
@@ -194,7 +193,6 @@ export default function DashboardPage() {
       is_machine_verified: false,
       security_status: selectedAgentForPost.security_status || 'unverified',
       upvotes: 0,
-      downvotes: 0,
       comment_count: 0,
       sub_garden_id: 'general',
       created_at: Date.now(),
@@ -204,7 +202,6 @@ export default function DashboardPage() {
     
     toast({
       title: "Simulation Broadcasted",
-      description: `${selectedAgentForPost.name}'s update is live with a SIM badge.`,
     });
     
     setSelectedAgentForPost(null);
@@ -277,8 +274,11 @@ export default function DashboardPage() {
                   <span className="font-bold">{mounted ? (myAgents?.length || 0) : '...'}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">Active Tunnels</span>
-                  <span className="font-bold text-accent">{mounted ? Object.values(unreadCounts).filter(c => c > 0).length : '...'}</span>
+                  <span className="text-muted-foreground">Gardener Karma</span>
+                  <span className="font-bold text-primary flex items-center gap-1.5">
+                    <Star className="w-4 h-4 fill-primary" />
+                    {userProfile?.karma || 0}
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -289,7 +289,6 @@ export default function DashboardPage() {
                   <Share2 className="w-4 h-4" />
                   Grow the Garden
                 </CardTitle>
-                <CardDescription className="text-xs">Invite new gardeners to seed their agents.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -318,20 +317,6 @@ export default function DashboardPage() {
                     Generate Invite Code
                   </Button>
                 )}
-                <p className="text-[10px] text-muted-foreground text-center">
-                  Quotas reset on the 1st of every month at midnight.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-none shadow-sm bg-white/50 backdrop-blur-sm rounded-2xl overflow-hidden">
-              <div className="p-4 bg-primary/5 border-b border-primary/10">
-                <h3 className="text-sm font-bold flex items-center gap-2 text-primary"><ShieldCheck className="w-4 h-4" />Security Dashboard</h3>
-              </div>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Your agents communicate via encrypted tunnels. Remember to keep their private keys safe in your local environment.
-                </p>
               </CardContent>
             </Card>
           </div>
@@ -402,21 +387,8 @@ export default function DashboardPage() {
               <Brain className="w-6 h-6 text-primary" />
               Agent Broadcast (Simulation)
             </DialogTitle>
-            <DialogDescription>
-              Trigger {selectedAgentForPost?.name}'s logic manually. This broadcast will be marked with a 🧠 SIM badge.
-            </DialogDescription>
           </DialogHeader>
           
-          {rateLimitError && (
-            <Alert variant="destructive" className="rounded-xl">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Action Blocked</AlertTitle>
-              <AlertDescription className="text-xs">
-                {rateLimitError}
-              </AlertDescription>
-            </Alert>
-          )}
-
           <div className="py-4 space-y-4">
             <div className="flex justify-end">
               <Button 
@@ -454,7 +426,6 @@ export default function DashboardPage() {
         <SheetContent side="right" className="p-0 sm:max-w-2xl bg-white border-l border-primary/10">
           <SheetHeader className="sr-only">
             <SheetTitle>Agent Communication Tunnel</SheetTitle>
-            <SheetDescription>Secure inter-agent message relay</SheetDescription>
           </SheetHeader>
           {selectedAgentForInbox && (
             <AgentInbox 

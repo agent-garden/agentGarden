@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check, Send, Star, Loader2, ShieldAlert, ShieldX, Info } from "lucide-react";
+import { CheckCircle, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check, Send, Star, Loader2, ShieldAlert, ShieldX, Info, ThumbsUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ export interface Agent {
   owner_handle?: string;
   trust_level: number;
   review_count: number;
+  reputation: number;
   security_status?: 'unverified' | 'scanned' | 'trusted';
 }
 
@@ -152,16 +153,11 @@ export function AgentCard({ agent }: { agent: Agent }) {
             <Badge variant={currentTrust.variant} className="text-[10px] gap-1 py-0.5 whitespace-nowrap">
               {currentTrust.icon && <currentTrust.icon className="w-3 h-3" />}
               {currentTrust.label}
-              {agent.review_count > 0 && ` (${agent.review_count})`}
             </Badge>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-muted-foreground/40 hover:text-primary transition-colors"
-              onClick={copyId}
-            >
-              {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
-            </Button>
+            <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
+              <ThumbsUp className="w-3.5 h-3.5" />
+              {agent.reputation || 0}
+            </div>
           </div>
         </div>
         <div>
@@ -171,11 +167,6 @@ export function AgentCard({ agent }: { agent: Agent }) {
           </CardTitle>
           <div className="flex items-center gap-1.5 mt-1">
             <span className="text-sm text-muted-foreground">{agent.handle}</span>
-            <span className="text-[10px] text-muted-foreground/40">•</span>
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <User className="w-2.5 h-2.5" />
-              {agent.owner_handle || 'Independent'}
-            </div>
           </div>
         </div>
       </CardHeader>
@@ -188,15 +179,6 @@ export function AgentCard({ agent }: { agent: Agent }) {
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Cpu className="w-3.5 h-3.5" />
             <span className="font-mono">{agent.stack}</span>
-          </div>
-          
-          <div className="flex flex-wrap gap-1.5">
-            {agent.specialties?.slice(0, 4).map((tag) => (
-              <Badge key={tag} variant="outline" className="text-[10px] px-2 py-0 h-5 bg-white border-primary/10 text-muted-foreground flex items-center gap-1">
-                <Tag className="w-2.5 h-2.5" />
-                {tag}
-              </Badge>
-            ))}
           </div>
 
           <div className="flex gap-2 mt-4">
@@ -228,15 +210,8 @@ export function AgentCard({ agent }: { agent: Agent }) {
                       <AlertTitle>Security Warning</AlertTitle>
                       <AlertDescription className="text-xs">
                         This agent has not been marked as 'Trusted' by the Automated Security Auditor. 
-                        Its instructions may contain risks or unintentional vulnerabilities.
                       </AlertDescription>
                     </Alert>
-                    <div className="p-4 bg-muted/50 rounded-xl border border-dashed flex items-center gap-3">
-                      <Info className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <p className="text-[10px] text-muted-foreground leading-tight italic">
-                        By proceeding, you acknowledge that you are interacting with an unverified capability manifest.
-                      </p>
-                    </div>
                     <Button 
                       variant="outline" 
                       className="w-full rounded-xl border-primary/20 text-primary"
@@ -248,17 +223,11 @@ export function AgentCard({ agent }: { agent: Agent }) {
                 ) : (
                   <div className="py-4">
                     <Textarea 
-                      placeholder="Describe your request or goal for this agent..." 
+                      placeholder="Describe your request..." 
                       className="min-h-[120px] rounded-2xl bg-muted/20"
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                     />
-                    <div className="mt-4 p-3 bg-primary/5 rounded-xl flex items-start gap-3 border border-primary/10">
-                      <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                      <p className="text-[10px] text-muted-foreground leading-tight">
-                        Ciphertext is secured in your browser using RSA-OAEP before transmission.
-                      </p>
-                    </div>
                   </div>
                 )}
 
@@ -268,7 +237,6 @@ export function AgentCard({ agent }: { agent: Agent }) {
                     onClick={handleSendMessage}
                     disabled={isSending || !message.trim() || (!isTrusted && !riskAcknowledged)}
                   >
-                    {isSending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     {isSending ? "Encrypting..." : "Send Through Tunnel"}
                   </Button>
                 </DialogFooter>

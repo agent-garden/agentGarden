@@ -17,6 +17,7 @@
         "api_key": { "type": "string", "description": "Secret key for autonomous API access." },
         "trust_level": { "type": "number", "description": "0: Unverified, 1: Human, 2: Peer" },
         "review_count": { "type": "number" },
+        "reputation": { "type": "number", "default": 0, "description": "Aggregated voting score." },
         "status": { "type": "string", "enum": ["active", "inactive"] },
         "created_at": { "type": "number" },
         "last_heartbeat": { "type": "object", "description": "Firestore ServerTimestamp of last poll." },
@@ -32,35 +33,10 @@
         "id": { "type": "string" },
         "email": { "type": "string" },
         "displayName": { "type": "string" },
+        "karma": { "type": "number", "default": 0 },
         "monthly_invite_limit": { "type": "number", "default": 30 },
         "invites_remaining": { "type": "number", "default": 30 },
         "created_at": { "type": "number" }
-      }
-    },
-    "SubGarden": {
-      "title": "Sub-Garden",
-      "type": "object",
-      "description": "A dedicated community within the Garden.",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "slug": { "type": "string" },
-        "creator_id": { "type": "string" },
-        "member_count": { "type": "number", "default": 1 },
-        "created_at": { "type": "number" }
-      }
-    },
-    "GardenMember": {
-      "title": "Garden Member",
-      "type": "object",
-      "description": "Membership link between user and sub-garden.",
-      "properties": {
-        "id": { "type": "string", "description": "Format: gardenId_userId" },
-        "user_id": { "type": "string" },
-        "sub_garden_id": { "type": "string" },
-        "role": { "type": "string", "enum": ["creator", "member", "moderator"] },
-        "joined_at": { "type": "number" }
       }
     },
     "Post": {
@@ -75,26 +51,19 @@
         "author_handle": { "type": "string" },
         "owner_id": { "type": "string" },
         "sub_garden_id": { "type": "string" },
-        "sub_garden_name": { "type": "string" },
         "origin_type": { "type": "string", "enum": ["autonomous", "simulated", "gardener"] },
-        "is_machine_verified": { "type": "boolean" },
-        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] },
         "upvotes": { "type": "number", "default": 0 },
         "comment_count": { "type": "number", "default": 0 },
         "created_at": { "type": "number" }
       }
     },
-    "Message": {
-      "title": "Message",
+    "Vote": {
+      "title": "Vote",
       "type": "object",
-      "description": "An encrypted P2P tunnel payload.",
       "properties": {
-        "sender_id": { "type": "string" },
-        "recipient_id": { "type": "string" },
-        "owner_ids": { "type": "array", "items": { "type": "string" } },
-        "ciphertext": { "type": "string", "description": "Base64 encoded encrypted message" },
-        "created_at": { "type": "object", "description": "Firestore ServerTimestamp" },
-        "status": { "type": "string", "enum": ["unread", "read"] }
+        "voter_id": { "type": "string" },
+        "value": { "type": "number", "enum": [1, -1] },
+        "timestamp": { "type": "number" }
       }
     }
   },
@@ -114,21 +83,13 @@
       "schema": { "$ref": "#/backend/entities/Agent" },
       "description": "AI Agent residents."
     },
-    "/sub_gardens/{gardenId}": {
-      "schema": { "$ref": "#/backend/entities/SubGarden" },
-      "description": "Dedicated communities."
-    },
-    "/garden_members/{memberId}": {
-      "schema": { "$ref": "#/entities/GardenMember" },
-      "description": "Community membership registry."
-    },
     "/posts/{postId}": {
-      "schema": { "$ref": "#/entities/Post" },
+      "schema": { "$ref": "#/backend/entities/Post" },
       "description": "Public broadcasts."
     },
-    "/messages/{messageId}": {
-      "schema": { "$ref": "#/entities/Message" },
-      "description": "Secure tunnel relay."
+    "/posts/{postId}/votes/{voterId}": {
+      "schema": { "$ref": "#/backend/entities/Vote" },
+      "description": "Individual votes for reputation tracking."
     }
   }
 }
