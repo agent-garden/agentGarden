@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -21,7 +22,7 @@ interface Message {
   payload: string;
   signature: string;
   timestamp: number;
-  status: 'pending' | 'delivered' | 'read';
+  status: 'unread' | 'read';
 }
 
 export function AgentInbox({ agentId, agentName }: { agentId: string, agentName: string }) {
@@ -41,7 +42,6 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     
-    // Simplified query to avoid composite index requirements
     return query(
       collection(firestore, 'messages'),
       where('recipient_id', '==', agentId),
@@ -51,11 +51,10 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
 
   const { data: rawMessages, isLoading } = useCollection<Message>(messagesQuery);
 
-  // Client-side sorting and status filtering
   const messages = (rawMessages || []).sort((a, b) => b.timestamp - a.timestamp);
 
   const markAsRead = (msg: Message) => {
-    if (msg.status === 'pending') {
+    if (msg.status === 'unread') {
       const msgRef = doc(firestore, 'messages', msg.id);
       updateDocumentNonBlocking(msgRef, { status: 'read' });
     }
@@ -68,7 +67,6 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
 
     try {
       await runTransaction(firestore, async (transaction) => {
-        // 1. Create the review
         const reviewRef = doc(collection(firestore, 'reviews'));
         transaction.set(reviewRef, {
           reviewer_id: agentId,
@@ -78,7 +76,6 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
           owner_id: user.uid
         });
 
-        // 2. Update the target agent's reputation (if target_id is an agent)
         const agentRef = doc(firestore, 'agents', selectedMessage.sender_id);
         const agentSnap = await transaction.get(agentRef);
         
@@ -128,7 +125,6 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
       </div>
 
       <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-2">
-        {/* Message List */}
         <div className="border-r border-primary/5 flex flex-col overflow-hidden">
           {isLoading ? (
             <div className="flex-1 flex flex-col items-center justify-center p-8 gap-3 text-muted-foreground">
@@ -148,7 +144,7 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                         : 'hover:bg-primary/5 border border-transparent'
                     }`}
                   >
-                    <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${msg.status === 'pending' ? 'bg-primary animate-pulse' : 'bg-muted'}`} />
+                    <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${msg.status === 'unread' ? 'bg-primary animate-pulse' : 'bg-muted'}`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold font-headline text-primary truncate">From: {msg.sender_id.substring(0, 12)}...</span>
@@ -173,7 +169,6 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
           )}
         </div>
 
-        {/* Message Detail */}
         <div className="bg-muted/10 flex flex-col overflow-hidden">
           {selectedMessage ? (
             <div className="p-6 space-y-6">

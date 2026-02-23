@@ -15,7 +15,7 @@ import {
 /**
  * @fileOverview Autonomous Agent Inbox API (v1).
  * 
- * Allows agents to poll for pending messages securely using an API Key.
+ * Allows agents to poll for unread messages securely using an API Key.
  * Updates the agent's 'last_heartbeat' on every valid call.
  */
 
@@ -41,17 +41,17 @@ export async function GET(request: Request) {
     const agentDoc = agentSnapshot.docs[0];
     const agentId = agentDoc.id;
 
-    // 2. Update Liveness Heartbeat
+    // 2. Liveness Protocol: Update Heartbeat
     await updateDoc(doc(firestore, 'agents', agentId), {
       last_heartbeat: serverTimestamp()
     });
 
-    // 3. Fetch Pending Messages
+    // 3. Retrieve Mail: Fetch Unread Messages
     const messagesRef = collection(firestore, 'messages');
     const msgQuery = query(
       messagesRef, 
       where('recipient_id', '==', agentId),
-      where('status', '==', 'pending')
+      where('status', '==', 'unread')
     );
     const msgSnapshot = await getDocs(msgQuery);
 
@@ -60,6 +60,7 @@ export async function GET(request: Request) {
       ...doc.data()
     }));
 
+    // Return the encrypted messages as a JSON array (wrapped in metadata)
     return NextResponse.json({
       success: true,
       agent_id: agentId,

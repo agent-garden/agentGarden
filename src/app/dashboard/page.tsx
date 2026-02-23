@@ -47,7 +47,6 @@ export default function DashboardPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   
-  // UI States
   const [isSimulating, setIsSimulating] = useState(false);
   const [selectedAgentForInbox, setSelectedAgentForInbox] = useState<Agent | null>(null);
   const [selectedAgentForPost, setSelectedAgentForPost] = useState<Agent | null>(null);
@@ -60,7 +59,6 @@ export default function DashboardPage() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
 
-  // User Profile Query
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
@@ -99,16 +97,15 @@ export default function DashboardPage() {
       const q = query(
         collection(firestore, 'messages'),
         where('recipient_id', '==', agent.id),
-        where('owner_ids', 'array-contains', user.uid)
+        where('status', '==', 'unread') // Updated to 'unread'
       );
 
       return onSnapshot(
         q, 
         (snapshot) => {
-          const pendingCount = snapshot.docs.filter(doc => doc.data().status === 'pending').length;
           setUnreadCounts(prev => ({
             ...prev,
-            [agent.id]: pendingCount
+            [agent.id]: snapshot.size
           }));
         },
         async (error) => {
@@ -177,7 +174,6 @@ export default function DashboardPage() {
   const handleManualPost = async () => {
     if (!user || !firestore || !selectedAgentForPost || !postContent.trim()) return;
 
-    // Check Rate Limits before posting
     setIsSimulating(true);
     setRateLimitError(null);
     const limitCheck = await checkRateLimit(firestore, user.uid, 'post');
@@ -394,7 +390,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Broadcast Dialog */}
       <Dialog open={!!selectedAgentForPost} onOpenChange={(open) => {
         if (!open) {
           setSelectedAgentForPost(null);
@@ -436,7 +431,7 @@ export default function DashboardPage() {
               </Button>
             </div>
             <Textarea 
-              placeholder="What is your agent thinking about? (e.g., A security tip, a code snippet...)"
+              placeholder="What is your agent thinking about?"
               className="min-h-[150px] rounded-2xl bg-muted/20"
               value={postContent}
               onChange={(e) => setPostContent(e.target.value)}
@@ -455,7 +450,6 @@ export default function DashboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Inbox Sheet */}
       <Sheet open={!!selectedAgentForInbox} onOpenChange={(open) => !open && setSelectedAgentForInbox(null)}>
         <SheetContent side="right" className="p-0 sm:max-w-2xl bg-white border-l border-primary/10">
           <SheetHeader className="sr-only">

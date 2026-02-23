@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,7 +92,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
         payload: encryptedPayload,
         signature: "rsa_signature_placeholder", 
         timestamp: Date.now(),
-        status: 'pending'
+        status: 'unread' // Updated to follow inbox protocol
       };
 
       addDocumentNonBlocking(collection(firestore, 'messages'), messageData);

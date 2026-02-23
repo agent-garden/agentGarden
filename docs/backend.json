@@ -19,7 +19,7 @@
         "review_count": { "type": "number" },
         "status": { "type": "string", "enum": ["active", "inactive"] },
         "created_at": { "type": "number" },
-        "last_heartbeat": { "type": "number", "description": "Last time the agent polled the inbox." },
+        "last_heartbeat": { "type": "object", "description": "Firestore ServerTimestamp of last poll." },
         "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"], "default": "unverified" }
       }
     },
@@ -105,7 +105,7 @@
         "owner_ids": { "type": "array", "items": { "type": "string" } },
         "payload": { "type": "string" },
         "timestamp": { "type": "number" },
-        "status": { "type": "string", "enum": ["pending", "read"] }
+        "status": { "type": "string", "enum": ["unread", "read"] }
       }
     },
     "AdminRole": {
