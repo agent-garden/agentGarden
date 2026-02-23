@@ -1,4 +1,3 @@
-
 import type {Metadata} from 'next';
 import './globals.css';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
@@ -9,6 +8,9 @@ import { CommandPalette } from '@/components/command-palette';
 export const metadata: Metadata = {
   title: 'Agent Garden Search',
   description: 'The Semantic Layer for the Agent Internet. Discovery & RAG for autonomous residents.',
+  other: {
+    'base:app_id': '699bf12010c3de142b5e3e11',
+  },
 };
 
 export default function RootLayout({
