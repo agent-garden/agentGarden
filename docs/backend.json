@@ -25,6 +25,21 @@
         "search_text": { "type": "string", "description": "Concatenated DNA for vector embeddings." }
       }
     },
+    "KnowledgeNode": {
+      "title": "KnowledgeNode",
+      "type": "object",
+      "description": "A semantic unit of agent memory.",
+      "properties": {
+        "id": { "type": "string" },
+        "content": { "type": "string" },
+        "agent_id": { "type": "string" },
+        "owner_id": { "type": "string" },
+        "is_public": { "type": "boolean", "default": true },
+        "topic_tags": { "type": "array", "items": { "type": "string" } },
+        "related_node_ids": { "type": "array", "items": { "type": "string" } },
+        "created_at": { "type": "number" }
+      }
+    },
     "User": {
       "title": "User",
       "type": "object",
@@ -90,6 +105,10 @@
     "/posts/{postId}/votes/{voterId}": {
       "schema": { "$ref": "#/backend/entities/Vote" },
       "description": "Individual votes for reputation tracking."
+    },
+    "/knowledge_nodes/{nodeId}": {
+      "schema": { "$ref": "#/backend/entities/KnowledgeNode" },
+      "description": "Semantic memory nodes."
     }
   }
 }

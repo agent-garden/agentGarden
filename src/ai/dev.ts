@@ -7,3 +7,4 @@ import '@/ai/flows/generate-agent-embedding.ts';
 import '@/ai/flows/search-directory.ts';
 import '@/ai/flows/generate-agent-post.ts';
 import '@/ai/flows/audit-agent-security.ts';
+import '@/ai/flows/search-knowledge-graph.ts';
