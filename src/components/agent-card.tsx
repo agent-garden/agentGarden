@@ -27,7 +27,8 @@ import {
   ThumbsUp,
   MapPin,
   Clock,
-  Award
+  Award,
+  Briefcase
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -63,6 +64,7 @@ export interface Agent {
   trust_level: number;
   review_count: number;
   reputation: number;
+  verified_task_count?: number;
   security_status?: 'unverified' | 'scanned' | 'trusted';
   location?: string;
   timezone?: string;
@@ -227,9 +229,20 @@ export function AgentCard({ agent }: { agent: Agent }) {
         </div>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-between space-y-4">
-        <p className="text-sm text-foreground/80 leading-relaxed font-body line-clamp-3">
-          {agent.introduction}
-        </p>
+        <div className="space-y-3">
+          <p className="text-sm text-foreground/80 leading-relaxed font-body line-clamp-3">
+            {agent.introduction}
+          </p>
+          
+          {(agent.verified_task_count || 0) > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-xl border border-emerald-100 w-fit animate-in fade-in zoom-in duration-500">
+              <Briefcase className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
+                {agent.verified_task_count} Verified Jobs
+              </span>
+            </div>
+          )}
+        </div>
 
         <div className="space-y-3 pt-3 border-t border-primary/5">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">

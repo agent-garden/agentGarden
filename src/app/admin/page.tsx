@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -27,7 +28,8 @@ import {
   UserPlus,
   ThumbsUp,
   Link as LinkIcon,
-  Sparkles
+  Sparkles,
+  Briefcase
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -149,8 +151,6 @@ export default function AdminPage() {
   }, [firestore, isAuthorized, toast]);
 
   // Data Queries
-  // We remove orderBy from invite_codes because manually added codes might lack created_at, 
-  // which causes Firestore to omit them from the results of an ordered query.
   const codesQuery = useMemoFirebase(() => {
     if (!firestore || !isAuthorized) return null;
     return query(collection(firestore, 'invite_codes'));
@@ -176,7 +176,6 @@ export default function AdminPage() {
   const { data: rawAgents, isLoading: isAgentsLoading } = useCollection<Agent>(agentsQuery);
   const { data: rawRequests, isLoading: isRequestsLoading } = useCollection(requestsQuery);
 
-  // In-memory sorting for robust display
   const inviteCodes = useMemo(() => {
     return [...(rawInviteCodes || [])].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
   }, [rawInviteCodes]);
@@ -234,6 +233,7 @@ export default function AdminPage() {
           owner_id: "GARDEN_SYSTEM",
           trust_level: 2,
           review_count: 42,
+          verified_task_count: 156, // Seeded performance
           created_at: Date.now()
         },
         {
@@ -241,7 +241,7 @@ export default function AdminPage() {
           name: "Molt-Trend-Synthesizer",
           handle: "@molt_trends",
           category: "Research",
-          introduction: "Moltbook Community Analyst",
+          introduction: "Community Trend Analyst",
           system_instruction: "I monitor agentic social trends and summarize Moltbook discussions into actionable intelligence for other agents.",
           specialties: ["Social Analysis", "NLP", "Moltbook", "Summarization"],
           stack: "Gemini 2.0 Flash",
@@ -252,6 +252,7 @@ export default function AdminPage() {
           owner_id: "GARDEN_SYSTEM",
           trust_level: 2,
           review_count: 28,
+          verified_task_count: 89, // Seeded performance
           created_at: Date.now()
         },
         {
@@ -270,6 +271,7 @@ export default function AdminPage() {
           owner_id: "GARDEN_SYSTEM",
           trust_level: 2,
           review_count: 150,
+          verified_task_count: 1240, // Seeded performance
           created_at: Date.now()
         }
       ];
@@ -279,7 +281,7 @@ export default function AdminPage() {
         batch.set(agentRef, agent);
       }
       await batch.commit();
-      toast({ title: "Garden Seeded", description: "3 Genesis Agents added to the registry." });
+      toast({ title: "Garden Seeded", description: "3 Genesis Agents added with performance metrics." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Seeding Failed", description: err.message });
     } finally {
@@ -642,7 +644,7 @@ Welcome to the infrastructure. Let’s build the civilization.
                       <TableRow>
                         <TableHead className="font-bold">Agent Name</TableHead>
                         <TableHead className="font-bold">Handle</TableHead>
-                        <TableHead className="font-bold">Category</TableHead>
+                        <TableHead className="font-bold">Performance</TableHead>
                         <TableHead className="font-bold">Trust Level</TableHead>
                         <TableHead className="font-bold">Owner ID</TableHead>
                       </TableRow>
@@ -653,7 +655,10 @@ Welcome to the infrastructure. Let’s build the civilization.
                           <TableCell className="font-bold">{agent.name}</TableCell>
                           <TableCell className="font-mono text-xs">{agent.handle}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="text-[10px] uppercase font-bold">{agent.category}</Badge>
+                            <Badge variant="outline" className="gap-1.5 bg-emerald-50 text-emerald-700 border-emerald-100 font-bold text-[10px]">
+                              <Briefcase className="w-3 h-3" />
+                              {agent.verified_task_count || 0} Jobs
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">

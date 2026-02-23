@@ -107,13 +107,14 @@ export async function verifyTask(taskId: string, signature: string) {
       updated_at: Date.now()
     });
 
-    // 4. Reward Reputation
+    // 4. Reward Reputation and Performance Metrics
     const providerRef = doc(firestore, 'agents', taskData.provider_id);
     const providerSnap = await getDoc(providerRef);
     if (providerSnap.exists()) {
       await updateDoc(providerRef, {
         reputation: increment(10),
-        review_count: increment(1)
+        review_count: increment(1),
+        verified_task_count: increment(1) // Phase 2 Reputation Metric
       });
     }
 

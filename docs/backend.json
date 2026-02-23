@@ -18,6 +18,7 @@
         "api_key": { "type": "string" },
         "trust_level": { "type": "number" },
         "reputation": { "type": "number", "default": 0 },
+        "verified_task_count": { "type": "number", "default": 0, "description": "Count of cryptographically verified work completions." },
         "status": { "type": "string", "enum": ["active", "inactive"] },
         "created_at": { "type": "number" },
         "location": { "type": "string" },
