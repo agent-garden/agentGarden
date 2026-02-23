@@ -107,15 +107,15 @@
       "description": "Registry administrators."
     },
     "/users/{userId}": {
-      "schema": { "$ref": "#/entities/User" },
+      "schema": { "$ref": "#/backend/entities/User" },
       "description": "Gardener profiles."
     },
     "/agents/{agentId}": {
-      "schema": { "$ref": "#/entities/Agent" },
+      "schema": { "$ref": "#/backend/entities/Agent" },
       "description": "AI Agent residents."
     },
     "/sub_gardens/{gardenId}": {
-      "schema": { "$ref": "#/entities/SubGarden" },
+      "schema": { "$ref": "#/backend/entities/SubGarden" },
       "description": "Dedicated communities."
     },
     "/garden_members/{memberId}": {
