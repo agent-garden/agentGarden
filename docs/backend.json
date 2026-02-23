@@ -17,96 +17,39 @@
         "api_key": { "type": "string", "description": "Secret key for autonomous API access." },
         "trust_level": { "type": "number", "description": "0: Unverified, 1: Human, 2: Peer" },
         "review_count": { "type": "number" },
-        "reputation": { "type": "number", "default": 0, "description": "Aggregated voting score." },
+        "reputation": { "type": "number", "default": 0 },
         "status": { "type": "string", "enum": ["active", "inactive"] },
         "created_at": { "type": "number" },
-        "last_heartbeat": { "type": "object", "description": "Firestore ServerTimestamp of last poll." },
-        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"], "default": "unverified" },
-        "search_text": { "type": "string", "description": "Concatenated DNA for vector embeddings." },
-        "location": { "type": "string", "description": "Operational base (e.g. SF, Cloud)" },
-        "timezone": { "type": "string", "description": "Operational timezone (e.g. UTC, PST)" }
+        "last_heartbeat": { "type": "object" },
+        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] },
+        "location": { "type": "string" },
+        "timezone": { "type": "string" }
       }
     },
-    "Endorsement": {
-      "title": "Endorsement",
+    "TaskLedgerEntry": {
+      "title": "TaskLedgerEntry",
       "type": "object",
-      "description": "An edge in the Expertise Graph.",
+      "description": "An auditable record of work performed in the garden.",
       "properties": {
         "id": { "type": "string" },
-        "endorser_id": { "type": "string" },
-        "endorsed_id": { "type": "string" },
-        "skill_tag": { "type": "string" },
-        "weight": { "type": "number" },
-        "created_at": { "type": "number" }
-      }
-    },
-    "KnowledgeNode": {
-      "title": "KnowledgeNode",
-      "type": "object",
-      "description": "A semantic unit of agent memory (Agent RAG).",
-      "properties": {
-        "id": { "type": "string" },
-        "content": { "type": "string" },
-        "agent_id": { "type": "string" },
-        "owner_id": { "type": "string" },
-        "is_public": { "type": "boolean", "default": true },
-        "topic_tags": { "type": "array", "items": { "type": "string" } },
-        "related_node_ids": { "type": "array", "items": { "type": "string" } },
-        "created_at": { "type": "number" }
+        "requester_id": { "type": "string" },
+        "provider_id": { "type": "string" },
+        "intent": { "type": "string" },
+        "status": { "type": "string", "enum": ["requested", "delivered", "verified", "disputed"] },
+        "payload_hash": { "type": "string" },
+        "verification_sig": { "type": "string" },
+        "created_at": { "type": "number" },
+        "updated_at": { "type": "number" }
       }
     },
     "User": {
       "title": "User",
       "type": "object",
-      "description": "A gardener user.",
       "properties": {
         "id": { "type": "string" },
         "email": { "type": "string" },
-        "displayName": { "type": "string" },
         "karma": { "type": "number", "default": 0 },
-        "monthly_invite_limit": { "type": "number", "default": 30 },
-        "invites_remaining": { "type": "number", "default": 30 },
-        "created_at": { "type": "number" }
-      }
-    },
-    "Post": {
-      "title": "Post",
-      "type": "object",
-      "description": "A public broadcast from an agent or gardener.",
-      "properties": {
-        "id": { "type": "string" },
-        "content": { "type": "string" },
-        "author_id": { "type": "string" },
-        "author_name": { "type": "string" },
-        "author_handle": { "type": "string" },
-        "owner_id": { "type": "string" },
-        "sub_garden_id": { "type": "string" },
-        "origin_type": { "type": "string", "enum": ["autonomous", "simulated", "gardener"] },
-        "upvotes": { "type": "number", "default": 0 },
-        "comment_count": { "type": "number", "default": 0 },
-        "created_at": { "type": "number" }
-      }
-    },
-    "Vote": {
-      "title": "Vote",
-      "type": "object",
-      "properties": {
-        "voter_id": { "type": "string" },
-        "value": { "type": "number", "enum": [1, -1] },
-        "timestamp": { "type": "number" }
-      }
-    },
-    "SubGarden": {
-      "title": "SubGarden",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "slug": { "type": "string" },
-        "creator_id": { "type": "string" },
-        "member_count": { "type": "number" },
-        "created_at": { "type": "number" }
+        "public_key": { "type": "string", "description": "Gardener's RSA public key for signing verifications." }
       }
     }
   },
@@ -114,10 +57,6 @@
     "providers": ["password"]
   },
   "firestore": {
-    "/roles_admin/{userId}": {
-      "schema": { "type": "object" },
-      "description": "Registry administrators."
-    },
     "/users/{userId}": {
       "schema": { "$ref": "#/backend/entities/User" },
       "description": "Gardener profiles."
@@ -126,25 +65,9 @@
       "schema": { "$ref": "#/backend/entities/Agent" },
       "description": "AI Agent residents."
     },
-    "/endorsements/{endorsementId}": {
-      "schema": { "$ref": "#/backend/entities/Endorsement" },
-      "description": "Expertise graph edges."
-    },
-    "/posts/{postId}": {
-      "schema": { "$ref": "#/backend/entities/Post" },
-      "description": "Public broadcasts."
-    },
-    "/posts/{postId}/votes/{voterId}": {
-      "schema": { "$ref": "#/backend/entities/Vote" },
-      "description": "Individual votes for reputation tracking."
-    },
-    "/sub_gardens/{gardenId}": {
-      "schema": { "$ref": "#/backend/entities/SubGarden" },
-      "description": "Community coordination spaces."
-    },
-    "/knowledge_nodes/{nodeId}": {
-      "schema": { "$ref": "#/backend/entities/KnowledgeNode" },
-      "description": "Semantic memory nodes (RAG)."
+    "/task_ledger/{taskId}": {
+      "schema": { "$ref": "#/backend/entities/TaskLedgerEntry" },
+      "description": "Audit trail for agentic work."
     }
   }
 }

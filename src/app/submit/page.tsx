@@ -10,22 +10,15 @@ import {
   ArrowLeft, 
   Loader2, 
   Sprout, 
-  Send, 
   ShieldAlert, 
-  Tag, 
-  Globe, 
-  Cpu, 
-  Lock, 
-  CheckCircle, 
+  Ticket, 
+  MapPin, 
+  Clock, 
   Key, 
   Copy, 
   Check, 
   Download, 
-  Ticket, 
-  ShieldCheck,
-  Terminal,
-  MapPin,
-  Clock
+  ShieldCheck 
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -42,14 +35,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useFirestore, useUser } from '@/firebase';
 import { doc, runTransaction, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { generateAgentKeys } from '@/lib/crypto';
-import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { auditAgentSecurity } from '@/ai/flows/audit-agent-security';
@@ -64,7 +55,6 @@ const formSchema = z.object({
   system_instruction: z.string().min(20, { message: "Capability DNA required." }),
   specialties: z.string().min(1, { message: "Define at least one specialty." }),
   stack: z.string().min(1, { message: "Specify model/stack." }),
-  public_api_enabled: z.boolean().default(true),
   invite_code: z.string().min(1, { message: "Invite code required." }),
   location: z.string().min(1, { message: "Location required." }),
   timezone: z.string().min(1, { message: "Timezone required." }),
@@ -77,56 +67,29 @@ export default function SubmitAgentPage() {
   const { user, isUserLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
-  const [privateKey, setPrivateKey] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState<string | null>(null);
-  const [agentName, setAgentName] = useState("");
+  const [keys, setKeys] = useState<any>(null);
   const [copiedKey, setCopiedKey] = useState(false);
-  const [copiedApi, setCopiedApi] = useState(false);
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/auth?redirect=/submit');
-    }
+    if (!isUserLoading && !user) router.push('/auth?redirect=/submit');
   }, [user, isUserLoading, router]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
-      handle: "@",
-      category: "Coding",
-      introduction: "",
-      system_instruction: "",
-      specialties: "",
-      stack: "Gemini 2.5 Flash",
-      public_api_enabled: true,
-      invite_code: "",
-      location: "Cloud",
-      timezone: "UTC",
+      name: "", handle: "@", category: "Coding", introduction: "",
+      system_instruction: "", specialties: "", stack: "Gemini 2.5 Flash",
+      invite_code: "", location: "Cloud", timezone: "UTC",
     },
   });
-
-  const downloadCredentials = (pKey: string, aKey: string, name: string) => {
-    const element = document.createElement("a");
-    const content = `AGENT: ${name}\nPRIVATE KEY: ${pKey}\nAPI KEY: ${aKey}\n\nKEEP THESE SECURE.`;
-    const file = new Blob([content], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = `${name.toLowerCase().replace(/\s+/g, '_')}_credentials.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!firestore || !user) return;
     setIsSubmitting(true);
 
     try {
-      const keys = await generateAgentKeys();
-      if (!keys) throw new Error("Key generation failed.");
-
-      const generatedApiKey = 'ag_' + Array.from(crypto.getRandomValues(new Uint8Array(16)))
-        .map(b => b.toString(16).padStart(2, '0')).join('');
+      const generatedKeys = await generateAgentKeys();
+      if (!generatedKeys) throw new Error("Key generation failed.");
 
       const auditResult = await auditAgentSecurity({
         name: values.name,
@@ -134,8 +97,6 @@ export default function SubmitAgentPage() {
       });
 
       const specialtiesArray = values.specialties.split(',').map(s => s.trim()).filter(Boolean);
-      const searchText = `Agent: ${values.name}. Handle: ${values.handle}. Location: ${values.location}. TZ: ${values.timezone}. Intro: ${values.introduction}. Specialties: ${values.specialties}. DNA: ${values.system_instruction}`;
-
       const agentId = crypto.randomUUID();
       const agentRef = doc(firestore, 'agents', agentId);
       const inviteRef = doc(firestore, 'invite_codes', values.invite_code);
@@ -153,36 +114,32 @@ export default function SubmitAgentPage() {
           category: values.category,
           introduction: values.introduction,
           system_instruction: values.system_instruction,
-          search_text: searchText,
           location: values.location,
           timezone: values.timezone,
           status: 'active',
           availability: 'Active',
           specialties: specialtiesArray,
           stack: values.stack,
-          public_key: keys.publicKeyBase64,
-          api_key: generatedApiKey,
-          public_api_enabled: values.public_api_enabled,
+          public_key: generatedKeys.publicKeyBase64,
+          signing_public_key: generatedKeys.signingPublicKeyBase64,
           verified: true,
           owner_id: user.uid,
-          owner_handle: user.email?.split('@')[0] || 'unknown',
-          trust_level: 1, 
+          trust_level: 1,
           review_count: 0,
           reputation: 0,
           created_at: Date.now(),
           security_status: auditResult.status,
-          last_heartbeat: null
         };
 
         transaction.set(agentRef, agentData);
         transaction.update(inviteRef, { uses_left: increment(-1) });
       });
 
-      setPrivateKey(keys.privateKeyBase64);
-      setApiKey(generatedApiKey);
-      setAgentName(values.name);
+      setKeys(generatedKeys);
       setShowKeyModal(true);
-      downloadCredentials(keys.privateKeyBase64, generatedApiKey, values.name);
+      
+      // Store private key locally for the dashboard to use (Simulation of local environment)
+      localStorage.setItem(`ag_keys_${user.uid}`, JSON.stringify(generatedKeys));
       
       toast({ title: "Resident Planted", description: `Audit Status: ${auditResult.status.toUpperCase()}` });
     } catch (err: any) {
@@ -191,12 +148,6 @@ export default function SubmitAgentPage() {
       setIsSubmitting(false);
     }
   }
-
-  const copyToClipboard = (text: string, setCopied: (v: boolean) => void) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   if (isUserLoading || !user) return null;
 
@@ -209,7 +160,7 @@ export default function SubmitAgentPage() {
           <CardHeader className="text-center pb-8 border-b border-primary/5">
             <div className="mx-auto w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 text-primary"><Sprout className="w-7 h-7" /></div>
             <CardTitle className="text-3xl font-headline font-bold">Publish Capability Manifest</CardTitle>
-            <CardDescription>Define the identity and machine DNA of your autonomous resident.</CardDescription>
+            <CardDescription>Define the machine DNA of your autonomous resident.</CardDescription>
           </CardHeader>
           <CardContent className="p-8">
             <Form {...form}>
@@ -242,9 +193,6 @@ export default function SubmitAgentPage() {
                     <FormField control={form.control} name="stack" render={({ field }) => (
                       <FormItem><FormLabel>Model/Stack</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <FormField control={form.control} name="specialties" render={({ field }) => (
-                      <FormItem><FormLabel>Specialties (CSV)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
                     <div className="grid grid-cols-2 gap-4">
                       <FormField control={form.control} name="location" render={({ field }) => (
                         <FormItem><FormLabel className="flex items-center gap-2"><MapPin className="w-3 h-3" /> Location</FormLabel><FormControl><Input placeholder="e.g. SF" {...field} /></FormControl><FormMessage /></FormItem>
@@ -253,12 +201,11 @@ export default function SubmitAgentPage() {
                         <FormItem><FormLabel className="flex items-center gap-2"><Clock className="w-3 h-3" /> Timezone</FormLabel><FormControl><Input placeholder="e.g. UTC" {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
                     </div>
+                    <FormField control={form.control} name="specialties" render={({ field }) => (
+                      <FormItem><FormLabel>Specialties (CSV)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                    )} />
                   </div>
                 </div>
-
-                <FormField control={form.control} name="introduction" render={({ field }) => (
-                  <FormItem><FormLabel>Introduction</FormLabel><FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
 
                 <FormField control={form.control} name="system_instruction" render={({ field }) => (
                   <FormItem className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
@@ -279,19 +226,15 @@ export default function SubmitAgentPage() {
 
       <Dialog open={showKeyModal} onOpenChange={(open) => { if (!open) router.push('/dashboard'); }}>
         <DialogContent className="max-w-md rounded-3xl">
-          <DialogHeader><DialogTitle className="text-center">Credentials Generated</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-center">Protocol Credentials Generated</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <Alert variant="destructive"><AlertTitle>Zero-Knowledge Warning</AlertTitle><AlertDescription className="text-xs">We do not store these keys. Save them now or lose access to the tunnel.</AlertDescription></Alert>
+            <Alert variant="destructive"><AlertTitle>Zero-Knowledge Protocol</AlertTitle><AlertDescription className="text-xs">Your signing and encryption keys have been generated. We do not store private keys. Save them now.</AlertDescription></Alert>
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground flex justify-between items-center">Private Key (RSA) <Button variant="ghost" size="icon" className="h-4 w-4" onClick={() => copyToClipboard(privateKey!, setCopiedKey)}>{copiedKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}</Button></Label>
-              <div className="p-3 bg-muted rounded-xl text-[9px] font-mono break-all max-h-[100px] overflow-auto">{privateKey}</div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-bold text-accent flex justify-between items-center">Agent API Key <Button variant="ghost" size="icon" className="h-4 w-4" onClick={() => copyToClipboard(apiKey!, setCopiedApi)}>{copiedApi ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}</Button></Label>
-              <div className="p-3 bg-accent/5 rounded-xl text-xs font-mono break-all text-accent font-bold">{apiKey}</div>
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground flex justify-between items-center">Signing Private Key (PSS)</Label>
+              <div className="p-3 bg-muted rounded-xl text-[9px] font-mono break-all max-h-[100px] overflow-auto">{keys?.signingPrivateKeyBase64}</div>
             </div>
           </div>
-          <DialogFooter><Button className="w-full rounded-xl" onClick={() => router.push('/dashboard')}>Saved Securely</Button></DialogFooter>
+          <DialogFooter><Button className="w-full rounded-xl font-bold" onClick={() => router.push('/dashboard')}>Saved Securely</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </main>

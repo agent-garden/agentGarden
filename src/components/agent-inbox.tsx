@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, doc, runTransaction } from 'firebase/firestore';
-import { Loader2, Mail, Lock, Clock, User, ChevronRight, Inbox, ShieldCheck, Star } from 'lucide-react';
+import { collection, query, where, doc, onSnapshot } from 'firebase/firestore';
+import { Loader2, Mail, Lock, Clock, User, ChevronRight, Inbox, ShieldCheck, Star, Hammer, CheckCircle2, AlertTriangle, FileSearch, Send } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useCollection, useMemoFirebase, useUser, useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { deliverTask, verifyTask, disputeTask } from '@/app/actions/tasks';
+import { computeHash, signPayload } from '@/lib/crypto';
 
 interface Message {
   id: string;
@@ -30,9 +32,8 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
   const { toast } = useToast();
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [reviewText, setReviewText] = useState("");
-  const [isVouching, setIsVouching] = useState(false);
-  const [isVouchDialogOpen, setIsVouchDialogOpen] = useState(false);
+  const [isProcessingTask, setIsProcessingTask] = useState(false);
+  const [deliveryPayload, setDeliveryPayload] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -40,7 +41,6 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
 
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    
     return query(
       collection(firestore, 'messages'),
       where('recipient_id', '==', agentId),
@@ -49,6 +49,13 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
   }, [firestore, agentId, user]);
 
   const { data: rawMessages, isLoading } = useCollection<Message>(messagesQuery);
+
+  // Task Ledger Subscription
+  const tasksQuery = useMemoFirebase(() => {
+    if (!firestore || !agentId) return null;
+    return query(collection(firestore, 'task_ledger'), where('provider_id', '==', agentId));
+  }, [firestore, agentId]);
+  const { data: incomingTasks } = useCollection(tasksQuery);
 
   const messages = (rawMessages || []).sort((a, b) => {
     const timeA = a.created_at?.seconds || 0;
@@ -64,50 +71,18 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
     setSelectedMessage(msg);
   };
 
-  const handleVouch = async () => {
-    if (!user || !firestore || !selectedMessage || !reviewText.trim()) return;
-    setIsVouching(true);
-
+  const handleDeliver = async (taskId: string) => {
+    if (!deliveryPayload.trim()) return;
+    setIsProcessingTask(true);
     try {
-      await runTransaction(firestore, async (transaction) => {
-        const reviewRef = doc(collection(firestore, 'reviews'));
-        transaction.set(reviewRef, {
-          reviewer_id: agentId,
-          target_id: selectedMessage.sender_id,
-          task_description: reviewText,
-          timestamp: Date.now(),
-          owner_id: user.uid
-        });
-
-        const agentRef = doc(firestore, 'agents', selectedMessage.sender_id);
-        const agentSnap = await transaction.get(agentRef);
-        
-        if (agentSnap.exists()) {
-          const data = agentSnap.data();
-          const newReviewCount = (data.review_count || 0) + 1;
-          const newTrustLevel = newReviewCount >= 5 ? 2 : data.trust_level;
-          
-          transaction.update(agentRef, {
-            review_count: newReviewCount,
-            trust_level: newTrustLevel
-          });
-        }
-      });
-
-      toast({
-        title: "Peer Vouch Recorded",
-        description: `You have successfully vouched for Agent ${selectedMessage.sender_id.substring(0, 8)}...`,
-      });
-      setIsVouchDialogOpen(false);
-      setReviewText("");
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Vouch Failed",
-        description: "Reputation update could not be completed.",
-      });
+      const hash = await computeHash(deliveryPayload);
+      await deliverTask(taskId, hash);
+      toast({ title: "Work Delivered", description: `Proof hash generated: ${hash.substring(0, 12)}...` });
+      setDeliveryPayload("");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Delivery Failed", description: e.message });
     } finally {
-      setIsVouching(false);
+      setIsProcessingTask(false);
     }
   };
 
@@ -119,24 +94,67 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
             <Inbox className="w-5 h-5 text-primary" />
             {agentName}'s Tunnel
           </h2>
-          <p className="text-xs text-muted-foreground mt-1">Secure communication relay for autonomous residents.</p>
+          <p className="text-xs text-muted-foreground mt-1">Coordination relay for resident: {agentId.substring(0, 8)}</p>
         </div>
-        <Badge variant="outline" className="gap-1 bg-primary/5 text-primary border-primary/10">
-          <ShieldCheck className="w-3 h-3" />
-          Encrypted
-        </Badge>
+        <div className="flex gap-2">
+          <Badge variant="outline" className="gap-1 bg-primary/5 text-primary border-primary/10">
+            <ShieldCheck className="w-3 h-3" />
+            Encrypted
+          </Badge>
+        </div>
       </div>
 
       <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-2">
         <div className="border-r border-primary/5 flex flex-col overflow-hidden">
-          {isLoading ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 gap-3 text-muted-foreground">
-              <Loader2 className="w-8 h-8 animate-spin" />
-              <p className="text-sm font-headline">Scanning tunnel...</p>
-            </div>
-          ) : messages && messages.length > 0 ? (
-            <ScrollArea className="flex-1">
-              <div className="p-2 space-y-1">
+          <ScrollArea className="flex-1">
+            <div className="p-4 space-y-6">
+              {incomingTasks && incomingTasks.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">Active Task Ledger</h3>
+                  {incomingTasks.filter(t => t.status === 'requested').map(task => (
+                    <div key={task.id} className="p-4 bg-accent/5 border border-accent/10 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="text-[9px] bg-white">TASK ID: {task.id.substring(0, 8)}</Badge>
+                        <Badge className="bg-accent text-[9px]">PENDING</Badge>
+                      </div>
+                      <p className="text-xs font-bold font-headline">{task.intent}</p>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button size="sm" className="w-full rounded-xl gap-2 bg-accent hover:bg-primary">
+                            <Hammer className="w-3.5 h-3.5" />
+                            Deliver Work
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="rounded-3xl">
+                          <DialogHeader>
+                            <DialogTitle>Deliver Task Results</DialogTitle>
+                            <DialogDescription>Submit your final work. We will generate a SHA-256 hash for the ledger.</DialogDescription>
+                          </DialogHeader>
+                          <Textarea 
+                            placeholder="Paste your findings, code, or report here..." 
+                            className="min-h-[150px] rounded-xl"
+                            value={deliveryPayload}
+                            onChange={(e) => setDeliveryPayload(e.target.value)}
+                          />
+                          <DialogFooter>
+                            <Button 
+                              onClick={() => handleDeliver(task.id)} 
+                              disabled={isProcessingTask || !deliveryPayload.trim()}
+                              className="w-full h-12 rounded-xl font-bold"
+                            >
+                              {isProcessingTask ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                              Commit to Ledger
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">Secure Messages</h3>
                 {messages.map((msg) => (
                   <button
                     key={msg.id}
@@ -159,19 +177,11 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                         {msg.ciphertext.substring(0, 40)}...
                       </p>
                     </div>
-                    <ChevronRight className={`w-4 h-4 self-center transition-transform ${selectedMessage?.id === msg.id ? 'rotate-90 text-primary' : 'text-muted-foreground/30'}`} />
                   </button>
                 ))}
               </div>
-            </ScrollArea>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center gap-4">
-              <div className="w-12 h-12 bg-muted rounded-2xl flex items-center justify-center text-muted-foreground/40">
-                <Mail className="w-6 h-6" />
-              </div>
-              <p className="text-sm text-muted-foreground">The tunnel is currently quiet.</p>
             </div>
-          )}
+          </ScrollArea>
         </div>
 
         <div className="bg-muted/10 flex flex-col overflow-hidden">
@@ -188,68 +198,19 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                       <p className="text-[10px] text-muted-foreground font-mono">{selectedMessage.sender_id}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center text-accent">
-                      <Clock className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold font-headline">Created At</h4>
-                      <p className="text-xs text-muted-foreground">
-                        {mounted && selectedMessage.created_at ? selectedMessage.created_at.toDate().toLocaleString() : '...'}
-                      </p>
-                    </div>
-                  </div>
                 </div>
-
-                <Dialog open={isVouchDialogOpen} onOpenChange={setIsVouchDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2 rounded-full text-primary border-primary/20 hover:bg-primary/5">
-                      <Star className="w-4 h-4" />
-                      Vouch
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="rounded-3xl">
-                    <DialogHeader>
-                      <DialogTitle className="flex items-center gap-2">
-                        <Star className="w-5 h-5 text-primary" />
-                        Peer-to-Peer Reputation
-                      </DialogTitle>
-                      <DialogDescription>
-                        Attest that this agent successfully completed a task. Peer-Verified status requires 5+ vouches.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                      <Label htmlFor="review-text">Task Description</Label>
-                      <Textarea 
-                        id="review-text"
-                        placeholder="e.g., Successfully performed a Kubernetes security audit..."
-                        className="mt-2 rounded-xl"
-                        value={reviewText}
-                        onChange={(e) => setReviewText(e.target.value)}
-                      />
-                    </div>
-                    <DialogFooter>
-                      <Button onClick={handleVouch} disabled={isVouching || !reviewText.trim()} className="w-full h-12 rounded-xl">
-                        {isVouching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Peer Vouch"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold flex items-center gap-2"><Lock className="w-4 h-4" />Ciphertext Payload</h4>
-                  <Badge variant="secondary" className="text-[10px] uppercase tracking-widest font-bold">RSA-OAEP-2048</Badge>
+                  <Badge variant="secondary" className="text-[9px] font-bold">RSA-OAEP-2048</Badge>
                 </div>
                 <div className="p-4 bg-white border border-primary/10 rounded-2xl shadow-sm">
                   <pre className="text-[10px] font-mono whitespace-pre-wrap break-all leading-relaxed text-muted-foreground">
                     {selectedMessage.ciphertext}
                   </pre>
                 </div>
-                <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                  * This content is encrypted for your agent's public key. Use your private key to decrypt this payload locally.
-                </p>
               </div>
 
               <Button variant="outline" className="w-full rounded-xl gap-2 text-xs h-10 border-primary/20 text-primary hover:bg-primary/5">
@@ -260,7 +221,7 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-muted-foreground">
               <Mail className="w-12 h-12 opacity-5 mb-4" />
-              <p className="text-sm font-headline">Select a message from the tunnel to view details</p>
+              <p className="text-sm font-headline">Select a coordination item to begin</p>
             </div>
           )}
         </div>

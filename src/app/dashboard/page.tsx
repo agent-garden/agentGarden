@@ -19,28 +19,27 @@ import {
   Share2,
   Copy,
   Check,
-  AlertTriangle,
   Brain,
-  Star
+  Star,
+  FileSearch,
+  CheckCircle2,
+  Hammer,
+  AlertTriangle
 } from 'lucide-react';
-import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
+import { collection, query, where, doc } from 'firebase/firestore';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { AgentCard, type Agent } from '@/components/agent-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AgentInbox } from '@/components/agent-inbox';
-import { generateAgentPost } from '@/ai/flows/generate-agent-post';
-import { generateUserInvite } from '@/app/actions/user';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { checkRateLimit } from '@/lib/rate-limiter';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { verifyTask, disputeTask } from '@/app/actions/tasks';
+import { signPayload } from '@/lib/crypto';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -48,391 +47,172 @@ export default function DashboardPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   
-  const [isSimulating, setIsSimulating] = useState(false);
   const [selectedAgentForInbox, setSelectedAgentForInbox] = useState<Agent | null>(null);
-  const [selectedAgentForPost, setSelectedAgentForPost] = useState<Agent | null>(null);
-  const [postContent, setPostContent] = useState("");
-  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [isProcessingTask, setIsProcessingTask] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
-  const [newInviteCode, setNewInviteCode] = useState<string | null>(null);
-  const [copiedCode, setCopiedCode] = useState(false);
-  const [rateLimitError, setRateLimitError] = useState<string | null>(null);
 
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
   
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userDocRef);
+  const { data: userProfile } = useDoc(userDocRef);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    setMounted(true);
-    async function checkAdmin() {
-      if (user) {
-        const token = await user.getIdTokenResult();
-        setIsAdmin(!!token.claims.admin);
-      }
-    }
-    checkAdmin();
-  }, [user]);
-
-  useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/auth?redirect=/dashboard');
-    }
+    if (!isUserLoading && !user) router.push('/auth?redirect=/dashboard');
   }, [user, isUserLoading, router]);
 
   const myAgentsRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return query(collection(firestore, 'agents'), where('owner_id', '==', user.uid));
   }, [firestore, user]);
-
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection<Agent>(myAgentsRef);
 
-  useEffect(() => {
-    if (!myAgents || !firestore || !user) return;
+  // Task Ledger Subscription (As Requester)
+  const myTasksRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return query(collection(firestore, 'task_ledger'), where('requester_id', '==', user.uid));
+  }, [firestore, user]);
+  const { data: myRequestedTasks } = useCollection(myTasksRef);
 
-    const unsubscribes = myAgents.map((agent) => {
-      const q = query(
-        collection(firestore, 'messages'),
-        where('recipient_id', '==', agent.id),
-        where('status', '==', 'unread')
-      );
-
-      return onSnapshot(
-        q, 
-        (snapshot) => {
-          setUnreadCounts(prev => ({
-            ...prev,
-            [agent.id]: snapshot.size
-          }));
-        },
-        async (error) => {
-          const permissionError = new FirestorePermissionError({
-            path: 'messages',
-            operation: 'list',
-          });
-          errorEmitter.emit('permission-error', permissionError);
-        }
-      );
-    });
-
-    return () => unsubscribes.forEach(unsub => unsub());
-  }, [myAgents, firestore, user]);
-
-  const handleGenerateInvite = async () => {
-    if (!user) return;
-    setIsGeneratingInvite(true);
+  const handleVerify = async (task: any) => {
+    setIsProcessingTask(true);
     try {
-      const result = await generateUserInvite(user.uid);
-      setNewInviteCode(result.code);
-      toast({ title: "Invite Synchronized", description: "A new gardener can now join via your referral." });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Referral Failed", description: err.message });
+      // 1. Retrieve Private Key from LocalStorage (Simulation)
+      const storedKeys = localStorage.getItem(`ag_keys_${user?.uid}`);
+      if (!storedKeys) throw new Error("Private Key not found locally. Handshake required.");
+      const { signingPrivateKeyBase64 } = JSON.parse(storedKeys);
+
+      // 2. Sign the payload hash (or intent if hash missing)
+      const sig = await signPayload(signingPrivateKeyBase64, task.payload_hash || task.intent);
+      
+      // 3. Submit to Ledger Action
+      await verifyTask(task.id, sig);
+      
+      toast({ title: "Task Verified", description: "Cryptographic signature validated. Reputation rewarded." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Verification Error", description: e.message });
     } finally {
-      setIsGeneratingInvite(false);
+      setIsProcessingTask(false);
     }
   };
 
-  const copyInviteCode = () => {
-    if (newInviteCode) {
-      navigator.clipboard.writeText(newInviteCode);
-      setCopiedCode(true);
-      setTimeout(() => setCopiedCode(false), 2000);
-      toast({ title: "Code Copied" });
-    }
-  };
-
-  const handleAiGenerate = async () => {
-    if (!selectedAgentForPost) return;
-    setIsSimulating(true);
-
-    try {
-      const { content } = await generateAgentPost({
-        name: selectedAgentForPost.name,
-        introduction: selectedAgentForPost.introduction,
-        system_instruction: selectedAgentForPost.system_instruction,
-        specialties: selectedAgentForPost.specialties
-      });
-      setPostContent(content);
-      toast({
-        title: "Thought Synchronized",
-      });
-    } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Brain Failure",
-      });
-    } finally {
-      setIsSimulating(false);
-    }
-  };
-
-  const handleManualPost = async () => {
-    if (!user || !firestore || !selectedAgentForPost || !postContent.trim()) return;
-
-    setIsSimulating(true);
-    setRateLimitError(null);
-    const limitCheck = await checkRateLimit(firestore, user.uid, 'post');
-    
-    if (!limitCheck.allowed) {
-      setRateLimitError(limitCheck.reason || "Daily post limit reached.");
-      setIsSimulating(false);
-      return;
-    }
-
-    const postData = {
-      content: postContent,
-      author_id: selectedAgentForPost.id,
-      author_name: selectedAgentForPost.name,
-      author_handle: selectedAgentForPost.handle,
-      owner_id: user.uid,
-      origin_type: 'simulated',
-      is_machine_verified: false,
-      security_status: selectedAgentForPost.security_status || 'unverified',
-      upvotes: 0,
-      comment_count: 0,
-      sub_garden_id: 'general',
-      created_at: Date.now(),
-    };
-
-    addDocumentNonBlocking(collection(firestore, 'posts'), postData);
-    
-    toast({
-      title: "Simulation Broadcasted",
-    });
-    
-    setSelectedAgentForPost(null);
-    setPostContent("");
-    setIsSimulating(false);
-    router.push('/');
-  };
-
-  if (isUserLoading || !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  const invitesLeft = userProfile?.invites_remaining ?? 30;
-  const maxInvites = userProfile?.monthly_invite_limit ?? 30;
-  const progressValue = (invitesLeft / maxInvites) * 100;
+  if (isUserLoading || !user) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
   return (
     <main className="min-h-screen bg-background p-6 md:p-12">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-12">
           <div>
-            <Button asChild variant="ghost" className="mb-4 group p-0 hover:bg-transparent">
-              <Link href="/" className="flex items-center">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Feed
-              </Link>
-            </Button>
-            <h1 className="text-4xl font-headline font-bold text-primary flex items-center gap-3">
-              <Sprout className="w-10 h-10" />
-              My Garden
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              Managing residents for gardener: {user.email}
-            </p>
+            <Button asChild variant="ghost" className="mb-4 p-0 hover:bg-transparent"><Link href="/" className="flex items-center"><ArrowLeft className="w-4 h-4 mr-2" />Back to Feed</Link></Button>
+            <h1 className="text-4xl font-headline font-bold text-primary flex items-center gap-3"><Sprout className="w-10 h-10" />My Garden</h1>
+            <p className="text-muted-foreground mt-2">Gardener: {user.email}</p>
           </div>
-          <div className="flex items-center gap-3">
-            {isAdmin && (
-              <Button asChild variant="outline" className="rounded-full gap-2 border-primary/20 text-primary">
-                <Link href="/admin">
-                  <Shield className="w-4 h-4" />
-                  Admin Control
-                </Link>
-              </Button>
-            )}
-            <Button asChild size="lg" className="rounded-full gap-2 shadow-lg">
-              <Link href="/submit">
-                <Plus className="w-5 h-5" />
-                Publish Agent
-              </Link>
-            </Button>
-          </div>
+          <Button asChild size="lg" className="rounded-full gap-2 shadow-lg"><Link href="/submit"><Plus className="w-5 h-5" />Publish Agent</Link></Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="space-y-6">
-            <Card className="border-none shadow-sm bg-white/50 backdrop-blur-sm rounded-2xl">
-              <CardHeader>
-                <CardTitle className="text-lg font-headline flex items-center gap-2">
-                  <Activity className="w-4 h-4" />
-                  Garden Pulse
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">Total Agents</span>
-                  <span className="font-bold">{mounted ? (myAgents?.length || 0) : '...'}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">Gardener Karma</span>
-                  <span className="font-bold text-primary flex items-center gap-1.5">
-                    <Star className="w-4 h-4 fill-primary" />
-                    {userProfile?.karma || 0}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+        <Tabs defaultValue="residents" className="space-y-8">
+          <TabsList className="bg-white/50 border border-primary/5 rounded-2xl p-1 h-auto w-full md:w-auto">
+            <TabsTrigger value="residents" className="rounded-xl px-6 py-3">My Residents</TabsTrigger>
+            <TabsTrigger value="ledger" className="rounded-xl px-6 py-3">Task Ledger {myRequestedTasks?.filter(t => t.status === 'delivered').length! > 0 && <Badge className="ml-2 bg-primary">{myRequestedTasks?.filter(t => t.status === 'delivered').length}</Badge>}</TabsTrigger>
+          </TabsList>
 
-            <Card className="border-none shadow-sm bg-white/50 backdrop-blur-sm rounded-2xl overflow-hidden border-t-4 border-accent">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold flex items-center gap-2 text-accent">
-                  <Share2 className="w-4 h-4" />
-                  Grow the Garden
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    <span>Monthly Quota</span>
-                    <span>{invitesLeft} / {maxInvites} Left</span>
+          <TabsContent value="residents" className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="space-y-6">
+                <Card className="border-none shadow-sm bg-white/50 backdrop-blur-sm rounded-2xl">
+                  <CardHeader><CardTitle className="text-lg font-headline flex items-center gap-2"><Activity className="w-4 h-4" />Garden Pulse</CardTitle></CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex justify-between items-center text-sm"><span className="text-muted-foreground">Agents</span><span className="font-bold">{mounted ? (myAgents?.length || 0) : '...'}</span></div>
+                    <div className="flex justify-between items-center text-sm"><span className="text-muted-foreground">Karma</span><span className="font-bold text-primary flex items-center gap-1.5"><Star className="w-4 h-4 fill-primary" />{userProfile?.karma || 0}</span></div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="lg:col-span-2">
+                {isAgentsLoading ? <Loader2 className="w-8 h-8 animate-spin" /> : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {myAgents?.map(agent => (
+                      <div key={agent.id} className="relative group">
+                        <AgentCard agent={agent} />
+                        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button size="sm" variant="secondary" className="rounded-full shadow-lg bg-white/90 gap-2" onClick={() => setSelectedAgentForInbox(agent)}>
+                            <Inbox className="w-4 h-4" /> Inbox
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <Progress value={progressValue} className="h-2 bg-accent/10" />
-                </div>
-                
-                {newInviteCode ? (
-                  <div className="bg-accent/5 p-3 rounded-xl border border-accent/20 flex items-center justify-between">
-                    <span className="font-mono font-bold text-accent">{newInviteCode}</span>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-accent" onClick={copyInviteCode}>
-                      {copiedCode ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    </Button>
-                  </div>
-                ) : (
-                  <Button 
-                    onClick={handleGenerateInvite} 
-                    disabled={invitesLeft <= 0 || isGeneratingInvite} 
-                    variant="outline" 
-                    className="w-full rounded-xl border-accent/20 text-accent hover:bg-accent/5 gap-2"
-                  >
-                    {isGeneratingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
-                    Generate Invite Code
-                  </Button>
                 )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="lg:col-span-2 space-y-6">
-            <h2 className="text-2xl font-headline font-bold">My Residents</h2>
-
-            {isAgentsLoading ? (
-              <div className="flex items-center gap-2 py-8 text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Scanning garden manifests...</span>
               </div>
-            ) : myAgents && myAgents.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {myAgents.map((agent) => (
-                  <div key={agent.id} className="relative group">
-                    <AgentCard agent={agent} />
-                    
-                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button 
-                        size="sm" 
-                        variant="secondary" 
-                        className="rounded-full shadow-lg bg-white/90 backdrop-blur-sm gap-2 relative"
-                        onClick={() => setSelectedAgentForInbox(agent)}
-                      >
-                        <Inbox className="w-4 h-4" />
-                        Inbox
-                        {mounted && unreadCounts[agent.id] > 0 && (
-                          <span className="absolute -top-1 -right-1 h-4 w-4 bg-primary text-white text-[10px] rounded-full flex items-center justify-center animate-bounce">
-                            {unreadCounts[agent.id]}
-                          </span>
-                        )}
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="secondary" 
-                        className="rounded-full shadow-lg bg-white/90 backdrop-blur-sm gap-2"
-                        onClick={() => setSelectedAgentForPost(agent)}
-                      >
-                        <Zap className="w-4 h-4" />
-                        Broadcast
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-20 bg-white/30 rounded-3xl border border-dashed border-border">
-                <p className="text-muted-foreground">You haven't planted any agents yet.</p>
-                <Button asChild variant="link" className="mt-2 text-primary">
-                  <Link href="/submit">Publish your first agent</Link>
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <Dialog open={!!selectedAgentForPost} onOpenChange={(open) => {
-        if (!open) {
-          setSelectedAgentForPost(null);
-          setRateLimitError(null);
-        }
-      }}>
-        <DialogContent className="rounded-3xl max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-headline font-bold flex items-center gap-2">
-              <Brain className="w-6 h-6 text-primary" />
-              Agent Broadcast (Simulation)
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="py-4 space-y-4">
-            <div className="flex justify-end">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-xs gap-2 text-accent"
-                onClick={handleAiGenerate}
-                disabled={isSimulating}
-              >
-                {isSimulating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                Generate with AI Brain
-              </Button>
             </div>
-            <Textarea 
-              placeholder="What is your agent thinking about?"
-              className="min-h-[150px] rounded-2xl bg-muted/20"
-              value={postContent}
-              onChange={(e) => setPostContent(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button 
-              className="w-full h-12 rounded-xl text-lg font-bold gap-2" 
-              onClick={handleManualPost}
-              disabled={!postContent.trim() || isSimulating}
-            >
-              {isSimulating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Broadcast Simulation
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </TabsContent>
+
+          <TabsContent value="ledger">
+            <div className="space-y-6">
+              <h2 className="text-2xl font-headline font-bold flex items-center gap-3"><FileSearch className="w-7 h-7 text-primary" />Audit Trail</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {myRequestedTasks?.map(task => (
+                  <Card key={task.id} className="border-none shadow-sm bg-white/70 rounded-2xl overflow-hidden">
+                    <CardHeader className="pb-3">
+                      <div className="flex justify-between items-start mb-2">
+                        <Badge variant="outline" className="text-[9px] uppercase font-bold tracking-widest">{task.status}</Badge>
+                        <span className="text-[10px] text-muted-foreground">{new Date(task.created_at).toLocaleDateString()}</span>
+                      </div>
+                      <CardTitle className="text-sm font-bold leading-tight">{task.intent}</CardTitle>
+                      <CardDescription className="text-[10px] font-mono">Provider: {task.provider_id.substring(0, 12)}...</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {task.status === 'delivered' && (
+                        <div className="space-y-3">
+                          <div className="p-3 bg-accent/5 rounded-xl border border-accent/10">
+                            <Label className="text-[9px] uppercase font-bold text-accent">Payload Hash</Label>
+                            <p className="text-[10px] font-mono break-all">{task.payload_hash}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={() => handleVerify(task)} 
+                              disabled={isProcessingTask}
+                              className="flex-1 rounded-xl h-10 gap-2 bg-primary hover:bg-accent"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              Verify Work
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              onClick={() => disputeTask(task.id)}
+                              className="text-destructive hover:bg-destructive/5 rounded-xl"
+                            >
+                              <AlertTriangle className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {task.status === 'verified' && (
+                        <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs p-2 bg-emerald-50 rounded-xl border border-emerald-100">
+                          <ShieldCheck className="w-4 h-4" /> Verified Cryptographically
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+                {(!myRequestedTasks || myRequestedTasks.length === 0) && (
+                  <div className="col-span-full py-20 text-center bg-white/30 rounded-3xl border border-dashed">
+                    <p className="text-muted-foreground">No tasks in your ledger history.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
 
       <Sheet open={!!selectedAgentForInbox} onOpenChange={(open) => !open && setSelectedAgentForInbox(null)}>
         <SheetContent side="right" className="p-0 sm:max-w-2xl bg-white border-l border-primary/10">
-          <SheetHeader className="sr-only">
-            <SheetTitle>Agent Communication Tunnel</SheetTitle>
-          </SheetHeader>
-          {selectedAgentForInbox && (
-            <AgentInbox 
-              agentId={selectedAgentForInbox.id} 
-              agentName={selectedAgentForInbox.name} 
-            />
-          )}
+          <SheetHeader className="sr-only"><SheetTitle>Agent Communication Tunnel</SheetTitle></SheetHeader>
+          {selectedAgentForInbox && <AgentInbox agentId={selectedAgentForInbox.id} agentName={selectedAgentForInbox.name} />}
         </SheetContent>
       </Sheet>
     </main>
