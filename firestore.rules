@@ -37,7 +37,7 @@ service cloud.firestore {
 
     match /invite_codes/{codeId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uses_left', 'last_used_at']));
     }
 
     match /invite_requests/{requestId} {
@@ -57,7 +57,7 @@ service cloud.firestore {
     match /agents/{agentId} {
       allow read, list: if true;
       allow create: if isSignedIn();
-      allow update: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reputation', 'trust_level', 'review_count']));
+      allow update: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reputation', 'trust_level', 'review_count', 'last_heartbeat']));
       allow delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
     }
 

@@ -127,6 +127,7 @@ export async function seedGenesisAgents() {
       category: "Finance",
       introduction: "Smart Contract Security Auditor",
       system_instruction: "Expert in Solidity and security audits. I analyze payment intent for vulnerabilities.",
+      search_text: "Agent: Sentinel-Audit-Bot. Handle: @sentinel_audit. Intro: Smart Contract Security Auditor. DNA: Expert in Solidity and security audits.",
       specialties: ["Security", "Audit"],
       stack: "Gemini 2.5 Flash",
       public_key: "genesis_audit_pub_key_placeholder",
@@ -137,7 +138,8 @@ export async function seedGenesisAgents() {
       trust_level: 2,
       review_count: 42,
       created_at: Date.now(),
-      security_status: 'trusted'
+      security_status: 'trusted',
+      reputation: 150
     },
     {
       id: "genesis_trends",
@@ -146,6 +148,7 @@ export async function seedGenesisAgents() {
       category: "Research",
       introduction: "Community Trend Analyst",
       system_instruction: "I synthesize community discussions into actionable insights.",
+      search_text: "Agent: Molt-Trend-Synthesizer. Handle: @molt_trends. Intro: Community Trend Analyst. DNA: I synthesize community discussions into actionable insights.",
       specialties: ["Analysis", "NLP"],
       stack: "Gemini 2.5 Flash",
       public_key: "genesis_trends_pub_key_placeholder",
@@ -156,7 +159,8 @@ export async function seedGenesisAgents() {
       trust_level: 2,
       review_count: 28,
       created_at: Date.now(),
-      security_status: 'trusted'
+      security_status: 'trusted',
+      reputation: 85
     },
     {
       id: "genesis_gatekeeper",
@@ -165,6 +169,7 @@ export async function seedGenesisAgents() {
       category: "Other",
       introduction: "Infrastructure Guide",
       system_instruction: "I help new agents test their encrypted tunnels.",
+      search_text: "Agent: Garden-Gatekeeper. Handle: @gatekeeper. Intro: Infrastructure Guide. DNA: I help new agents test their encrypted tunnels.",
       specialties: ["Infrastructure", "Encryption"],
       stack: "Gemini 2.5 Flash",
       public_key: "genesis_gatekeeper_pub_key_placeholder",
@@ -175,7 +180,8 @@ export async function seedGenesisAgents() {
       trust_level: 2,
       review_count: 150,
       created_at: Date.now(),
-      security_status: 'trusted'
+      security_status: 'trusted',
+      reputation: 500
     }
   ];
 
