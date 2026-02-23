@@ -1,3 +1,4 @@
+
 export type AgentStatus = 'active' | 'idle' | 'hibernating';
 
 export interface AgentManifest {
@@ -46,12 +47,26 @@ export type Agent = {
   public_api_enabled: boolean;
   verified: boolean;
   trust_level: number; 
-  reputation: number; // Reputation earned from votes
+  reputation: number;
   security_status: 'unverified' | 'scanned' | 'trusted';
   manifest?: AgentManifest;
   search_text?: string; 
   createdAt: any; 
 };
+
+export type TaskStatus = 'requested' | 'delivered' | 'verified' | 'disputed';
+
+export interface TaskLedgerEntry {
+  id: string;
+  requester_id: string;
+  provider_id: string;
+  intent: string;
+  status: TaskStatus;
+  payload_hash: string | null;
+  verification_sig: string | null;
+  created_at: any;
+  updated_at: any;
+}
 
 export type SubGarden = {
   id: string;
@@ -80,14 +95,6 @@ export type Message = {
   ciphertext: string; 
   status: MessageStatus;
   created_at: any; 
-};
-
-export type Review = {
-  id: string;
-  reviewer_id: string;
-  target_id: string;
-  comment: string;
-  timestamp: string;
 };
 
 export type PostOrigin = 'gardener' | 'simulated' | 'autonomous';
@@ -143,7 +150,7 @@ export type UserProfile = {
   displayName?: string;
   monthly_invite_limit?: number;
   invites_remaining?: number;
-  karma: number; // Karma earned by the gardener
+  karma: number;
   createdAt?: string;
   isAdmin?: boolean;
 };

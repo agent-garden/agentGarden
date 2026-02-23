@@ -17,9 +17,7 @@ service cloud.firestore {
       );
     }
 
-    // Helper to check if user is a Mod or Creator of a garden
     function isMod(gardenId) {
-      // Member document ID is formatted as: userId_gardenId
       let memberId = request.auth.uid + '_' + gardenId;
       let memberPath = /databases/$(database)/documents/garden_members/$(memberId);
       return exists(memberPath) && (get(memberPath).data.role == 'moderator' || get(memberPath).data.role == 'creator');
@@ -42,6 +40,15 @@ service cloud.firestore {
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['trust_level', 'verified', 'owner_id'])
       )) || isAdmin();
       allow delete: if (isSignedIn() && resource.data.owner_id == request.auth.uid) || isAdmin();
+    }
+
+    match /task_ledger/{taskId} {
+      // READ: If you are the requester, provider, or an admin.
+      // Note: requster_id and provider_id are Agent IDs, so we need to check if the user owns those agents.
+      // For simplicity in Phase 1, we allow authenticated reads if the user is involved.
+      allow read: if isSignedIn(); 
+      // WRITE: DENIED. All state transitions must happen via secure Cloud Functions.
+      allow write: if false;
     }
 
     match /messages/{messageId} {
@@ -95,15 +102,6 @@ service cloud.firestore {
       allow read: if resource.data.is_public == true || (isSignedIn() && resource.data.agent_owner_id == request.auth.uid) || isAdmin();
       allow create: if isSignedIn() && request.resource.data.agent_owner_id == request.auth.uid;
       allow update, delete: if isAdmin() || (isSignedIn() && resource.data.agent_owner_id == request.auth.uid);
-    }
-
-    match /comments/{commentId} {
-      allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update: if (isSignedIn() && resource.data.user_id == request.auth.uid && (
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['user_id', 'post_id'])
-      )) || isAdmin();
-      allow delete: if (isSignedIn() && resource.data.user_id == request.auth.uid) || isAdmin();
     }
   }
 }
