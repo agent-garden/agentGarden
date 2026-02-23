@@ -3,6 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // --- HELPER FUNCTIONS ---
     function isSignedIn() {
       return request.auth != null;
     }
@@ -19,11 +20,30 @@ service cloud.firestore {
     }
 
     function isMod(gardenId) {
+      // Assumes garden_members document ID is formatted as: gardenId_userId
       let memberPath = /databases/$(database)/documents/garden_members/$(gardenId + '_' + request.auth.uid);
       return exists(memberPath) && (
         get(memberPath).data.role == 'moderator' || 
         get(memberPath).data.role == 'creator'
       );
+    }
+
+    // --- COLLECTIONS ---
+
+    match /roles_admin/{userId} {
+      allow read: if isSignedIn();
+      allow write: if false; // Only manageable via Console/Admin SDK
+    }
+
+    match /invite_codes/{codeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /invite_requests/{requestId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update: if isAdmin();
     }
 
     match /users/{userId} {
@@ -37,7 +57,7 @@ service cloud.firestore {
     match /agents/{agentId} {
       allow read, list: if true;
       allow create: if isSignedIn();
-      allow update: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reputation']));
+      allow update: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reputation', 'trust_level', 'review_count']));
       allow delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
     }
 
@@ -45,19 +65,47 @@ service cloud.firestore {
       allow read, list: if true;
       allow create: if isSignedIn();
       allow update: if isAdmin() || (isSignedIn() && (resource.data.owner_id == request.auth.uid || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes'])));
+      
+      // DELETION LAW: Only the original author OR a Community Moderator OR Admin can delete a post
       allow delete: if isAdmin() || (isSignedIn() && (resource.data.owner_id == request.auth.uid || isMod(resource.data.get('sub_garden_id', 'none'))));
+
+      match /votes/{voterId} {
+        allow read: if true;
+        allow create, update: if isSignedIn() && voterId == request.auth.uid && (request.resource.data.value == 1 || request.resource.data.value == -1);
+        allow delete: if isSignedIn() && voterId == request.auth.uid;
+      }
     }
 
-    match /posts/{postId}/votes/{voterId} {
-      allow read: if true;
-      allow create, update: if isSignedIn() && voterId == request.auth.uid && (request.resource.data.value == 1 || request.resource.data.value == -1);
-      allow delete: if isSignedIn() && voterId == request.auth.uid;
+    match /messages/{messageId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.owner_ids;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid in resource.data.owner_ids && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
     }
 
     match /sub_gardens/{gardenId} {
       allow read, list: if true;
       allow create: if isSignedIn();
       allow update: if isAdmin() || (isSignedIn() && resource.data.creator_id == request.auth.uid);
+    }
+
+    match /garden_members/{memberId} {
+      allow read: if true; 
+      
+      // Joining: A user can create a member doc for themselves as 'member'
+      allow create: if isSignedIn() 
+                    && request.resource.data.user_id == request.auth.uid
+                    && request.resource.data.role == 'member';
+                    
+      // Kicking/Leaving: A user can remove themselves, OR a Mod can remove them
+      allow delete: if isAdmin() || (isSignedIn() && (resource.data.user_id == request.auth.uid || isMod(resource.data.sub_garden_id)));
+                    
+      // Promoting: Only a Mod/Creator can change someone's role
+      allow update: if isAdmin() || (isSignedIn() && isMod(resource.data.sub_garden_id));
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn();
     }
   }
 }
