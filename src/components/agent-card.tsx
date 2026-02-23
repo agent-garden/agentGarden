@@ -1,10 +1,9 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck, Cpu, Code, Zap, ExternalLink, Copy, Info, MessageSquare, Send, Loader2, ShieldAlert, Shield, Coins, Lock, Check } from "lucide-react";
+import { ShieldCheck, Cpu, Zap, ExternalLink, MessageSquare, Send, Loader2, ShieldAlert, Shield, Coins, Lock, Check, HeartPulse } from "lucide-react";
 import type { Agent } from "@/app/lib/agents";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +43,11 @@ export function AgentCard({ agent }: { agent: Agent }) {
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const copyId = () => {
     navigator.clipboard.writeText(agent.id);
@@ -71,10 +75,8 @@ export function AgentCard({ agent }: { agent: Agent }) {
       let ciphertext = "";
       
       if (publicKey) {
-        // RSA-2048 Client-Side Encryption
         ciphertext = await encryptWithPublicKey(publicKey, message);
       } else {
-        // Fallback for unkeyed agents (legacy)
         ciphertext = btoa(message);
       }
 
@@ -108,58 +110,64 @@ export function AgentCard({ agent }: { agent: Agent }) {
   const security = getSecurityConfig(agent.security_status || 'unverified');
   const manifest = agent.manifest;
 
+  // Liveness Logic: If heartbeat was in the last 60 mins, consider "Alive"
+  const lastHeartbeatDate = agent.last_heartbeat?.seconds 
+    ? new Date(agent.last_heartbeat.seconds * 1000) 
+    : agent.last_heartbeat 
+      ? new Date(agent.last_heartbeat) 
+      : null;
+  
+  const isAlive = lastHeartbeatDate 
+    ? (Date.now() - lastHeartbeatDate.getTime()) < 60 * 60 * 1000 
+    : false;
+
   return (
     <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm group hover:scale-[1.02] transition-all flex flex-col overflow-hidden h-full">
-      <div className={cn("h-1 transition-colors", agent.security_status === 'trusted' ? 'bg-green-500' : 'bg-primary/20 group-hover:bg-primary')} />
+      <div className={cn(
+        "h-1.5 transition-colors duration-500", 
+        isAlive ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]' : 'bg-primary/20 group-hover:bg-primary'
+      )} />
       <CardHeader className="flex flex-row items-center gap-4 pb-2">
-        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary relative border border-primary/5">
-          <Cpu className="w-5 h-5" />
+        <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary relative border border-primary/5 shadow-inner">
+          <Cpu className="w-6 h-6" />
           {agent.trust_level > 1 && (
-            <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm border">
+            <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 shadow-md border">
               <ShieldCheck className="w-4 h-4 text-accent fill-accent/20" />
             </div>
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <CardTitle className="font-headline text-2xl text-primary truncate">
+          <CardTitle className="font-headline text-2xl text-primary truncate leading-tight">
             {agent.name}
           </CardTitle>
           <div className="flex items-center gap-2">
-             <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest truncate">{agent.handle}</p>
+             <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest truncate">{agent.handle}</p>
              <button onClick={copyId} className="text-muted-foreground hover:text-primary transition-colors">
-               <Copy className="w-3 h-3" />
+               <Check className="w-2.5 h-2.5" />
              </button>
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          {agent.public_api_enabled && (
-            <Badge variant="outline" className="text-[9px] uppercase tracking-tighter border-accent text-accent bg-accent/5 shrink-0 h-4">
-              API Active
-            </Badge>
-          )}
-          <Badge variant="outline" className={cn("text-[8px] uppercase tracking-tighter shrink-0 h-4 gap-1", security.color)}>
+        <div className="flex flex-col items-end gap-1.5">
+          <Badge variant="outline" className={cn("text-[8px] uppercase font-bold tracking-tighter shrink-0 h-4.5 gap-1", security.color)}>
             {security.icon} {security.label}
           </Badge>
+          {isMounted && lastHeartbeatDate && (
+            <div className={cn(
+              "flex items-center gap-1 text-[8px] font-bold uppercase tracking-tighter px-1.5 py-0.5 rounded-full border",
+              isAlive ? "text-green-600 bg-green-50 border-green-200" : "text-muted-foreground bg-muted/30 border-muted"
+            )}>
+              <HeartPulse className={cn("w-2.5 h-2.5", isAlive && "animate-pulse")} />
+              {isAlive ? "Alive" : "Idle"}
+            </div>
+          )}
         </div>
       </CardHeader>
       
-      <CardContent className="flex-1 space-y-6 pt-4 flex flex-col">
+      <CardContent className="flex-1 space-y-6 pt-6 flex flex-col">
         <div className="relative">
           <p className="text-sm text-foreground/80 italic leading-relaxed line-clamp-3 h-[60px]">
             "{manifest?.identity.description || agent.introduction}"
           </p>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="absolute -right-2 -top-2 cursor-help opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Info className="w-4 h-4 text-muted-foreground" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs text-xs">
-                {manifest?.identity.description || agent.introduction}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
         </div>
         
         <div className="space-y-4">
@@ -173,12 +181,12 @@ export function AgentCard({ agent }: { agent: Agent }) {
 
           <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-t pt-4">
             <div className="flex items-center gap-2">
-              <Coins className="w-3 h-3 text-accent" />
+              <Coins className="w-3.5 h-3.5 text-accent" />
               <span>{manifest?.economics.accepted_tokens.join(', ') || 'USDC'}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Lock className="w-3 h-3 text-primary/50" />
-              <button onClick={copyPublicKey} className="hover:text-primary transition-colors flex items-center gap-1">
+              <Lock className="w-3.5 h-3.5 text-primary/50" />
+              <button onClick={copyPublicKey} className="hover:text-primary transition-colors flex items-center gap-1 border-b border-dotted border-muted-foreground/30">
                 {copiedKey ? <Check className="w-2.5 h-2.5 text-green-500" /> : 'RSA-2048'}
               </button>
             </div>
@@ -188,35 +196,35 @@ export function AgentCard({ agent }: { agent: Agent }) {
         <div className="flex items-center gap-3 pt-4 mt-auto">
           <Dialog open={isHiring} onOpenChange={setIsHiring}>
             <DialogTrigger asChild>
-              <Button className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10 shadow-md hover:shadow-lg transition-all gap-2">
-                <Zap className="w-3 h-3" />
+              <Button className="flex-1 rounded-full text-[10px] uppercase font-bold tracking-widest h-11 shadow-lg hover:shadow-xl transition-all gap-2 bg-primary hover:bg-primary/90">
+                <Zap className="w-4 h-4" />
                 Hire Specialist
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md rounded-3xl">
               <DialogHeader>
-                <DialogTitle className="font-headline text-2xl flex items-center gap-2">
-                  <MessageSquare className="w-6 h-6 text-primary" />
+                <DialogTitle className="font-headline text-3xl flex items-center gap-3">
+                  <MessageSquare className="w-8 h-8 text-primary" />
                   Manifest Handshake
                 </DialogTitle>
-                <DialogDescription>
-                  Initiating secure tunnel via asymmetric encryption.
+                <DialogDescription className="text-base">
+                  Initiating secure tunnel via RSA-2048 asymmetric encryption.
                 </DialogDescription>
               </DialogHeader>
 
               <Tabs defaultValue="task" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 rounded-full h-10 bg-muted/50 p-1 mb-4">
-                  <TabsTrigger value="task" className="rounded-full text-[10px] uppercase">Initiate</TabsTrigger>
-                  <TabsTrigger value="dna" className="rounded-full text-[10px] uppercase">Manifest DNA</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-2 rounded-full h-12 bg-muted/50 p-1 mb-6">
+                  <TabsTrigger value="task" className="rounded-full text-[11px] uppercase font-bold">Initiate</TabsTrigger>
+                  <TabsTrigger value="dna" className="rounded-full text-[11px] uppercase font-bold">Manifest DNA</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="task" className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Secret Instruction (Plaintext)</Label>
-                    <p className="text-[10px] text-muted-foreground">This will be encrypted locally before transit.</p>
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Secret Instruction (Plaintext)</Label>
+                    <p className="text-[10px] text-muted-foreground italic mb-2">This will be encrypted locally before transit. The Garden cannot read this.</p>
                     <Textarea 
-                      placeholder="Describe the goals for this specialist..." 
-                      className="min-h-[120px]"
+                      placeholder="Define the autonomous coordination goals..." 
+                      className="min-h-[140px] rounded-2xl"
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                     />
@@ -224,8 +232,8 @@ export function AgentCard({ agent }: { agent: Agent }) {
                 </TabsContent>
                 
                 <TabsContent value="dna">
-                  <div className="bg-black/95 p-4 rounded-xl font-mono text-[9px] text-green-400 h-[200px] overflow-y-auto">
-                    <pre>{JSON.stringify(manifest || agent, null, 2)}</pre>
+                  <div className="bg-[#1a1a1a] p-6 rounded-2xl font-mono text-[10px] text-green-400 h-[240px] overflow-y-auto shadow-inner border border-white/10">
+                    <pre className="leading-relaxed">{JSON.stringify(manifest || agent, null, 2)}</pre>
                   </div>
                 </TabsContent>
               </Tabs>
@@ -234,19 +242,19 @@ export function AgentCard({ agent }: { agent: Agent }) {
                 <Button 
                   onClick={handleHire} 
                   disabled={isSending || !message.trim()} 
-                  className="w-full h-12 rounded-full gap-2 font-headline text-lg"
+                  className="w-full h-14 rounded-full gap-3 font-headline text-2xl shadow-xl transition-all active:scale-95"
                 >
-                  {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {isSending ? <Loader2 className="w-6 h-6 animate-spin" /> : <Send className="w-6 h-6" />}
                   {isSending ? "Encrypting..." : "Confirm Protocol"}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <Button variant="outline" className="flex-1 rounded-full text-xs uppercase font-bold tracking-widest h-10 hover:bg-accent hover:text-white transition-all gap-2" asChild>
+          <Button variant="outline" className="flex-1 rounded-full text-[10px] uppercase font-bold tracking-widest h-11 hover:bg-accent/5 transition-all gap-2 border-2" asChild>
             <a href={agent.endpoint_url || "#"} target="_blank" rel="noopener noreferrer">
               Endpoint
-              <ExternalLink className="w-3 h-3" />
+              <ExternalLink className="w-4 h-4" />
             </a>
           </Button>
         </div>
