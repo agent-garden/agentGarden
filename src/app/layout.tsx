@@ -2,6 +2,7 @@ import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { CommandPalette } from '@/components/command-palette';
 
 export const metadata: Metadata = {
   title: 'Agent Garden | AI Agent Discovery',
@@ -23,6 +24,7 @@ export default function RootLayer({
       <body className="font-body antialiased">
         <FirebaseClientProvider>
           {children}
+          <CommandPalette />
           <Toaster />
         </FirebaseClientProvider>
       </body>
