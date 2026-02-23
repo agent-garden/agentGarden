@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Agent": {
@@ -15,11 +16,14 @@
         "specialties": { "type": "array", "items": { "type": "string" } },
         "stack": { "type": "string" },
         "public_key": { "type": "string" },
+        "api_key": { "type": "string", "description": "Secret key for machine authentication" },
+        "last_heartbeat": { "type": "string", "format": "date-time" },
         "endpoint_url": { "type": "string" },
         "public_api_enabled": { "type": "boolean" },
         "verified": { "type": "boolean" },
         "trust_level": { "type": "integer" },
         "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] },
+        "search_text": { "type": "string" },
         "manifest": {
           "type": "object",
           "properties": {
@@ -44,7 +48,7 @@
               "type": "object",
               "properties": {
                 "requested_tools": { "type": "array", "items": { "type": "string" } },
-                "is_sandboxed": { "type": "boolean" }
+                "is_sandboxed": { "boolean": "boolean" }
               }
             },
             "communication": {
@@ -66,7 +70,7 @@
           }
         }
       },
-      "required": ["id", "owner_id", "name", "handle", "status", "category", "verified", "trust_level", "security_status"]
+      "required": ["id", "owner_id", "name", "handle", "status", "category", "verified", "trust_level", "security_status", "api_key"]
     },
     "InviteCode": {
       "title": "Invite Code",

@@ -1,8 +1,9 @@
+
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Shield, Key, Copy, AlertCircle, Sparkles, Download, Ticket, Coins, Cpu, Globe } from "lucide-react";
+import { Leaf, ArrowLeft, Loader2, CheckCircle2, Lock, Shield, Key, Copy, AlertCircle, Sparkles, Download, Ticket, Coins, Cpu, Globe, Check } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,8 @@ export default function SubmitAgentPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [showKeyDialog, setShowKeyDialog] = useState(false);
   const [generatedKeys, setGeneratedKeys] = useState<{ public: string; private: string } | null>(null);
+  const [agentAuth, setAgentAuth] = useState<{ id: string; apiKey: string } | null>(null);
+  const [copiedKey, setCopiedKey] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -38,7 +41,6 @@ export default function SubmitAgentPage() {
     stack: "Gemini 2.5 Flash",
     endpointUrl: "",
     publicApiEnabled: true,
-    // Manifest Fields
     version: "1.0.0",
     topics: "",
     languages: "en",
@@ -58,17 +60,23 @@ export default function SubmitAgentPage() {
     toast({ title: "DNA Extracted", description: "Private key saved locally." });
   };
 
+  const copyApiKey = () => {
+    if (!agentAuth?.apiKey) return;
+    navigator.clipboard.writeText(agentAuth.apiKey);
+    setCopiedKey(true);
+    toast({ title: "API Key Copied" });
+    setTimeout(() => setCopiedKey(false), 2000);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
     setIsSubmitting(true);
     try {
-      // 1. Generate Secure Identity (RSA-2048)
       const keys = await generateAgentKeys();
       setGeneratedKeys({ public: keys.publicKeyBase64, private: keys.privateKeyBase64 });
 
-      // 2. Construct the Agent Manifest Standard JSON
       const manifest = {
         identity: {
           agent_name: formData.name,
@@ -97,7 +105,6 @@ export default function SubmitAgentPage() {
         }
       };
 
-      // 3. Register with Backend
       const result = await registerAgent({
         name: formData.name,
         handle: formData.handle,
@@ -114,6 +121,8 @@ export default function SubmitAgentPage() {
       });
 
       if (!result.success) throw new Error(result.error);
+      
+      setAgentAuth({ id: result.agentId!, apiKey: result.apiKey! });
       setIsSubmitting(false);
       setShowKeyDialog(true);
     } catch (error: any) {
@@ -222,11 +231,24 @@ export default function SubmitAgentPage() {
         <DialogContent className="max-w-xl rounded-3xl p-8">
           <DialogHeader>
             <DialogTitle className="text-3xl font-headline flex items-center gap-2"><Key className="text-primary w-8 h-8" /> Secure Identity Generated</DialogTitle>
-            <DialogDescription className="text-base">The specialist has been initialized with a unique cryptographic identity.</DialogDescription>
+            <DialogDescription className="text-base">The specialist has been initialized with a unique cryptographic identity and machine authentication.</DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex gap-3"><AlertCircle className="text-amber-600 shrink-0 w-6 h-6" /><p className="text-sm text-amber-900 leading-relaxed font-medium">Download the Private Key now. It is stored in memory and will be lost forever if you close this window without saving. This is the only way to unlock secure tunnels sent to this specialist.</p></div>
-            <Button onClick={downloadPrivateKey} variant="outline" className="w-full h-14 rounded-2xl gap-3 font-bold border-2 border-primary/20 hover:bg-primary/5 transition-all text-lg"><Download className="w-5 h-5" /> Download private_key.txt</Button>
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex gap-3"><AlertCircle className="text-amber-600 shrink-0 w-6 h-6" /><p className="text-sm text-amber-900 leading-relaxed font-medium">Download the Private Key and copy the API Key now. They are stored in memory and will be lost forever if you close this window without saving.</p></div>
+            
+            <div className="space-y-3">
+              <Button onClick={downloadPrivateKey} variant="outline" className="w-full h-14 rounded-2xl gap-3 font-bold border-2 border-primary/20 hover:bg-primary/5 transition-all text-lg"><Download className="w-5 h-5" /> Download private_key.txt</Button>
+              
+              <div className="relative group">
+                <div className="absolute -top-2 left-4 px-2 bg-white text-[10px] font-bold text-primary uppercase tracking-widest">API Key (X-Agent-Key)</div>
+                <div className="flex items-center gap-2 p-4 bg-muted/50 rounded-2xl border border-primary/10 font-mono text-xs break-all pr-12">
+                  {agentAuth?.apiKey}
+                  <Button onClick={copyApiKey} size="icon" variant="ghost" className="absolute right-2 top-2 h-8 w-8 hover:bg-primary/10">
+                    {copiedKey ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter><Button onClick={finalizeRegistration} className="w-full h-14 rounded-full text-xl font-headline">Manifest Verified</Button></DialogFooter>
         </DialogContent>

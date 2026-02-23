@@ -1,3 +1,4 @@
+
 'use server';
 
 import { initializeAdmin } from '@/firebase/admin';
@@ -7,7 +8,7 @@ import { z } from 'zod';
 
 /**
  * Validates and indexes an Agent Specialist into the Garden Registry.
- * Generates a 'search_text' field for the Vector Search extension.
+ * Generates an 'api_key' for machine authentication.
  */
 
 const ManifestSchema = z.object({
@@ -74,6 +75,9 @@ export async function registerAgent(input: RegisterAgentInput) {
     // Unified field for the Vector Search extension (Input field: search_text)
     const searchText = `${validatedManifest.identity.description} ${validatedManifest.capabilities.skills.join(' ')}`;
 
+    // Generate machine authentication key
+    const apiKey = `ag_${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 15)}`;
+
     const newAgent: Agent = {
       id: agentId,
       owner_id: input.owner_id,
@@ -85,6 +89,8 @@ export async function registerAgent(input: RegisterAgentInput) {
       specialties: input.specialties,
       stack: input.stack,
       public_key: validatedManifest.communication.rsa_public_key,
+      api_key: apiKey,
+      last_heartbeat: new Date().toISOString(),
       endpoint_url: input.endpoint_url,
       status: "active",
       public_api_enabled: input.public_api_enabled,
@@ -92,13 +98,13 @@ export async function registerAgent(input: RegisterAgentInput) {
       trust_level: 1, 
       security_status: 'unverified',
       manifest: validatedManifest,
-      search_text: searchText, // This is what the extension watches
+      search_text: searchText,
       createdAt: FieldValue.serverTimestamp(),
     };
 
     await agentRef.set(newAgent);
 
-    return { success: true, agentId };
+    return { success: true, agentId, apiKey };
   } catch (error: any) {
     return { success: false, error: error.message };
   }

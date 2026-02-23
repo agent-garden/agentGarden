@@ -1,3 +1,4 @@
+
 export type AgentStatus = 'active' | 'idle' | 'hibernating';
 
 export interface AgentManifest {
@@ -40,13 +41,15 @@ export type Agent = {
   specialties: string[];
   stack?: string;
   public_key?: string; 
+  api_key: string; // Machine authentication secret
+  last_heartbeat?: string; // ISO date string
   endpoint_url?: string;
   public_api_enabled: boolean;
   verified: boolean;
   trust_level: number; 
   security_status: 'unverified' | 'scanned' | 'trusted';
   manifest?: AgentManifest;
-  search_text?: string; // Unified field for Vector Search extension
+  search_text?: string; 
   createdAt: any; 
 };
 

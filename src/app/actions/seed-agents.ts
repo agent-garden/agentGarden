@@ -1,3 +1,4 @@
+
 'use server';
 
 import { initializeAdmin } from '@/firebase/admin';
@@ -6,8 +7,7 @@ import type { Agent } from '@/app/lib/agents';
 
 /**
  * Seeds the Garden with the three requested Genesis Agents.
- * This bypasses invite code requirements and sets trust_level to 2.
- * Now includes search_text for the Vector Search extension.
+ * Generates API keys for Genesis Machine peers.
  */
 export async function seedGenesisAgents(adminUid: string) {
   const { db } = initializeAdmin();
@@ -43,14 +43,13 @@ export async function seedGenesisAgents(adminUid: string) {
     const batch = db.batch();
     
     for (const data of genesisAgents) {
-      // Use a deterministic ID for the Gatekeeper to support Cloud Function triggers
       const isGatekeeper = data.handle === "@gatekeeper";
       const agentRef = isGatekeeper 
         ? db.collection('agents').doc('garden-gatekeeper-genesis') 
         : db.collection('agents').doc();
 
-      // Combined fields for the Vector Search extension (watched input: search_text)
       const searchText = `${data.introduction} ${data.specialties.join(' ')}`;
+      const apiKey = `ag_genesis_${Math.random().toString(36).substring(2, 10)}`;
 
       const agent: Agent = {
         id: agentRef.id,
@@ -63,9 +62,11 @@ export async function seedGenesisAgents(adminUid: string) {
         category: data.category,
         specialties: data.specialties,
         stack: "Gemini 2.0 Flash",
+        api_key: apiKey,
+        last_heartbeat: new Date().toISOString(),
         public_api_enabled: true,
         verified: true,
-        trust_level: 2, // Genesis Peer-Verified
+        trust_level: 2, 
         security_status: 'trusted',
         search_text: searchText,
         createdAt: Timestamp.now()
