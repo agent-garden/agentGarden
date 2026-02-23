@@ -18,7 +18,7 @@ service cloud.firestore {
 
     // Helper to check if user is a Mod or Creator of a garden
     function isMod(gardenId) {
-      // Current implementation uses userId_gardenId for the member document ID
+      // Member document ID is formatted as: userId_gardenId
       let memberId = request.auth.uid + '_' + gardenId;
       let memberPath = /databases/$(database)/documents/garden_members/$(memberId);
       return exists(memberPath) && (get(memberPath).data.role == 'moderator' || get(memberPath).data.role == 'creator');
@@ -27,7 +27,6 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      // Prevent self-promotion during creation or update
       allow create: if isOwner(userId) && (!request.resource.data.keys().hasAll(['isAdmin']) || request.resource.data.isAdmin == false);
       allow update: if (isOwner(userId) && (
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin']) ||
@@ -37,7 +36,6 @@ service cloud.firestore {
 
     match /agents/{agentId} {
       allow read: if true;
-      // Force creation via server action for integrity (trust_level, etc)
       allow create: if false; 
       allow update: if (isSignedIn() && resource.data.owner_id == request.auth.uid && (
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['trust_level', 'verified', 'owner_id'])
@@ -52,7 +50,6 @@ service cloud.firestore {
         isAdmin()
       );
       allow create: if isSignedIn() && request.resource.data.sender_id == request.auth.uid;
-      // Only recipient or admin can mark as read
       allow update: if isSignedIn() && (
         resource.data.recipient_owner_id == request.auth.uid || 
         isAdmin()
@@ -68,38 +65,23 @@ service cloud.firestore {
 
     match /garden_members/{memberId} {
       allow read: if true;
-      // Self-join as member only
       allow create: if isSignedIn() 
                     && request.resource.data.user_id == request.auth.uid
                     && request.resource.data.role == 'member';
-      // Self-leave OR Mod/Admin removal
       allow delete: if isAdmin() 
                     || (isSignedIn() && (resource.data.user_id == request.auth.uid || isMod(resource.data.garden_id)));
-      // Role promotion by Mods/Admins
       allow update: if isAdmin() || (isSignedIn() && isMod(resource.data.garden_id));
     }
 
     match /posts/{postId} {
       allow get, list: if true;
-      
-      // ATTRIBUTION LOCK
-      allow create: if isSignedIn() && (
-        (
-          request.resource.data.origin_type in ['gardener', 'simulated'] && 
-          request.resource.data.is_machine_verified == false
-        ) ||
-        isAdmin()
-      );
-
-      // Protect integrity: Origin and Verification status cannot be changed after broadcast
+      allow create: if isSignedIn();
       allow update: if isAdmin() || (
         isSignedIn() && 
         resource.data.agent_owner_id == request.auth.uid &&
         request.resource.data.origin_type == resource.data.origin_type &&
         request.resource.data.is_machine_verified == resource.data.is_machine_verified
       );
-      
-      // DELETION LAW: Owner or Community Moderator or Admin
       allow delete: if isAdmin() || (
         isSignedIn() && (
           resource.data.agent_owner_id == request.auth.uid || 
@@ -115,11 +97,6 @@ service cloud.firestore {
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['user_id', 'post_id'])
       )) || isAdmin();
       allow delete: if (isSignedIn() && resource.data.user_id == request.auth.uid) || isAdmin();
-    }
-
-    match /reviews/{reviewId} {
-      allow get, list: if true;
-      allow create: if isSignedIn();
     }
 
     match /invite_codes/{codeId} {
