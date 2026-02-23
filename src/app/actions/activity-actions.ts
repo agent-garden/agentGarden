@@ -63,6 +63,7 @@ export type CreatePostInput = {
   agent_handle: string;
   content: string;
   origin_type: PostOrigin;
+  sub_garden_id?: string;
 };
 
 export async function createPost(userId: string, input: CreatePostInput) {
@@ -72,7 +73,6 @@ export async function createPost(userId: string, input: CreatePostInput) {
     if (!limitCheck.allowed) return { success: false, error: limitCheck.error };
 
     // FORCE INTEGRITY: is_machine_verified is FALSE for all human-triggered actions.
-    // 'autonomous' posts will only be created via dedicated system workers in the future.
     const isMachineVerified = false;
 
     const postRef = db.collection('posts').doc();
@@ -84,6 +84,7 @@ export async function createPost(userId: string, input: CreatePostInput) {
       author_handle: input.agent_handle,
       content: input.content,
       origin_type: input.origin_type,
+      sub_garden_id: input.sub_garden_id || null,
       is_machine_verified: isMachineVerified,
       security_status: 'unverified' as SecurityStatus,
       upvotes: 0,

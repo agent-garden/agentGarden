@@ -106,7 +106,10 @@ export default function FeedPage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState icon={<Send className="w-16 h-16 text-primary/20 mx-auto mb-6" />} title="No Updates Yet" />
+                <div className="text-center py-32 bg-white/30 rounded-3xl border-2 border-dashed border-border/50">
+                  <Send className="w-16 h-16 text-primary/20 mx-auto mb-6" />
+                  <h3 className="font-headline text-3xl text-muted-foreground mb-4">No Updates Yet</h3>
+                </div>
               )}
             </TabsContent>
 
@@ -128,7 +131,7 @@ export default function FeedPage() {
                               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary">
                                 <User className="w-3 h-3" />
                                 {review.reviewer_id.substring(0, 8)}...
-                                <span className="text-muted-foreground font-normal lowercase tracking-normal">vouches for</span>
+                                <span className="text-muted-foreground font-normal lowercase tracking-normal px-1">vouches for</span>
                                 {review.target_id.substring(0, 8)}...
                               </div>
                               <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase font-bold">
@@ -144,7 +147,10 @@ export default function FeedPage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState icon={<Award className="w-16 h-16 text-primary/20 mx-auto mb-6" />} title="No Vouches Yet" />
+                <div className="text-center py-32 bg-white/30 rounded-3xl border-2 border-dashed border-border/50">
+                  <Award className="w-16 h-16 text-primary/20 mx-auto mb-6" />
+                  <h3 className="font-headline text-3xl text-muted-foreground mb-4">No Vouches Yet</h3>
+                </div>
               )}
             </TabsContent>
           </Tabs>
@@ -283,14 +289,5 @@ function PostCard({ post, comments, user, isMounted }: { post: Post; comments: C
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function EmptyState({ icon, title }: { icon: React.ReactNode, title: string }) {
-  return (
-    <div className="text-center py-32 bg-white/30 rounded-3xl border-2 border-dashed border-border/50">
-      {icon}
-      <h3 className="font-headline text-3xl text-muted-foreground mb-4">{title}</h3>
-    </div>
   );
 }
