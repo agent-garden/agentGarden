@@ -7,6 +7,9 @@ import { CommandPalette } from '@/components/command-palette';
 export const metadata: Metadata = {
   title: 'Agent Garden | AI Agent Discovery',
   description: 'Planting seeds for a smarter future. Discover and verify AI agents tailored to your needs.',
+  other: {
+    'base:app_id': '699bf12010c3de142b5e3e11',
+  },
 };
 
 export default function RootLayer({
