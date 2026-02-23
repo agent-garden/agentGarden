@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, doc, onSnapshot } from 'firebase/firestore';
-import { Loader2, Mail, Lock, Clock, User, ChevronRight, Inbox, ShieldCheck, Star, Hammer, CheckCircle2, AlertTriangle, FileSearch, Send } from 'lucide-react';
+import { collection, query, where, doc } from 'firebase/firestore';
+import { Loader2, Mail, Lock, ShieldCheck, Hammer, Send, Inbox } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useCollection, useMemoFirebase, useUser, useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
@@ -13,9 +13,8 @@ import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { deliverTask, verifyTask, disputeTask } from '@/app/actions/tasks';
-import { computeHash, signPayload } from '@/lib/crypto';
+import { deliverTask } from '@/app/actions/tasks';
+import { computeHash } from '@/lib/crypto';
 
 interface Message {
   id: string;
@@ -48,9 +47,8 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
     );
   }, [firestore, agentId, user]);
 
-  const { data: rawMessages, isLoading } = useCollection<Message>(messagesQuery);
+  const { data: rawMessages } = useCollection<Message>(messagesQuery);
 
-  // Task Ledger Subscription
   const tasksQuery = useMemoFirebase(() => {
     if (!firestore || !agentId) return null;
     return query(collection(firestore, 'task_ledger'), where('provider_id', '==', agentId));
@@ -77,7 +75,7 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
     try {
       const hash = await computeHash(deliveryPayload);
       await deliverTask(taskId, hash);
-      toast({ title: "Work Delivered", description: `Proof hash generated: ${hash.substring(0, 12)}...` });
+      toast({ title: "Work Delivered", description: `SHA-256 Hash generated: ${hash.substring(0, 12)}...` });
       setDeliveryPayload("");
     } catch (e: any) {
       toast({ variant: "destructive", title: "Delivery Failed", description: e.message });
@@ -96,26 +94,24 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
           </h2>
           <p className="text-xs text-muted-foreground mt-1">Coordination relay for resident: {agentId.substring(0, 8)}</p>
         </div>
-        <div className="flex gap-2">
-          <Badge variant="outline" className="gap-1 bg-primary/5 text-primary border-primary/10">
-            <ShieldCheck className="w-3 h-3" />
-            Encrypted
-          </Badge>
-        </div>
+        <Badge variant="outline" className="gap-1 bg-primary/5 text-primary border-primary/10">
+          <ShieldCheck className="w-3 h-3" />
+          Zero-Knowledge
+        </Badge>
       </div>
 
       <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-2">
         <div className="border-r border-primary/5 flex flex-col overflow-hidden">
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-6">
-              {incomingTasks && incomingTasks.length > 0 && (
+              {incomingTasks && incomingTasks.some(t => t.status === 'requested') && (
                 <div className="space-y-3">
-                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">Active Task Ledger</h3>
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">Pending Jobs</h3>
                   {incomingTasks.filter(t => t.status === 'requested').map(task => (
                     <div key={task.id} className="p-4 bg-accent/5 border border-accent/10 rounded-2xl space-y-3">
                       <div className="flex items-center justify-between">
-                        <Badge variant="outline" className="text-[9px] bg-white">TASK ID: {task.id.substring(0, 8)}</Badge>
-                        <Badge className="bg-accent text-[9px]">PENDING</Badge>
+                        <Badge variant="outline" className="text-[9px] bg-white">ID: {task.id.substring(0, 8)}</Badge>
+                        <Badge className="bg-accent text-[9px]">ACTIVE</Badge>
                       </div>
                       <p className="text-xs font-bold font-headline">{task.intent}</p>
                       <Dialog>
@@ -127,11 +123,11 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                         </DialogTrigger>
                         <DialogContent className="rounded-3xl">
                           <DialogHeader>
-                            <DialogTitle>Deliver Task Results</DialogTitle>
-                            <DialogDescription>Submit your final work. We will generate a SHA-256 hash for the ledger.</DialogDescription>
+                            <DialogTitle>Deliver Final Work</DialogTitle>
+                            <DialogDescription>Submit your results. We will generate a cryptographic hash for the ledger.</DialogDescription>
                           </DialogHeader>
                           <Textarea 
-                            placeholder="Paste your findings, code, or report here..." 
+                            placeholder="Paste your findings or response payload here..." 
                             className="min-h-[150px] rounded-xl"
                             value={deliveryPayload}
                             onChange={(e) => setDeliveryPayload(e.target.value)}
@@ -154,7 +150,7 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
               )}
 
               <div className="space-y-3">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">Secure Messages</h3>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">Secure Correspondence</h3>
                 {messages.map((msg) => (
                   <button
                     key={msg.id}
@@ -187,21 +183,7 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
         <div className="bg-muted/10 flex flex-col overflow-hidden">
           {selectedMessage ? (
             <div className="p-6 space-y-6">
-              <div className="flex justify-between items-start">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                      <User className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold font-headline">Sender ID</h4>
-                      <p className="text-[10px] text-muted-foreground font-mono">{selectedMessage.sender_id}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold flex items-center gap-2"><Lock className="w-4 h-4" />Ciphertext Payload</h4>
                   <Badge variant="secondary" className="text-[9px] font-bold">RSA-OAEP-2048</Badge>
@@ -212,16 +194,15 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                   </pre>
                 </div>
               </div>
-
               <Button variant="outline" className="w-full rounded-xl gap-2 text-xs h-10 border-primary/20 text-primary hover:bg-primary/5">
                 <Lock className="w-3.5 h-3.5" />
-                Decrypt with Private Key (Local)
+                Decrypt with Local Key
               </Button>
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-muted-foreground">
               <Mail className="w-12 h-12 opacity-5 mb-4" />
-              <p className="text-sm font-headline">Select a coordination item to begin</p>
+              <p className="text-sm font-headline">Select an item to view coordination details</p>
             </div>
           )}
         </div>

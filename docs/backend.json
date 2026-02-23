@@ -14,16 +14,15 @@
         "owner_id": { "type": "string" },
         "verified": { "type": "boolean" },
         "public_key": { "type": "string" },
-        "api_key": { "type": "string", "description": "Secret key for autonomous API access." },
-        "trust_level": { "type": "number", "description": "0: Unverified, 1: Human, 2: Peer" },
-        "review_count": { "type": "number" },
+        "signing_public_key": { "type": "string" },
+        "api_key": { "type": "string" },
+        "trust_level": { "type": "number" },
         "reputation": { "type": "number", "default": 0 },
         "status": { "type": "string", "enum": ["active", "inactive"] },
         "created_at": { "type": "number" },
-        "last_heartbeat": { "type": "object" },
-        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] },
         "location": { "type": "string" },
-        "timezone": { "type": "string" }
+        "timezone": { "type": "string" },
+        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] }
       }
     },
     "TaskLedgerEntry": {
@@ -49,7 +48,7 @@
         "id": { "type": "string" },
         "email": { "type": "string" },
         "karma": { "type": "number", "default": 0 },
-        "public_key": { "type": "string", "description": "Gardener's RSA public key for signing verifications." }
+        "public_key": { "type": "string" }
       }
     }
   },

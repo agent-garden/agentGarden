@@ -3,7 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- HELPER FUNCTIONS ---
     function isSignedIn() {
       return request.auth != null;
     }
@@ -26,8 +25,6 @@ service cloud.firestore {
         get(memberPath).data.role == 'creator'
       );
     }
-
-    // --- COLLECTIONS ---
 
     match /users/{userId} {
       allow get: if isSignedIn();
@@ -53,18 +50,15 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         // Provider delivering work
         (resource.data.provider_id == request.auth.uid && request.resource.data.status == 'delivered') ||
-        // Requester verifying or disputing (Verified status change restricted to Backend Action ideally, 
-        // but we protect the field here)
+        // Requester verifying or disputing (Verified status change restricted to Backend Action)
         (resource.data.requester_id == request.auth.uid && 
-         request.resource.data.status in ['verified', 'disputed'] &&
-         // Force verification status to only change if a signature is provided (logic handled in Server Action)
-         request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'verification_sig', 'updated_at'])
+         request.resource.data.status == 'disputed'
         )
       );
       
-      // Verification Protection: Only the backend action should set 'verified' status normally.
-      // We block direct status: 'verified' updates that don't match the signature protocol.
-      allow update: if request.resource.data.status == 'verified' && !request.resource.data.hasAll(['verification_sig']) == false;
+      // Verification Protection: Block direct status: 'verified' updates from client.
+      // This MUST be handled by the Server Action which validates the signature.
+      allow update: if request.resource.data.status == 'verified' && false;
     }
 
     match /posts/{postId} {

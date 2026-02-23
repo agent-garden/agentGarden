@@ -11,20 +11,10 @@ import {
   Activity, 
   Inbox, 
   ShieldCheck, 
-  Zap, 
-  Send, 
-  Sparkles, 
-  Shield, 
-  Ticket,
-  Share2,
-  Copy,
-  Check,
-  Brain,
-  Star,
-  FileSearch,
-  CheckCircle2,
-  Hammer,
-  AlertTriangle
+  Star, 
+  FileSearch, 
+  CheckCircle2, 
+  AlertTriangle 
 } from 'lucide-react';
 import { collection, query, where, doc } from 'firebase/firestore';
 import Link from 'next/link';
@@ -37,7 +27,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AgentInbox } from '@/components/agent-inbox';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import { Label } from '@/components/ui/label';
 import { verifyTask, disputeTask } from '@/app/actions/tasks';
 import { signPayload } from '@/lib/crypto';
 
@@ -70,7 +60,6 @@ export default function DashboardPage() {
   }, [firestore, user]);
   const { data: myAgents, isLoading: isAgentsLoading } = useCollection<Agent>(myAgentsRef);
 
-  // Task Ledger Subscription (As Requester)
   const myTasksRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return query(collection(firestore, 'task_ledger'), where('requester_id', '==', user.uid));
@@ -80,15 +69,11 @@ export default function DashboardPage() {
   const handleVerify = async (task: any) => {
     setIsProcessingTask(true);
     try {
-      // 1. Retrieve Private Key from LocalStorage (Simulation)
       const storedKeys = localStorage.getItem(`ag_keys_${user?.uid}`);
       if (!storedKeys) throw new Error("Private Key not found locally. Handshake required.");
       const { signingPrivateKeyBase64 } = JSON.parse(storedKeys);
 
-      // 2. Sign the payload hash (or intent if hash missing)
       const sig = await signPayload(signingPrivateKeyBase64, task.payload_hash || task.intent);
-      
-      // 3. Submit to Ledger Action
       await verifyTask(task.id, sig);
       
       toast({ title: "Task Verified", description: "Cryptographic signature validated. Reputation rewarded." });
@@ -116,7 +101,7 @@ export default function DashboardPage() {
         <Tabs defaultValue="residents" className="space-y-8">
           <TabsList className="bg-white/50 border border-primary/5 rounded-2xl p-1 h-auto w-full md:w-auto">
             <TabsTrigger value="residents" className="rounded-xl px-6 py-3">My Residents</TabsTrigger>
-            <TabsTrigger value="ledger" className="rounded-xl px-6 py-3">Task Ledger {myRequestedTasks?.filter(t => t.status === 'delivered').length! > 0 && <Badge className="ml-2 bg-primary">{myRequestedTasks?.filter(t => t.status === 'delivered').length}</Badge>}</TabsTrigger>
+            <TabsTrigger value="ledger" className="rounded-xl px-6 py-3">Audit Trail {myRequestedTasks?.filter(t => t.status === 'delivered').length! > 0 && <Badge className="ml-2 bg-primary">{myRequestedTasks?.filter(t => t.status === 'delivered').length}</Badge>}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="residents" className="space-y-8">
@@ -152,7 +137,7 @@ export default function DashboardPage() {
 
           <TabsContent value="ledger">
             <div className="space-y-6">
-              <h2 className="text-2xl font-headline font-bold flex items-center gap-3"><FileSearch className="w-7 h-7 text-primary" />Audit Trail</h2>
+              <h2 className="text-2xl font-headline font-bold flex items-center gap-3"><FileSearch className="w-7 h-7 text-primary" />Work Verification Ledger</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {myRequestedTasks?.map(task => (
                   <Card key={task.id} className="border-none shadow-sm bg-white/70 rounded-2xl overflow-hidden">
@@ -168,7 +153,7 @@ export default function DashboardPage() {
                       {task.status === 'delivered' && (
                         <div className="space-y-3">
                           <div className="p-3 bg-accent/5 rounded-xl border border-accent/10">
-                            <Label className="text-[9px] uppercase font-bold text-accent">Payload Hash</Label>
+                            <Label className="text-[9px] uppercase font-bold text-accent">Payload Hash (SHA-256)</Label>
                             <p className="text-[10px] font-mono break-all">{task.payload_hash}</p>
                           </div>
                           <div className="flex gap-2">
@@ -178,7 +163,7 @@ export default function DashboardPage() {
                               className="flex-1 rounded-xl h-10 gap-2 bg-primary hover:bg-accent"
                             >
                               <CheckCircle2 className="w-4 h-4" />
-                              Verify Work
+                              Verify & Sign
                             </Button>
                             <Button 
                               variant="ghost" 
@@ -191,8 +176,11 @@ export default function DashboardPage() {
                         </div>
                       )}
                       {task.status === 'verified' && (
-                        <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs p-2 bg-emerald-50 rounded-xl border border-emerald-100">
-                          <ShieldCheck className="w-4 h-4" /> Verified Cryptographically
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs p-2 bg-emerald-50 rounded-xl border border-emerald-100">
+                            <ShieldCheck className="w-4 h-4" /> Proof of Performance Verified
+                          </div>
+                          <p className="text-[8px] font-mono text-muted-foreground truncate">Sig: {task.verification_sig}</p>
                         </div>
                       )}
                     </CardContent>

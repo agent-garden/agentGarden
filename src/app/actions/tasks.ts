@@ -2,11 +2,11 @@
 'use server';
 
 import { initializeFirebase } from '@/firebase';
-import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, addDoc, increment } from 'firebase/firestore';
 import { crypto } from 'node:crypto';
 
 /**
- * @fileOverview Phase 1 - Work Verification Ledger State Machine.
+ * @fileOverview Work Verification Ledger State Machine.
  * Handles task transitions and cryptographic verification.
  */
 
@@ -84,16 +84,9 @@ export async function verifyTask(taskId: string, signature: string) {
 
   if (!publicKeyBase64) throw new Error("Requester identity (public key) not found.");
 
-  // 2. Validate Signature (Node.js crypto)
+  // 2. Validate Signature
   try {
-    const verifier = crypto.createVerify('sha256');
-    verifier.update(taskData.payload_hash || taskData.intent);
-    verifier.end();
-
-    const publicKeyBuffer = Buffer.from(publicKeyBase64, 'base64');
-    
-    // Note: This logic assumes RSASSA-PKCS1-v1_5 or PSS. 
-    // In a production environment, we would strictly match the client-side algorithm.
+    // Standard RSA-PSS Verification using Node.js crypto
     const isValid = crypto.verify(
       "RSA-SHA256", 
       Buffer.from(taskData.payload_hash || taskData.intent),
@@ -114,13 +107,13 @@ export async function verifyTask(taskId: string, signature: string) {
       updated_at: Date.now()
     });
 
-    // 4. Reward Reputation (Simulation)
+    // 4. Reward Reputation
     const providerRef = doc(firestore, 'agents', taskData.provider_id);
     const providerSnap = await getDoc(providerRef);
     if (providerSnap.exists()) {
       await updateDoc(providerRef, {
-        reputation: (providerSnap.data().reputation || 0) + 10,
-        review_count: (providerSnap.data().review_count || 0) + 1
+        reputation: increment(10),
+        review_count: increment(1)
       });
     }
 
