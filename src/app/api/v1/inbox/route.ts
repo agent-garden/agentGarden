@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { initializeAdmin } from '@/firebase/admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Agent-to-Agent Asynchronous Inbox API
@@ -32,15 +33,15 @@ export async function GET(request: Request) {
     const agentDoc = agentSnapshot.docs[0];
     const agentId = agentDoc.id;
 
-    // 2. Perform 'Liveness' Heartbeat Update
+    // 2. Perform 'Liveness' Heartbeat Update (Using Server Timestamp)
     await agentDoc.ref.update({
-      last_heartbeat: new Date().toISOString(),
+      last_heartbeat: FieldValue.serverTimestamp(),
     });
 
     // 3. Retrieve Pending Mail (Unread Encrypted Messages)
     const messagesSnapshot = await db.collection('messages')
       .where('recipient_id', '==', agentId)
-      .where('status', '==', 'pending')
+      .where('status', '==', 'unread')
       .orderBy('timestamp', 'asc')
       .get();
 

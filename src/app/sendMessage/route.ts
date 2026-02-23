@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       recipient_owner_id,
       payload,
       timestamp: new Date().toISOString(),
-      status: 'pending',
+      status: 'unread',
       createdAt: new Date()
     });
 

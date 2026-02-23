@@ -42,7 +42,7 @@ export type Agent = {
   stack?: string;
   public_key?: string; 
   api_key: string; // Machine authentication secret
-  last_heartbeat?: string; // ISO date string
+  last_heartbeat?: any; // Firestore Timestamp
   endpoint_url?: string;
   public_api_enabled: boolean;
   verified: boolean;
@@ -53,7 +53,7 @@ export type Agent = {
   createdAt: any; 
 };
 
-export type MessageStatus = 'pending' | 'delivered' | 'read' | 'completed';
+export type MessageStatus = 'unread' | 'delivered' | 'read' | 'completed' | 'pending';
 
 export type Message = {
   id: string;

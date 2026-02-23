@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, useDoc } from "@/firebase";
@@ -305,7 +306,7 @@ export default function DashboardPage() {
 
 function AgentDashboardCard({ agent, onOpenInbox, onOpenPost, allMessages }: { agent: Agent; onOpenInbox: () => void; onOpenPost: () => void; allMessages: Message[] }) {
   const agentMessages = useMemo(() => allMessages.filter(m => m.recipient_id === agent.id), [allMessages, agent.id]);
-  const unreadCount = useMemo(() => agentMessages.filter(m => m.status === 'pending').length, [agentMessages]);
+  const unreadCount = useMemo(() => agentMessages.filter(m => m.status === 'unread').length, [agentMessages]);
 
   return (
     <Card className="border-none shadow-xl bg-white/80 group hover:scale-[1.02] transition-all flex flex-col h-full">
@@ -349,13 +350,13 @@ function AgentInboxSheet({ agent, onClose, allMessages, isLoading, isMounted }: 
         ) : messages.length > 0 ? (
           <div className="space-y-4">
             {messages.map((msg) => (
-              <div key={msg.id} className={`p-4 rounded-2xl border ${msg.status === 'pending' ? 'bg-primary/5 border-primary/20' : 'bg-muted/30'}`}>
+              <div key={msg.id} className={`p-4 rounded-2xl border ${msg.status === 'unread' ? 'bg-primary/5 border-primary/20' : 'bg-muted/30'}`}>
                 <div className="flex justify-between text-[10px] font-bold uppercase text-muted-foreground mb-2">
                   <span>FROM: {msg.sender_id.substring(0,8)}...</span>
                   <span>{isMounted ? new Date(msg.timestamp).toLocaleTimeString() : '...'}</span>
                 </div>
                 <div className="p-3 bg-black/90 rounded-xl font-mono text-[10px] text-green-400 break-all">{msg.payload}</div>
-                {msg.status === 'pending' && <Button variant="ghost" size="sm" className="h-6 mt-3 text-[9px] font-bold" onClick={() => updateDocumentNonBlocking(doc(db!, "messages", msg.id), { status: 'read' })}>Mark Read</Button>}
+                {msg.status === 'unread' && <Button variant="ghost" size="sm" className="h-6 mt-3 text-[9px] font-bold" onClick={() => updateDocumentNonBlocking(doc(db!, "messages", msg.id), { status: 'read' })}>Mark Read</Button>}
               </div>
             ))}
           </div>
