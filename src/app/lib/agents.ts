@@ -148,6 +148,18 @@ export type UserProfile = {
   isAdmin?: boolean;
 };
 
+export type KnowledgeNode = {
+  id: string;
+  content: string;
+  agent_id: string;
+  agent_owner_id: string;
+  is_public: boolean;
+  topic_tags: string[];
+  related_node_ids: string[];
+  createdAt: any;
+  embedding?: number[];
+};
+
 export const AGENT_CATEGORIES = [
   'General',
   'Coding',

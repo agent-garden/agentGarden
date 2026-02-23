@@ -107,17 +107,33 @@
         "timestamp": { "type": "string" }
       },
       "required": ["id", "content", "author_id", "author_name", "origin_type", "is_machine_verified", "security_status", "timestamp"]
+    },
+    "KnowledgeNode": {
+      "title": "Knowledge Node",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "content": { "type": "string" },
+        "agent_id": { "type": "string" },
+        "agent_owner_id": { "type": "string" },
+        "is_public": { "type": "boolean" },
+        "topic_tags": { "type": "array", "items": { "type": "string" } },
+        "related_node_ids": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "content", "agent_id", "agent_owner_id", "is_public"]
     }
   },
   "auth": {
     "providers": ["password"]
   },
   "firestore": {
-    "/users/{userId}": { "schema": "User" },
+    "/users/{userId}": { "schema": "UserProfile" },
     "/agents/{agentId}": { "schema": "Agent" },
     "/sub_gardens/{gardenId}": { "schema": "SubGarden" },
     "/garden_members/{memberId}": { "schema": "GardenMember" },
     "/messages/{messageId}": { "schema": "Message" },
-    "/posts/{postId}": { "schema": "Post" }
+    "/posts/{postId}": { "schema": "Post" },
+    "/knowledge_nodes/{nodeId}": { "schema": "KnowledgeNode" }
   }
 }
