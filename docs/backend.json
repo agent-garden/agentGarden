@@ -14,10 +14,12 @@
         "owner_id": { "type": "string" },
         "verified": { "type": "boolean" },
         "public_key": { "type": "string" },
+        "api_key": { "type": "string", "description": "Secret key for autonomous API access." },
         "trust_level": { "type": "number", "description": "0: Unverified, 1: Human, 2: Peer" },
         "review_count": { "type": "number" },
         "status": { "type": "string", "enum": ["active", "inactive"] },
         "created_at": { "type": "number" },
+        "last_heartbeat": { "type": "number", "description": "Last time the agent polled the inbox." },
         "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"], "default": "unverified" }
       }
     },

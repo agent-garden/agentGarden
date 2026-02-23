@@ -6,7 +6,25 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { ArrowLeft, Loader2, Sprout, Send, ShieldAlert, Tag, Globe, Cpu, Lock, CheckCircle, Key, Copy, Check, Download, Ticket, ShieldCheck } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  Loader2, 
+  Sprout, 
+  Send, 
+  ShieldAlert, 
+  Tag, 
+  Globe, 
+  Cpu, 
+  Lock, 
+  CheckCircle, 
+  Key, 
+  Copy, 
+  Check, 
+  Download, 
+  Ticket, 
+  ShieldCheck,
+  Terminal
+} from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -55,8 +73,10 @@ export default function SubmitAgentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [privateKey, setPrivateKey] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState<string | null>(null);
   const [agentName, setAgentName] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [copiedApi, setCopiedApi] = useState(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -79,11 +99,12 @@ export default function SubmitAgentPage() {
     },
   });
 
-  const downloadPrivateKey = (key: string, name: string) => {
+  const downloadCredentials = (pKey: string, aKey: string, name: string) => {
     const element = document.createElement("a");
-    const file = new Blob([key], { type: 'text/plain' });
+    const content = `AGENT: ${name}\nPRIVATE KEY: ${pKey}\nAPI KEY: ${aKey}\n\nKEEP THESE SECURE.`;
+    const file = new Blob([content], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
-    element.download = `${name.toLowerCase().replace(/\s+/g, '_')}_private_key.txt`;
+    element.download = `${name.toLowerCase().replace(/\s+/g, '_')}_credentials.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -98,7 +119,11 @@ export default function SubmitAgentPage() {
       const keys = await generateAgentKeys();
       if (!keys) throw new Error("Cryptographic identity generation failed.");
 
-      // 2. Perform Automated Security Audit (Issue #48)
+      // 2. Generate API Key
+      const generatedApiKey = 'ag_' + Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // 3. Perform Automated Security Audit
       const auditResult = await auditAgentSecurity({
         name: values.name,
         system_instruction: values.system_instruction
@@ -139,6 +164,7 @@ export default function SubmitAgentPage() {
           specialties: specialtiesArray,
           stack: values.stack,
           public_key: keys.publicKeyBase64,
+          api_key: generatedApiKey,
           public_api_enabled: values.public_api_enabled,
           verified: true,
           owner_id: user.uid,
@@ -146,7 +172,7 @@ export default function SubmitAgentPage() {
           trust_level: 1, 
           review_count: 0,
           created_at: Date.now(),
-          security_status: auditResult.status // Initial status from Genkit scan
+          security_status: auditResult.status
         };
 
         transaction.set(agentRef, agentData);
@@ -156,13 +182,14 @@ export default function SubmitAgentPage() {
       });
 
       setPrivateKey(keys.privateKeyBase64);
+      setApiKey(generatedApiKey);
       setAgentName(values.name);
       setShowKeyModal(true);
-      downloadPrivateKey(keys.privateKeyBase64, values.name);
+      downloadCredentials(keys.privateKeyBase64, generatedApiKey, values.name);
       
       toast({ 
         title: "Manifest Published!", 
-        description: `Agent secured and scanned. Security Status: ${auditResult.status.toUpperCase()}` 
+        description: `Agent secured. Audit: ${auditResult.status.toUpperCase()}` 
       });
     } catch (err: any) {
       toast({ 
@@ -175,12 +202,10 @@ export default function SubmitAgentPage() {
     }
   }
 
-  const copyKey = () => {
-    if (privateKey) {
-      navigator.clipboard.writeText(privateKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  const copyToClipboard = (text: string, setCopied: (v: boolean) => void) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   if (isUserLoading || !user) {
@@ -248,7 +273,7 @@ export default function SubmitAgentPage() {
                     )} />
                     <div className="p-4 bg-accent/5 rounded-xl border border-accent/10">
                       <h4 className="text-sm font-bold flex items-center gap-2 mb-1"><Lock className="w-3.5 h-3.5" />Automatic Identity</h4>
-                      <p className="text-xs text-muted-foreground">An RSA-OAEP key pair will be generated to secure this agent's tunnel communication.</p>
+                      <p className="text-xs text-muted-foreground">An RSA-OAEP key pair and API Key will be generated to secure this agent.</p>
                     </div>
                   </div>
                 </div>
@@ -301,14 +326,14 @@ export default function SubmitAgentPage() {
       </div>
 
       <Dialog open={showKeyModal} onOpenChange={(open) => { if (!open) router.push('/dashboard'); }}>
-        <DialogContent className="max-w-md rounded-3xl">
+        <DialogContent className="max-w-md rounded-3xl overflow-hidden">
           <DialogHeader>
             <div className="mx-auto w-12 h-12 bg-accent/10 rounded-2xl flex items-center justify-center mb-4 text-accent">
               <Key className="w-7 h-7" />
             </div>
-            <DialogTitle className="text-center text-2xl font-headline">Agent Private Key Generated</DialogTitle>
+            <DialogTitle className="text-center text-2xl font-headline">Agent Credentials Generated</DialogTitle>
             <DialogDescription className="text-center">
-              A private key file has been downloaded. Store it securely.
+              Store these securely. These are the ONLY way for your agent to function autonomously.
             </DialogDescription>
           </DialogHeader>
 
@@ -316,34 +341,44 @@ export default function SubmitAgentPage() {
             <ShieldAlert className="h-4 w-4" />
             <AlertTitle>Warning</AlertTitle>
             <AlertDescription className="text-xs">
-              We do not store this key. If lost, your agent cannot read messages. Store it in your agent's environment variables.
+              We do not store the private key or API key. If lost, your agent cannot read messages or call the API.
             </AlertDescription>
           </Alert>
 
-          <div className="mt-4 p-4 bg-muted rounded-xl relative group">
-            <p className="text-[10px] font-mono break-all leading-tight pr-8 max-h-[150px] overflow-auto">
-              {privateKey}
-            </p>
-            <Button 
-              size="icon" 
-              variant="secondary" 
-              className="absolute top-2 right-2 h-8 w-8 rounded-lg"
-              onClick={copyKey}
-            >
-              {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
-            </Button>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <Lock className="w-3 h-3" /> Private Key (RSA)
+                </span>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(privateKey!, setCopiedKey)}>
+                  {copiedKey ? <Check className="w-3 h-3 text-primary" /> : <Copy className="w-3 h-3" />}
+                </Button>
+              </div>
+              <div className="p-3 bg-muted rounded-xl text-[9px] font-mono break-all leading-tight max-h-[80px] overflow-auto border border-primary/5">
+                {privateKey}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-accent flex items-center gap-1.5">
+                  <Terminal className="w-3 h-3" /> Agent API Key
+                </span>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(apiKey!, setCopiedApi)}>
+                  {copiedApi ? <Check className="w-3 h-3 text-primary" /> : <Copy className="w-3 h-3" />}
+                </Button>
+              </div>
+              <div className="p-3 bg-accent/5 rounded-xl text-xs font-mono break-all border border-accent/10 text-accent font-bold">
+                {apiKey}
+              </div>
+              <p className="text-[9px] text-muted-foreground italic">Use this in the "X-Agent-API-Key" header for polling.</p>
+            </div>
           </div>
 
-          <div className="flex justify-center mt-2">
-            <Button variant="outline" size="sm" onClick={() => downloadPrivateKey(privateKey!, agentName)} className="gap-2">
-              <Download className="w-4 h-4" />
-              Download Again
-            </Button>
-          </div>
-
-          <DialogFooter className="mt-6">
+          <DialogFooter className="mt-2">
             <Button className="w-full rounded-xl h-12" onClick={() => router.push('/dashboard')}>
-              I have saved the key securely
+              I have saved credentials securely
             </Button>
           </DialogFooter>
         </DialogContent>
