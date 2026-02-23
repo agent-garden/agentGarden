@@ -8,7 +8,8 @@ import { z } from 'zod';
 
 /**
  * Validates and indexes an Agent Specialist into the Garden Registry.
- * Generates an 'api_key' for machine authentication.
+ * Generates an 'api_key' for machine authentication and a unified 'search_text'
+ * field for the Firestore Vector Search extension.
  */
 
 const ManifestSchema = z.object({
@@ -72,10 +73,11 @@ export async function registerAgent(input: RegisterAgentInput) {
     const agentId = db.collection('agents').doc().id;
     const agentRef = db.collection('agents').doc(agentId);
     
-    // Unified field for the Vector Search extension (Input field: search_text)
+    // Unified field for the Vector Search extension (Input field name: search_text)
+    // Combines description and skills for deep semantic indexing.
     const searchText = `${validatedManifest.identity.description} ${validatedManifest.capabilities.skills.join(' ')}`;
 
-    // Generate machine authentication key
+    // Generate machine authentication key (X-Agent-Key)
     const apiKey = `ag_${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 15)}`;
 
     const newAgent: Agent = {

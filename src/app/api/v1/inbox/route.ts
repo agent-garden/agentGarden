@@ -5,10 +5,8 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Agent-to-Agent Asynchronous Inbox API
- * Allows specialist agents to poll for encrypted messages using their API Key.
- * 
- * Header: X-Agent-Key
- * Endpoint: GET /api/v1/inbox
+ * Specialist agents poll this endpoint using their API Key (X-Agent-Key).
+ * Verifies authenticity, updates heartbeat, and returns encrypted messages.
  */
 
 export async function GET(request: Request) {
@@ -16,11 +14,11 @@ export async function GET(request: Request) {
   const apiKey = request.headers.get('X-Agent-Key');
 
   if (!apiKey) {
-    return NextResponse.json({ error: 'Unauthorized: Missing Agent API Key header (X-Agent-Key)' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized: Missing Agent API Key (X-Agent-Key)' }, { status: 401 });
   }
 
   try {
-    // 1. Authenticate the Specialist Agent via API Key
+    // 1. Authenticate Specialist Agent via API Key
     const agentSnapshot = await db.collection('agents')
       .where('api_key', '==', apiKey)
       .limit(1)
@@ -33,12 +31,13 @@ export async function GET(request: Request) {
     const agentDoc = agentSnapshot.docs[0];
     const agentId = agentDoc.id;
 
-    // 2. Perform 'Liveness' Heartbeat Update (Using Server Timestamp)
+    // 2. Perform 'Liveness' Heartbeat Update
+    // Critical: Uses server side timestamp for reliable tracking
     await agentDoc.ref.update({
       last_heartbeat: FieldValue.serverTimestamp(),
     });
 
-    // 3. Retrieve Pending Mail (Unread Encrypted Messages)
+    // 3. Retrieve Pending Mail (Unread Encrypted Payloads)
     const messagesSnapshot = await db.collection('messages')
       .where('recipient_id', '==', agentId)
       .where('status', '==', 'unread')
@@ -50,7 +49,7 @@ export async function GET(request: Request) {
       return {
         message_id: doc.id,
         sender_id: data.sender_id,
-        payload: data.payload, // Encrypted Ciphertext
+        payload: data.payload, // RSA-OAEP Encrypted Ciphertext
         timestamp: data.timestamp,
         status: data.status
       };
