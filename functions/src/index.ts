@@ -7,6 +7,7 @@ import * as crypto from "crypto";
 
 /**
  * @fileOverview Garden Gatekeeper & Work Verification Ledger API
+ * Implementation of Phase 1: Cryptographically auditable Task Ledger.
  */
 
 initializeApp();
@@ -15,20 +16,21 @@ const db = getFirestore();
 
 /**
  * Ledger: Request Work
+ * Initiates a new task in the ledger.
  */
 export const requesttask = onRequest(async (req, res) => {
-  const apiKey = req.headers['x-agent-key'];
+  const apiKey = req.headers['x-agent-key'] as string;
   const { provider_id, intent } = req.body;
 
   if (!apiKey || !provider_id || !intent) {
-    res.status(400).send("Missing parameters.");
+    res.status(400).send("Missing parameters: X-Agent-Key header, provider_id, or intent.");
     return;
   }
 
-  // Auth Requester
+  // Auth Requester agent via API key
   const agentSnap = await db.collection('agents').where('api_key', '==', apiKey).limit(1).get();
   if (agentSnap.empty) {
-    res.status(401).send("Unauthorized.");
+    res.status(401).send("Unauthorized: Invalid Agent API Key.");
     return;
   }
   const requester = agentSnap.docs[0].data();
@@ -51,20 +53,21 @@ export const requesttask = onRequest(async (req, res) => {
 
 /**
  * Ledger: Deliver Work
+ * Provider agent submits the payload hash of completed work.
  */
 export const delivertask = onRequest(async (req, res) => {
-  const apiKey = req.headers['x-agent-key'];
+  const apiKey = req.headers['x-agent-key'] as string;
   const { taskId, payload_hash } = req.body;
 
   if (!apiKey || !taskId || !payload_hash) {
-    res.status(400).send("Missing parameters.");
+    res.status(400).send("Missing parameters: X-Agent-Key header, taskId, or payload_hash.");
     return;
   }
 
-  // Auth Provider
+  // Auth Provider agent via API key
   const agentSnap = await db.collection('agents').where('api_key', '==', apiKey).limit(1).get();
   if (agentSnap.empty) {
-    res.status(401).send("Unauthorized.");
+    res.status(401).send("Unauthorized: Invalid Agent API Key.");
     return;
   }
   const provider = agentSnap.docs[0].data();
@@ -72,8 +75,13 @@ export const delivertask = onRequest(async (req, res) => {
   const taskRef = db.collection('task_ledger').doc(taskId);
   const taskDoc = await taskRef.get();
 
-  if (!taskDoc.exists || taskDoc.data()?.provider_id !== provider.id) {
-    res.status(403).send("Forbidden.");
+  if (!taskDoc.exists) {
+    res.status(404).send("Task not found.");
+    return;
+  }
+
+  if (taskDoc.data()?.provider_id !== provider.id) {
+    res.status(403).send("Forbidden: Only the assigned provider can deliver work.");
     return;
   }
 
@@ -88,14 +96,25 @@ export const delivertask = onRequest(async (req, res) => {
 
 /**
  * Ledger: Verify Work (RSA Signature Check)
+ * Requester verifies work by signing the payload hash with their Private Key.
+ * This function validates the signature against their registered Public Key.
  */
 export const verifytask = onRequest(async (req, res) => {
+  const apiKey = req.headers['x-agent-key'] as string;
   const { taskId, verification_sig } = req.body;
 
-  if (!taskId || !verification_sig) {
-    res.status(400).send("Missing parameters.");
+  if (!apiKey || !taskId || !verification_sig) {
+    res.status(400).send("Missing parameters: X-Agent-Key header, taskId, or verification_sig.");
     return;
   }
+
+  // Auth Requester agent via API key
+  const agentSnap = await db.collection('agents').where('api_key', '==', apiKey).limit(1).get();
+  if (agentSnap.empty) {
+    res.status(401).send("Unauthorized.");
+    return;
+  }
+  const requesterAgent = agentSnap.docs[0].data();
 
   const taskRef = db.collection('task_ledger').doc(taskId);
   const taskDoc = await taskRef.get();
@@ -106,38 +125,37 @@ export const verifytask = onRequest(async (req, res) => {
   }
 
   const taskData = taskDoc.data()!;
+  if (taskData.requester_id !== requesterAgent.id) {
+    res.status(403).send("Forbidden: Only the requester can verify this task.");
+    return;
+  }
+
   if (taskData.status !== 'delivered') {
-    res.status(400).send("Task is not in a deliverable state.");
+    res.status(400).send("Task is not in 'delivered' state.");
     return;
   }
 
-  // Get Requester Public Key
-  const requesterDoc = await db.collection('agents').doc(taskData.requester_id).get();
-  if (!requesterDoc.exists) {
-    res.status(404).send("Requester agent not found.");
-    return;
-  }
-  const publicKeyBase64 = requesterDoc.data()?.public_key;
-
+  // Get Requester Public Key from their profile
+  const publicKeyBase64 = requesterAgent.public_key;
   if (!publicKeyBase64) {
-    res.status(500).send("Public key missing for requester.");
+    res.status(500).send("Public key missing for requester agent.");
     return;
   }
 
   try {
     // RSA Signature Verification
-    // Data being signed: taskId + payload_hash
+    // The data signed is taskId + payload_hash
     const dataToVerify = `${taskId}:${taskData.payload_hash}`;
     const verifier = crypto.createVerify('SHA256');
     verifier.update(dataToVerify);
     
-    // Import SPKI key
+    // Import SPKI key format
     const publicKey = `-----BEGIN PUBLIC KEY-----\n${publicKeyBase64}\n-----END PUBLIC KEY-----`;
     
     const isValid = verifier.verify(publicKey, verification_sig, 'base64');
 
     if (!isValid) {
-      res.status(401).send("Invalid cryptographic signature.");
+      res.status(401).send("Invalid cryptographic signature: Verification failed.");
       return;
     }
 
@@ -147,7 +165,7 @@ export const verifytask = onRequest(async (req, res) => {
       updated_at: FieldValue.serverTimestamp()
     });
 
-    res.status(200).json({ success: true });
+    res.status(200).json({ success: true, message: "Work verified and locked in ledger." });
   } catch (error: any) {
     console.error("Verification Error:", error);
     res.status(500).send("Verification internal error.");
@@ -158,8 +176,13 @@ export const verifytask = onRequest(async (req, res) => {
  * Ledger: Dispute Work
  */
 export const disputetask = onRequest(async (req, res) => {
-  const apiKey = req.headers['x-agent-key'];
+  const apiKey = req.headers['x-agent-key'] as string;
   const { taskId } = req.body;
+
+  if (!apiKey || !taskId) {
+    res.status(400).send("Missing parameters.");
+    return;
+  }
 
   const agentSnap = await db.collection('agents').where('api_key', '==', apiKey).limit(1).get();
   if (agentSnap.empty) {
@@ -178,7 +201,7 @@ export const disputetask = onRequest(async (req, res) => {
 
   const data = taskDoc.data()!;
   if (data.requester_id !== agent.id && data.provider_id !== agent.id) {
-    res.status(403).send("Forbidden.");
+    res.status(403).send("Forbidden: Only involved agents can dispute.");
     return;
   }
 
@@ -191,7 +214,7 @@ export const disputetask = onRequest(async (req, res) => {
 });
 
 /**
- * Existing triggers
+ * Triggers
  */
 export const onnewmessage = onDocumentCreated("messages/{messageId}", async (event) => {
   const snapshot = event.data;

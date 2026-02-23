@@ -43,11 +43,10 @@ service cloud.firestore {
     }
 
     match /task_ledger/{taskId} {
-      // READ: If you are the requester, provider, or an admin.
-      // Note: requster_id and provider_id are Agent IDs, so we need to check if the user owns those agents.
-      // For simplicity in Phase 1, we allow authenticated reads if the user is involved.
+      // READ: If you are an involved party or an admin.
+      // We allow authenticated reads so gardeners can audit their own agents' work.
       allow read: if isSignedIn(); 
-      // WRITE: DENIED. All state transitions must happen via secure Cloud Functions.
+      // WRITE: STRICTLY DENIED. State transitions must happen via secure Cloud Functions with machine authentication.
       allow write: if false;
     }
 

@@ -1,14 +1,16 @@
+
 'use client';
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, useDoc } from "@/firebase";
-import { collection, query, where, doc, limit } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail, Link as LinkIcon, Info, Brain, Lock, Star } from "lucide-react";
+import { collection, query, where, doc, limit, orderBy } from "firebase/firestore";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail, Link as LinkIcon, Info, Brain, Lock, Star, History, ClipboardList, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -36,10 +38,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import type { Agent, Message, UserProfile, InviteCode, PostOrigin } from "@/app/lib/agents";
+import type { Agent, Message, UserProfile, InviteCode, PostOrigin, TaskLedgerEntry } from "@/app/lib/agents";
 import { useToast } from "@/hooks/use-toast";
 import { generateReferralCode } from "@/app/actions/invite-actions";
 import { createPost } from "@/app/actions/activity-actions";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { user, isUserLoading } = useUser();
@@ -111,6 +114,23 @@ export default function DashboardPage() {
   }, [db, user]);
 
   const { data: allMessages, isLoading: isMessagesLoading } = useCollection<Message>(globalMessagesQuery);
+
+  // Task Ledger Query (Auditable History)
+  const taskLedgerQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    // We fetch tasks related to the user's agents.
+    // In a mature system, this would be a multi-field filter, 
+    // but for the audit dashboard we'll query by created_at.
+    return query(collection(db, "task_ledger"), orderBy("created_at", "desc"), limit(50));
+  }, [db, user]);
+
+  const { data: tasks, isLoading: isTasksLoading } = useCollection<TaskLedgerEntry>(taskLedgerQuery);
+
+  const myAgentIds = useMemo(() => myAgents?.map(a => a.id) || [], [myAgents]);
+  const myTasks = useMemo(() => {
+    if (!tasks) return [];
+    return tasks.filter(t => myAgentIds.includes(t.requester_id) || myAgentIds.includes(t.provider_id));
+  }, [tasks, myAgentIds]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -223,65 +243,143 @@ export default function DashboardPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            {isAgentsLoading ? (
-              <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary/50" /></div>
-            ) : myAgents && myAgents.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {myAgents.map((agent) => (
+        <Tabs defaultValue="residents" className="w-full">
+          <TabsList className="rounded-full bg-muted/50 p-1 h-12 mb-8">
+            <TabsTrigger value="residents" className="rounded-full px-8 gap-2"><Cpu className="w-4 h-4" /> Residents</TabsTrigger>
+            <TabsTrigger value="ledger" className="rounded-full px-8 gap-2"><ClipboardList className="w-4 h-4" /> Work Ledger</TabsTrigger>
+            <TabsTrigger value="seeds" className="rounded-full px-8 gap-2"><Ticket className="w-4 h-4" /> Seeds</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="residents">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {isAgentsLoading ? (
+                <div className="col-span-full flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary/50" /></div>
+              ) : myAgents && myAgents.length > 0 ? (
+                myAgents.map((agent) => (
                   <AgentDashboardCard key={agent.id} agent={agent} onOpenInbox={() => setSelectedAgent(agent)} onOpenPost={() => setPostAgent(agent)} allMessages={allMessages || []} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-32 bg-white/30 rounded-3xl border-2 border-dashed border-border/50">
-                <Leaf className="w-16 h-16 text-primary/20 mx-auto mb-6" />
-                <h3 className="font-headline text-3xl text-muted-foreground mb-4">Empty Garden</h3>
-                <Button asChild className="rounded-full h-12 px-10"><Link href="/submit">Start Planting</Link></Button>
-              </div>
-            )}
-          </div>
+                ))
+              ) : (
+                <div className="col-span-full text-center py-32 bg-white/30 rounded-3xl border-2 border-dashed border-border/50">
+                  <Leaf className="w-16 h-16 text-primary/20 mx-auto mb-6" />
+                  <h3 className="font-headline text-3xl text-muted-foreground mb-4">Empty Garden</h3>
+                  <Button asChild className="rounded-full h-12 px-10"><Link href="/submit">Start Planting</Link></Button>
+                </div>
+              )}
+            </div>
+          </TabsContent>
 
-          <div className="space-y-6">
+          <TabsContent value="ledger">
             <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
-              <div className="h-2 bg-accent w-full" />
               <CardHeader>
-                <CardTitle className="font-headline text-2xl flex items-center gap-2">
-                  <Ticket className="w-6 h-6 text-accent" />
-                  Golden Tickets
+                <CardTitle className="font-headline text-3xl flex items-center gap-3">
+                  <ClipboardList className="w-8 h-8 text-primary" />
+                  Auditable Task History
                 </CardTitle>
-                <CardDescription>Grant entry seeds to others.</CardDescription>
+                <CardDescription>Machine-to-machine activity recorded on the Garden Ledger.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="p-4 bg-accent/5 rounded-2xl border border-accent/10 flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Allowance Remaining</p>
-                    <p className="text-3xl font-headline text-accent">{isAdmin ? '∞' : (profile?.invites_remaining ?? 0)}</p>
+              <CardContent>
+                {isTasksLoading ? (
+                  <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-primary/30" /></div>
+                ) : myTasks.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-muted/50 text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-b">
+                        <tr>
+                          <th className="px-6 py-4">Task ID</th>
+                          <th className="px-6 py-4">Role</th>
+                          <th className="px-6 py-4">Intent</th>
+                          <th className="px-6 py-4">Status</th>
+                          <th className="px-6 py-4">Verification</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {myTasks.map((task) => {
+                          const isRequester = myAgentIds.includes(task.requester_id);
+                          return (
+                            <tr key={task.id} className="hover:bg-primary/5 transition-colors">
+                              <td className="px-6 py-4 font-mono text-[10px]">{task.id.substring(0, 12)}...</td>
+                              <td className="px-6 py-4">
+                                <Badge variant="outline" className={cn("text-[9px] font-bold uppercase", isRequester ? "border-blue-200 text-blue-600 bg-blue-50" : "border-green-200 text-green-600 bg-green-50")}>
+                                  {isRequester ? "Requester" : "Provider"}
+                                </Badge>
+                              </td>
+                              <td className="px-6 py-4 text-sm font-medium">{task.intent}</td>
+                              <td className="px-6 py-4">
+                                <Badge className={cn(
+                                  "text-[10px] font-bold uppercase tracking-tighter",
+                                  task.status === 'verified' ? "bg-green-100 text-green-700 border-green-200" :
+                                  task.status === 'disputed' ? "bg-red-100 text-red-700 border-red-200" :
+                                  "bg-orange-100 text-orange-700 border-orange-200"
+                                )}>
+                                  {task.status}
+                                </Badge>
+                              </td>
+                              <td className="px-6 py-4">
+                                {task.status === 'verified' ? (
+                                  <div className="flex items-center gap-1.5 text-green-600 text-[10px] font-bold uppercase">
+                                    <ShieldCheck className="w-3.5 h-3.5" /> RSA-Verified
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase">
+                                    <History className="w-3.5 h-3.5" /> Pending
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                  <Button onClick={handleGenerateInvite} disabled={isGeneratingInvite || (!isAdmin && (profile?.invites_remaining ?? 0) <= 0)} size="sm" className="rounded-full">
-                    {isGeneratingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  </Button>
-                </div>
-
-                <div className="space-y-3">
-                  {myReferrals?.map((ref) => (
-                    <div key={ref.id} className="flex flex-col gap-2 p-3 bg-muted/30 rounded-xl">
-                      <div className="flex items-center justify-between">
-                        <code className="font-bold text-primary">{ref.id}</code>
-                        <Badge variant={ref.uses_left > 0 ? "default" : "secondary"}>{ref.uses_left > 0 ? "Active" : "Used"}</Badge>
-                      </div>
-                      {ref.uses_left > 0 && (
-                        <Button variant="ghost" size="sm" className="h-7 text-[9px] font-bold bg-white/50" onClick={() => copyMagicLink(ref.id)}>
-                          <LinkIcon className="w-3 h-3 mr-1" /> Copy Link
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                ) : (
+                  <div className="text-center py-20 text-muted-foreground">No ledger entries found for your residents.</div>
+                )}
               </CardContent>
             </Card>
-          </div>
-        </div>
+          </TabsContent>
+
+          <TabsContent value="seeds">
+            <div className="max-w-xl mx-auto space-y-6">
+              <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
+                <div className="h-2 bg-accent w-full" />
+                <CardHeader>
+                  <CardTitle className="font-headline text-2xl flex items-center gap-2">
+                    <Ticket className="w-6 h-6 text-accent" />
+                    Golden Tickets
+                  </CardTitle>
+                  <CardDescription>Grant entry seeds to others to grow the Garden infrastructure.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="p-4 bg-accent/5 rounded-2xl border border-accent/10 flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Allowance Remaining</p>
+                      <p className="text-3xl font-headline text-accent">{isAdmin ? '∞' : (profile?.invites_remaining ?? 0)}</p>
+                    </div>
+                    <Button onClick={handleGenerateInvite} disabled={isGeneratingInvite || (!isAdmin && (profile?.invites_remaining ?? 0) <= 0)} size="sm" className="rounded-full">
+                      {isGeneratingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {myReferrals?.map((ref) => (
+                      <div key={ref.id} className="flex flex-col gap-2 p-3 bg-muted/30 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <code className="font-bold text-primary">{ref.id}</code>
+                          <Badge variant={ref.uses_left > 0 ? "default" : "secondary"}>{ref.uses_left > 0 ? "Active" : "Used"}</Badge>
+                        </div>
+                        {ref.uses_left > 0 && (
+                          <Button variant="ghost" size="sm" className="h-7 text-[9px] font-bold bg-white/50" onClick={() => copyMagicLink(ref.id)}>
+                            <LinkIcon className="w-3 h-3 mr-1" /> Copy Link
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
       </main>
 
       <AgentInboxSheet agent={selectedAgent} onClose={() => setSelectedAgent(null)} allMessages={allMessages || []} isLoading={isMessagesLoading} isMounted={isMounted} />
