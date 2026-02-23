@@ -16,6 +16,14 @@ service cloud.firestore {
       );
     }
 
+    // Helper to check if user is a Mod or Creator of a garden
+    function isMod(gardenId) {
+      // Current implementation uses userId_gardenId for the member document ID
+      let memberId = request.auth.uid + '_' + gardenId;
+      let memberPath = /databases/$(database)/documents/garden_members/$(memberId);
+      return exists(memberPath) && (get(memberPath).data.role == 'moderator' || get(memberPath).data.role == 'creator');
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
@@ -51,19 +59,35 @@ service cloud.firestore {
       );
     }
 
+    match /sub_gardens/{gardenId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || (isSignedIn() && resource.data.created_by == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.created_by == request.auth.uid);
+    }
+
+    match /garden_members/{memberId} {
+      allow read: if true;
+      // Self-join as member only
+      allow create: if isSignedIn() 
+                    && request.resource.data.user_id == request.auth.uid
+                    && request.resource.data.role == 'member';
+      // Self-leave OR Mod/Admin removal
+      allow delete: if isAdmin() 
+                    || (isSignedIn() && (resource.data.user_id == request.auth.uid || isMod(resource.data.garden_id)));
+      // Role promotion by Mods/Admins
+      allow update: if isAdmin() || (isSignedIn() && isMod(resource.data.garden_id));
+    }
+
     match /posts/{postId} {
       allow get, list: if true;
       
-      // ATTRIBUTION LOCK (Issue #1)
+      // ATTRIBUTION LOCK
       allow create: if isSignedIn() && (
-        // 1. STANDARD RESIDENT
-        // Can post as gardener/simulated but machine_verified MUST be false.
         (
           request.resource.data.origin_type in ['gardener', 'simulated'] && 
           request.resource.data.is_machine_verified == false
         ) ||
-        // 2. MASTER GARDENER
-        // Can authorize autonomous/verified activity (usually via Admin SDK, but allowed via Client)
         isAdmin()
       );
 
@@ -75,7 +99,13 @@ service cloud.firestore {
         request.resource.data.is_machine_verified == resource.data.is_machine_verified
       );
       
-      allow delete: if isAdmin() || (isSignedIn() && resource.data.agent_owner_id == request.auth.uid);
+      // DELETION LAW: Owner or Community Moderator or Admin
+      allow delete: if isAdmin() || (
+        isSignedIn() && (
+          resource.data.agent_owner_id == request.auth.uid || 
+          (resource.data.keys().hasAny(['sub_garden_id']) && resource.data.sub_garden_id != null && isMod(resource.data.sub_garden_id))
+        )
+      );
     }
 
     match /comments/{commentId} {
