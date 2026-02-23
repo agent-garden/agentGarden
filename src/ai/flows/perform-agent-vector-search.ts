@@ -1,23 +1,16 @@
-
 'use server';
 
 /**
  * @fileOverview Semantic Discovery Engine for the Agent Garden.
  * 
- * This flow replaces the native SDK vector search (which has environment-specific export issues)
- * with a high-fidelity LLM ranker. It fetches candidates and uses Gemini to perform 
- * "intent-to-capability" matching, which is more accurate for specialized agent DNA.
+ * Uses a Genkit-powered Semantic Ranker to match user intent to agent manifests.
+ * This avoids SDK resolution issues while providing high-fidelity discovery.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { initializeFirebase } from '@/firebase';
-import { 
-  collection, 
-  getDocs, 
-  query, 
-  limit 
-} from 'firebase/firestore';
+import { collection, getDocs, query, where, limit } from 'firebase/firestore';
 
 const PerformAgentVectorSearchInputSchema = z.object({
   query: z.string().describe('The search query describing the needed agent capability.'),
@@ -42,40 +35,40 @@ const AgentSchema = z.object({
 const PerformAgentVectorSearchOutputSchema = z.array(AgentSchema);
 export type PerformAgentVectorSearchOutput = z.infer<typeof PerformAgentVectorSearchOutputSchema>;
 
-const semanticRankerPrompt = ai.definePrompt({
-  name: 'semanticRankerPrompt',
-  input: {
-    schema: z.object({
-      query: z.string(),
-      agents: z.array(z.any())
-    })
-  },
-  output: {
-    schema: z.object({
-      ranked_ids: z.array(z.string())
-    })
-  },
-  prompt: `You are the Semantic Discovery Engine for the Agent Garden.
-  
-  User Intent: "{{query}}"
-  
-  Candidate Residents:
-  {{#each agents}}
-  - [{{id}}] {{name}} (@{{handle}}). Intro: {{introduction}}. DNA Specialties: {{#each specialties}}{{this}}, {{/each}}
-  {{/each}}
-  
-  Task:
-  Analyze the candidate's manifest DNA. Rank the top 10 agents that best satisfy the user's intent. 
-  Focus on technical capability matching rather than just keyword overlap.
-  Only return IDs from the candidate list.`,
-});
-
 /**
- * Performs a deep semantic discovery using LLM ranking.
+ * Performs a deep semantic discovery using Genkit ranking.
  */
 export async function performAgentVectorSearch(input: PerformAgentVectorSearchInput): Promise<PerformAgentVectorSearchOutput> {
   return performAgentVectorSearchFlow(input);
 }
+
+const rankingPrompt = ai.definePrompt({
+  name: 'rankingPrompt',
+  input: {
+    schema: z.object({
+      query: z.string(),
+      agents: z.array(z.any()),
+    }),
+  },
+  output: {
+    schema: z.object({
+      ranked_ids: z.array(z.string()).describe('IDs of the agents that match the query, ordered by relevance.'),
+    }),
+  },
+  prompt: `You are the Discovery Engine for the Agent Garden. 
+  A user is looking for an AI agent with this intent: "{{query}}"
+  
+  Here is a list of candidate agents in the garden:
+  {{#each agents}}
+  - ID: {{id}}, Name: {{name}}, Intro: {{introduction}}, Specialties: {{#each specialties}}{{this}}, {{/each}}
+  {{/each}}
+  
+  TASK:
+  1. Analyze the user's intent.
+  2. Identify which agents have the technical capabilities or specialties to help.
+  3. Return the IDs of the matching agents, ordered from most relevant to least relevant.
+  4. Only include agents that are a reasonable match.`,
+});
 
 const performAgentVectorSearchFlow = ai.defineFlow(
   {
@@ -87,45 +80,64 @@ const performAgentVectorSearchFlow = ai.defineFlow(
     const { firestore } = initializeFirebase();
     const agentsRef = collection(firestore, 'agents');
     
+    // 1. Fetch active candidates (up to 50 for ranking)
+    const q = query(agentsRef, where('status', '==', 'active'), limit(50));
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) return [];
+
+    const candidates = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as any[];
+
+    // 2. Use Gemini to perform semantic ranking
     try {
-      // 1. Fetch a broad candidate set (up to 40 agents)
-      const q = query(agentsRef, limit(40));
-      const snapshot = await getDocs(q);
-      const candidates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      if (candidates.length === 0) return [];
-
-      // 2. Perform deep semantic ranking using Gemini
-      const { output } = await semanticRankerPrompt({
+      const { output } = await rankingPrompt({
         query: input.query,
-        agents: candidates
+        agents: candidates.map(c => ({
+          id: c.id,
+          name: c.name,
+          introduction: c.introduction,
+          specialties: c.specialties
+        }))
       });
 
-      const rankedIds = output?.ranked_ids || [];
+      if (!output?.ranked_ids || output.ranked_ids.length === 0) {
+        return [];
+      }
 
-      // 3. Map back to full objects, ensuring schema consistency
-      return rankedIds.map(id => {
-        const agent = candidates.find(c => c.id === id);
-        if (!agent) return null;
-        return {
-          id: agent.id,
-          name: agent.name || "Unknown Agent",
-          handle: agent.handle || "@unknown",
-          introduction: agent.introduction || "",
-          specialties: agent.specialties || [],
-          stack: agent.stack || "Unknown",
-          verified: agent.verified || false,
-          trust_level: agent.trust_level || 0,
-          review_count: agent.review_count || 0,
-          public_key: agent.public_key || "rsa_simulation_key",
-          availability: agent.availability || "Active",
-          security_status: agent.security_status || "unverified"
-        };
-      }).filter(a => !!a) as PerformAgentVectorSearchOutput;
+      // 3. Map ranked IDs back to full objects
+      const rankedAgents = output.ranked_ids
+        .map(id => candidates.find(c => c.id === id))
+        .filter(Boolean);
 
-    } catch (error: any) {
-      console.error("Semantic Ranking failed:", error.message);
-      return [];
+      return rankedAgents.map(agent => ({
+        id: agent.id,
+        name: agent.name || "Unknown Agent",
+        handle: agent.handle || "@unknown",
+        introduction: agent.introduction || "",
+        specialties: agent.specialties || [],
+        stack: agent.stack || "Unknown",
+        verified: agent.verified || false,
+        trust_level: agent.trust_level || 0,
+        review_count: agent.review_count || 0,
+        public_key: agent.public_key || "rsa_simulation_key",
+        availability: agent.availability || "Active",
+        security_status: agent.security_status || "unverified"
+      })) as PerformAgentVectorSearchOutput;
+
+    } catch (error) {
+      console.error("Semantic Ranking failed, falling back to keyword matches:", error);
+      // Fallback: Simple keyword filter
+      const queryLower = input.query.toLowerCase();
+      return candidates
+        .filter(c => 
+          c.name?.toLowerCase().includes(queryLower) || 
+          c.introduction?.toLowerCase().includes(queryLower) ||
+          c.specialties?.some((s: string) => s.toLowerCase().includes(queryLower))
+        )
+        .slice(0, 10) as any;
     }
   }
 );

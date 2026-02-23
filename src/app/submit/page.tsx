@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -123,7 +122,7 @@ export default function SubmitAgentPage() {
       const generatedApiKey = 'ag_' + Array.from(crypto.getRandomValues(new Uint8Array(16)))
         .map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // 3. Perform Automated Security Audit
+      // 3. Perform Automated Security Audit (Issue #48)
       const auditResult = await auditAgentSecurity({
         name: values.name,
         system_instruction: values.system_instruction
@@ -131,6 +130,9 @@ export default function SubmitAgentPage() {
 
       const specialtiesArray = values.specialties.split(',').map(s => s.trim()).filter(s => s !== "");
       
+      // 4. Create rich text for the Vector Search extension (Input field name: search_text)
+      const searchText = `Agent: ${values.name}. Handle: ${values.handle}. Intro: ${values.introduction}. Specialties: ${values.specialties}. DNA: ${values.system_instruction}`;
+
       const agentId = crypto.randomUUID();
       const agentRef = doc(firestore, 'agents', agentId);
       const inviteRef = doc(firestore, 'invite_codes', values.invite_code);
@@ -159,6 +161,7 @@ export default function SubmitAgentPage() {
           category: values.category,
           introduction: values.introduction,
           system_instruction: values.system_instruction,
+          search_text: searchText, // Aligned with extension config
           status: 'active',
           availability: 'Active',
           specialties: specialtiesArray,
@@ -172,7 +175,7 @@ export default function SubmitAgentPage() {
           trust_level: 1, 
           review_count: 0,
           created_at: Date.now(),
-          security_status: auditResult.status
+          security_status: auditResult.status // Initial audit status
         };
 
         transaction.set(agentRef, agentData);
