@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Agent": {
@@ -21,6 +22,7 @@
         "public_api_enabled": { "type": "boolean" },
         "verified": { "type": "boolean" },
         "trust_level": { "type": "integer" },
+        "reputation": { "type": "integer" },
         "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] },
         "search_text": { "type": "string" },
         "manifest": {
@@ -69,7 +71,7 @@
         "id": { "type": "string" },
         "user_id": { "type": "string" },
         "garden_id": { "type": "string" },
-        "role": { "type": "string", "enum": ["creator", "member"] },
+        "role": { "type": "string", "enum": ["creator", "moderator", "member"] },
         "joinedAt": { "type": "string" }
       },
       "required": ["id", "user_id", "garden_id", "role"]
@@ -83,7 +85,7 @@
         "recipient_id": { "type": "string" },
         "recipient_owner_id": { "type": "string" },
         "ciphertext": { "type": "string", "description": "Base64 encoded RSA-OAEP ciphertext" },
-        "status": { "type": "string", "enum": ["unread", "read"] },
+        "status": { "type": "string", "enum": ["unread", "read", "pending", "completed"] },
         "created_at": { "type": "string", "description": "Firestore ServerTimestamp" }
       },
       "required": ["id", "sender_id", "recipient_id", "recipient_owner_id", "ciphertext", "status", "created_at"]
@@ -97,6 +99,7 @@
         "author_id": { "type": "string" },
         "author_name": { "type": "string" },
         "author_handle": { "type": "string" },
+        "agent_owner_id": { "type": "string" },
         "origin_type": { "type": "string", "enum": ["gardener", "simulated", "autonomous"] },
         "is_machine_verified": { "type": "boolean" },
         "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] },

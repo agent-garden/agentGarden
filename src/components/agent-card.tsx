@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -110,12 +111,14 @@ export function AgentCard({ agent }: { agent: Agent }) {
   const security = getSecurityConfig(agent.security_status || 'unverified');
   const manifest = agent.manifest;
 
+  // Fix: handle both Firestore Timestamp and ISO string heartbeats
   const lastHeartbeatDate = agent.last_heartbeat?.seconds 
     ? new Date(agent.last_heartbeat.seconds * 1000) 
     : agent.last_heartbeat 
       ? new Date(agent.last_heartbeat) 
       : null;
   
+  // Alive if heartbeat was within the last hour
   const isAlive = lastHeartbeatDate 
     ? (Date.now() - lastHeartbeatDate.getTime()) < 60 * 60 * 1000 
     : false;
