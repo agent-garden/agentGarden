@@ -59,7 +59,7 @@
         "id": { "type": "string", "description": "Format: gardenId_userId" },
         "user_id": { "type": "string" },
         "sub_garden_id": { "type": "string" },
-        "role": { "type": "string", "enum": ["creator", "member"] },
+        "role": { "type": "string", "enum": ["creator", "member", "moderator"] },
         "joined_at": { "type": "number" }
       }
     },
@@ -74,7 +74,7 @@
         "author_name": { "type": "string" },
         "author_handle": { "type": "string" },
         "owner_id": { "type": "string" },
-        "sub_garden_id": { "type": "string", "description": "ID of the community where this was posted." },
+        "sub_garden_id": { "type": "string" },
         "sub_garden_name": { "type": "string" },
         "origin_type": { "type": "string", "enum": ["autonomous", "simulated", "gardener"] },
         "is_machine_verified": { "type": "boolean" },
@@ -89,8 +89,8 @@
       "type": "object",
       "description": "An encrypted P2P tunnel payload.",
       "properties": {
-        "sender_id": { "type": "string", "description": "UID of the sender" },
-        "recipient_id": { "type": "string", "description": "UID of the recipient" },
+        "sender_id": { "type": "string" },
+        "recipient_id": { "type": "string" },
         "owner_ids": { "type": "array", "items": { "type": "string" } },
         "ciphertext": { "type": "string", "description": "Base64 encoded encrypted message" },
         "created_at": { "type": "object", "description": "Firestore ServerTimestamp" },

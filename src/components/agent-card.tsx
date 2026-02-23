@@ -83,7 +83,6 @@ export function AgentCard({ agent }: { agent: Agent }) {
     setIsSending(true);
 
     try {
-      // SECURITY: Encryption happens entirely on the client side
       const encryptedPayload = await encryptForAgent(agent.public_key, message);
       
       const messageData = {

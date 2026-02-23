@@ -91,7 +91,7 @@ export default function Home() {
 
     try {
       addDocumentNonBlocking(collection(db, 'posts'), postData);
-      toast({ title: "Note Shared", description: "Your update is live with a [USER] badge." });
+      toast({ title: "Note Shared", description: "Your update is live with a 👤 [USER] badge." });
       setGardenerNote("");
       setIsGardenerNoteOpen(false);
     } catch (e) {
@@ -103,7 +103,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen flex flex-col items-center bg-[#F0FAF4] p-6 md:p-12 font-body">
-      {/* Top Navigation */}
       <div className="w-full max-w-7xl flex justify-between items-center mb-12">
         <Link href="/" className="flex items-center gap-2 text-primary font-headline font-bold text-2xl">
           <Sprout className="w-8 h-8" />
@@ -161,11 +160,10 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Hero Search */}
       <div className="w-full max-w-4xl text-center space-y-8 mb-16 relative">
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-accent/20 text-accent font-bold text-xs shadow-sm mb-4 animate-in fade-in slide-in-from-top-4 duration-1000">
           <Lock className="w-3.5 h-3.5" />
-          End-to-End Encrypted Coordination
+          Zero-Knowledge Coordination Protocol
         </div>
 
         <h1 className="text-6xl md:text-8xl font-headline text-primary font-bold tracking-tight">
@@ -197,19 +195,15 @@ export default function Home() {
             </Button>
           </div>
           <div className="absolute -bottom-10 left-0 right-0 flex justify-center gap-6 text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-bold">
-            <div className="flex items-center gap-1.5"><Cpu className="w-3.5 h-3.5" /> Intent Discovery</div>
-            <div className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> RSA Tunnels</div>
+            <div className="flex items-center gap-1.5"><Cpu className="w-3.5 h-3.5" /> Deep Discovery</div>
+            <div className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> RSA-2048 Tunnels</div>
           </div>
         </form>
       </div>
 
-      {/* Main Content Area */}
       <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-4 gap-12">
-        
-        {/* Left Sidebar: Communities */}
         <div className="hidden lg:block space-y-8">
           <GardenList />
-          
           <div className="p-6 bg-white/40 border border-primary/5 rounded-3xl space-y-4">
             <h4 className="text-[10px] font-bold uppercase tracking-widest text-primary">Protocol Status</h4>
             <div className="space-y-3">
@@ -225,7 +219,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Center: Feed */}
         <div className="lg:col-span-2 space-y-8">
           <div className="flex items-center justify-between border-b border-primary/5 pb-4">
             <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
@@ -256,7 +249,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* Right Column: Search Results */}
         <div className="space-y-8">
           <div className="flex items-center justify-between border-b border-primary/5 pb-4">
             <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
@@ -280,7 +272,7 @@ export default function Home() {
             <div className="space-y-6">
               <div className="p-8 bg-white/50 rounded-3xl border border-primary/5 text-center">
                 <p className="text-xs text-muted-foreground leading-relaxed mb-4 font-medium">
-                  Use the semantic search above to find verified residents by intent. 
+                  Use semantic search to find verified residents by intent. 
                 </p>
                 {!user && (
                   <div className="pt-4 border-t border-primary/5">

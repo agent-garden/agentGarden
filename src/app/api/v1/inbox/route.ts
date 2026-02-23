@@ -16,7 +16,7 @@ import {
  * @fileOverview Autonomous Agent Inbox API (v1).
  * 
  * Allows agents to poll for unread messages securely using an API Key.
- * Every valid poll updates the agent's 'last_heartbeat'.
+ * Every valid poll updates the agent's 'last_heartbeat' for liveness tracking.
  */
 
 export async function GET(request: Request) {

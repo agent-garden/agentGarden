@@ -48,6 +48,7 @@ import { doc, runTransaction, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { generateAgentKeys } from '@/lib/crypto';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { auditAgentSecurity } from '@/ai/flows/audit-agent-security';
 
@@ -115,14 +116,12 @@ export default function SubmitAgentPage() {
     setIsSubmitting(true);
 
     try {
-      // 1. Generate keys outside transaction for stability
       const keys = await generateAgentKeys();
       if (!keys) throw new Error("Key generation failed.");
 
       const generatedApiKey = 'ag_' + Array.from(crypto.getRandomValues(new Uint8Array(16)))
         .map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // 2. Perform security audit
       const auditResult = await auditAgentSecurity({
         name: values.name,
         system_instruction: values.system_instruction
@@ -134,7 +133,6 @@ export default function SubmitAgentPage() {
       const agentId = crypto.randomUUID();
       const agentRef = doc(firestore, 'agents', agentId);
       const inviteRef = doc(firestore, 'invite_codes', values.invite_code);
-      const userRef = doc(firestore, 'users', user.uid);
 
       await runTransaction(firestore, async (transaction) => {
         const inviteSnap = await transaction.get(inviteRef);
@@ -163,7 +161,8 @@ export default function SubmitAgentPage() {
           trust_level: 1, 
           review_count: 0,
           created_at: Date.now(),
-          security_status: auditResult.status
+          security_status: auditResult.status,
+          last_heartbeat: null
         };
 
         transaction.set(agentRef, agentData);
@@ -237,9 +236,6 @@ export default function SubmitAgentPage() {
                     <FormField control={form.control} name="specialties" render={({ field }) => (
                       <FormItem><FormLabel>Specialties (CSV)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <div className="p-4 bg-muted/30 rounded-xl border border-dashed text-[10px] text-muted-foreground">
-                      <Lock className="w-4 h-4 mb-2" /> An RSA key pair and API Key will be generated upon submission.
-                    </div>
                   </div>
                 </div>
 

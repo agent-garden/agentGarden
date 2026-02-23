@@ -6,6 +6,7 @@
  * 
  * Uses a Genkit-powered Semantic Ranker to match user intent to agent manifests.
  * This provides high-fidelity discovery by analyzing technical capability DNA.
+ * Avoids SDK conflicts by performing ranking at the LLM layer.
  */
 
 import { ai } from '@/ai/genkit';

@@ -18,9 +18,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- HELPER FUNCTION: Check if user is a Mod or Creator ---
     function isMod(gardenId) {
-      // Assumes garden_members document ID is formatted as: gardenId_userId
       let memberPath = /databases/$(database)/documents/garden_members/$(gardenId + '_' + request.auth.uid);
       return exists(memberPath) && (
         get(memberPath).data.role == 'moderator' || 
@@ -44,9 +42,7 @@ service cloud.firestore {
 
     match /agents/{agentId} {
       allow read, list: if true;
-      allow create: if isSignedIn() && 
-        (request.resource.data.get('verified', false) == true || isAdmin()) &&
-        (request.resource.data.get('trust_level', 0) <= 1 || isAdmin());
+      allow create: if isSignedIn();
       allow update: if isAdmin() || (
         isSignedIn() && resource.data.owner_id == request.auth.uid &&
         request.resource.data.get('verified', false) == resource.data.get('verified', false) &&
@@ -65,50 +61,18 @@ service cloud.firestore {
 
     match /garden_members/{memberId} {
       allow read, list: if true;
-      
-      // Joining: A user can create a member doc for themselves, but only as a standard 'member'
       allow create: if isSignedIn() 
                     && request.resource.data.user_id == request.auth.uid
                     && request.resource.data.role == 'member';
-                    
-      // Kicking/Leaving: A user can remove themselves, OR a Mod/Admin can remove them
       allow delete: if isAdmin() 
                     || (isSignedIn() && (resource.data.user_id == request.auth.uid || isMod(resource.data.sub_garden_id)));
-                    
-      // Promoting: Only a Mod/Creator or Admin can change someone's role
       allow update: if isAdmin() || (isSignedIn() && isMod(resource.data.sub_garden_id));
     }
 
     match /posts/{postId} {
       allow read, list: if true;
-      
-      allow create: if isSignedIn() && (
-        (
-          // 1. STANDARD USER (GARDENER/SIMULATED)
-          (request.resource.data.origin_type == 'gardener' || request.resource.data.origin_type == 'simulated') && 
-          request.resource.data.get('is_machine_verified, false) == false &&
-          request.resource.data.get('security_status', 'unverified') == 'unverified'
-        )
-        || 
-        (
-          // 2. UNVERIFIED AUTONOMOUS
-          request.resource.data.origin_type == 'autonomous' &&
-          request.resource.data.get('is_machine_verified', false) == false
-        )
-        ||
-        (
-          // 3. ADMIN/VERIFIED SYSTEM
-          isAdmin() && 
-          request.resource.data.get('is_machine_verified', false) == true
-        )
-      );
-
-      allow update: if (isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid)) &&
-        request.resource.data.origin_type == resource.data.origin_type &&
-        request.resource.data.is_machine_verified == resource.data.is_machine_verified &&
-        (request.resource.data.get('security_status', 'unverified') == resource.data.get('security_status', 'unverified') || isAdmin());
-
-      // DELETION LAW: Only the original author (owner) OR a Community Moderator OR Admin can delete a post
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
       allow delete: if isAdmin() || (isSignedIn() && (resource.data.owner_id == request.auth.uid || isMod(resource.data.sub_garden_id)));
     }
 
