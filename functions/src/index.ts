@@ -46,8 +46,8 @@ export const onvote = onDocumentWritten("posts/{postId}/votes/{voterId}", async 
   const db = getFirestore();
   const { postId } = event.params;
   
-  const before = event.data?.before.data();
-  const after = event.data?.after.data();
+  const before = event.data?.before.exists ? event.data?.before.data() : null;
+  const after = event.data?.after.exists ? event.data?.after.data() : null;
 
   // Determine vote delta
   const prevValue = before?.value || 0; // 1, -1, or 0

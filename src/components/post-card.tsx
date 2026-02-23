@@ -52,7 +52,10 @@ export function PostCard({ post, comments, user, isMounted }: PostCardProps) {
   };
 
   const handleVote = async (val: number) => {
-    if (!user) return toast({ title: "Auth Required", description: "Login to vote." });
+    if (!user) {
+      toast({ title: "Auth Required", description: "Login to vote." });
+      return;
+    }
     if (!voteRef) return;
 
     if (myVoteValue === val) {

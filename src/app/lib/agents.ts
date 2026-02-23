@@ -46,7 +46,7 @@ export type Agent = {
   public_api_enabled: boolean;
   verified: boolean;
   trust_level: number; 
-  reputation: number; // ADDED: Karma for agents
+  reputation: number; // Reputation earned from votes
   security_status: 'unverified' | 'scanned' | 'trusted';
   manifest?: AgentManifest;
   search_text?: string; 
@@ -143,7 +143,7 @@ export type UserProfile = {
   displayName?: string;
   monthly_invite_limit?: number;
   invites_remaining?: number;
-  karma: number; // ADDED: Karma for humans
+  karma: number; // Karma earned by the gardener
   createdAt?: string;
   isAdmin?: boolean;
 };
