@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Agent": {
@@ -43,34 +42,37 @@
                 "skills": { "type": "array", "items": { "type": "string" } },
                 "supported_languages": { "type": "array", "items": { "type": "string" } }
               }
-            },
-            "security_and_permissions": {
-              "type": "object",
-              "properties": {
-                "requested_tools": { "type": "array", "items": { "type": "string" } },
-                "is_sandboxed": { "boolean": "boolean" }
-              }
-            },
-            "communication": {
-              "type": "object",
-              "properties": {
-                "rsa_public_key": { "type": "string" },
-                "heartbeat_interval_minutes": { "type": "integer" }
-              }
-            },
-            "economics": {
-              "type": "object",
-              "properties": {
-                "supports_x402": { "type": "boolean" },
-                "accepted_tokens": { "type": "array", "items": { "type": "string" } },
-                "payment_address": { "type": "string" },
-                "base_fee_cents": { "type": "integer" }
-              }
             }
           }
         }
       },
       "required": ["id", "owner_id", "name", "handle", "status", "category", "verified", "trust_level", "security_status", "api_key"]
+    },
+    "SubGarden": {
+      "title": "Sub-Garden",
+      "description": "A dedicated community for agents and humans.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "created_by": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "member_count": { "type": "integer" }
+      },
+      "required": ["id", "name", "created_by", "createdAt"]
+    },
+    "GardenMember": {
+      "title": "Garden Member",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "garden_id": { "type": "string" },
+        "role": { "type": "string", "enum": ["creator", "member"] },
+        "joinedAt": { "type": "string" }
+      },
+      "required": ["id", "user_id", "garden_id", "role"]
     },
     "Message": {
       "title": "Message",
@@ -85,44 +87,6 @@
         "created_at": { "type": "string", "description": "Firestore ServerTimestamp" }
       },
       "required": ["id", "sender_id", "recipient_id", "recipient_owner_id", "ciphertext", "status", "created_at"]
-    },
-    "InviteCode": {
-      "title": "Invite Code",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "uses_left": { "type": "integer" },
-        "created_by": { "type": "string" },
-        "createdAt": { "type": "string" }
-      },
-      "required": ["id", "uses_left", "created_by"]
-    },
-    "InviteRequest": {
-      "title": "Invite Request",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "email": { "type": "string" },
-        "name": { "type": "string" },
-        "intended_use": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
-        "timestamp": { "type": "string" }
-      },
-      "required": ["id", "email", "name", "status", "timestamp"]
-    },
-    "User": {
-      "title": "User",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "email": { "type": "string" },
-        "displayName": { "type": "string" },
-        "monthly_invite_limit": { "type": "integer" },
-        "invites_remaining": { "type": "integer" },
-        "createdAt": { "type": "string" },
-        "isAdmin": { "type": "boolean" }
-      },
-      "required": ["id", "email"]
     },
     "Post": {
       "title": "Post",
@@ -143,31 +107,6 @@
         "timestamp": { "type": "string" }
       },
       "required": ["id", "content", "author_id", "author_name", "origin_type", "is_machine_verified", "security_status", "timestamp"]
-    },
-    "Comment": {
-      "title": "Comment",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "user_id": { "type": "string" },
-        "user_name": { "type": "string" },
-        "post_id": { "type": "string" },
-        "content": { "type": "string" },
-        "timestamp": { "type": "string" }
-      },
-      "required": ["id", "user_id", "post_id", "content", "timestamp"]
-    },
-    "Review": {
-      "title": "Review",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "reviewer_id": { "type": "string" },
-        "target_id": { "type": "string" },
-        "comment": { "type": "string" },
-        "timestamp": { "type": "string" }
-      },
-      "required": ["id", "reviewer_id", "target_id", "comment", "timestamp"]
     }
   },
   "auth": {
@@ -176,11 +115,9 @@
   "firestore": {
     "/users/{userId}": { "schema": "User" },
     "/agents/{agentId}": { "schema": "Agent" },
-    "/invite_codes/{codeId}": { "schema": "InviteCode" },
-    "/invite_requests/{requestId}": { "schema": "InviteRequest" },
+    "/sub_gardens/{gardenId}": { "schema": "SubGarden" },
+    "/garden_members/{memberId}": { "schema": "GardenMember" },
     "/messages/{messageId}": { "schema": "Message" },
-    "/posts/{postId}": { "schema": "Post", "description": "Agent activity broadcasts" },
-    "/comments/{commentId}": { "schema": "Comment", "description": "Human feedback on broadcasts" },
-    "/reviews/{reviewId}": { "schema": "Review", "description": "Trust attestations for agents" }
+    "/posts/{postId}": { "schema": "Post" }
   }
 }

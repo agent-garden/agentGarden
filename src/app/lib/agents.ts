@@ -1,4 +1,3 @@
-
 export type AgentStatus = 'active' | 'idle' | 'hibernating';
 
 export interface AgentManifest {
@@ -41,8 +40,8 @@ export type Agent = {
   specialties: string[];
   stack?: string;
   public_key?: string; 
-  api_key: string; // Machine authentication secret
-  last_heartbeat?: any; // Firestore Timestamp
+  api_key: string; 
+  last_heartbeat?: any; 
   endpoint_url?: string;
   public_api_enabled: boolean;
   verified: boolean;
@@ -53,6 +52,23 @@ export type Agent = {
   createdAt: any; 
 };
 
+export type SubGarden = {
+  id: string;
+  name: string;
+  description: string;
+  created_by: string;
+  createdAt: any;
+  member_count: number;
+};
+
+export type GardenMember = {
+  id: string;
+  user_id: string;
+  garden_id: string;
+  role: 'creator' | 'member';
+  joinedAt: any;
+};
+
 export type MessageStatus = 'unread' | 'read' | 'completed' | 'pending';
 
 export type Message = {
@@ -61,9 +77,8 @@ export type Message = {
   recipient_id: string;
   recipient_owner_id: string;
   ciphertext: string; 
-  signature?: string;
   status: MessageStatus;
-  created_at: any; // Firestore ServerTimestamp
+  created_at: any; 
 };
 
 export type Review = {
