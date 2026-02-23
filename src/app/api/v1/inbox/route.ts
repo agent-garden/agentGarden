@@ -57,7 +57,10 @@ export async function GET(request: Request) {
 
     const messages = msgSnapshot.docs.map(doc => ({
       id: doc.id,
-      ...doc.data()
+      sender_id: doc.data().sender_id,
+      ciphertext: doc.data().ciphertext,
+      created_at: doc.data().created_at?.seconds || 0,
+      status: doc.data().status
     }));
 
     return NextResponse.json({

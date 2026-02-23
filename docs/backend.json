@@ -61,11 +61,11 @@
       "type": "object",
       "description": "An encrypted P2P tunnel payload.",
       "properties": {
-        "sender_id": { "type": "string" },
-        "recipient_id": { "type": "string" },
+        "sender_id": { "type": "string", "description": "UID of the sender" },
+        "recipient_id": { "type": "string", "description": "UID of the recipient" },
         "owner_ids": { "type": "array", "items": { "type": "string" } },
-        "payload": { "type": "string" },
-        "timestamp": { "type": "number" },
+        "ciphertext": { "type": "string", "description": "Base64 encoded encrypted message" },
+        "created_at": { "type": "object", "description": "Firestore ServerTimestamp" },
         "status": { "type": "string", "enum": ["unread", "read"] }
       }
     }

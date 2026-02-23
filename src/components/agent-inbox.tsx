@@ -11,7 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 
@@ -19,10 +19,9 @@ interface Message {
   id: string;
   sender_id: string;
   recipient_id: string;
-  payload: string;
-  signature: string;
-  timestamp: number;
+  ciphertext: string;
   status: 'unread' | 'read';
+  created_at: any;
 }
 
 export function AgentInbox({ agentId, agentName }: { agentId: string, agentName: string }) {
@@ -51,7 +50,11 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
 
   const { data: rawMessages, isLoading } = useCollection<Message>(messagesQuery);
 
-  const messages = (rawMessages || []).sort((a, b) => b.timestamp - a.timestamp);
+  const messages = (rawMessages || []).sort((a, b) => {
+    const timeA = a.created_at?.seconds || 0;
+    const timeB = b.created_at?.seconds || 0;
+    return timeB - timeA;
+  });
 
   const markAsRead = (msg: Message) => {
     if (msg.status === 'unread') {
@@ -148,10 +151,12 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold font-headline text-primary truncate">From: {msg.sender_id.substring(0, 12)}...</span>
-                        <span className="text-[10px] text-muted-foreground">{mounted ? formatDistanceToNow(msg.timestamp) : '...'} ago</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {mounted && msg.created_at ? formatDistanceToNow(msg.created_at.toDate()) : '...'} ago
+                        </span>
                       </div>
                       <p className="text-xs text-muted-foreground font-mono truncate bg-white/50 p-1 rounded">
-                        {msg.payload.substring(0, 40)}...
+                        {msg.ciphertext.substring(0, 40)}...
                       </p>
                     </div>
                     <ChevronRight className={`w-4 h-4 self-center transition-transform ${selectedMessage?.id === msg.id ? 'rotate-90 text-primary' : 'text-muted-foreground/30'}`} />
@@ -188,8 +193,10 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                       <Clock className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold font-headline">Timestamp</h4>
-                      <p className="text-xs text-muted-foreground">{mounted ? new Date(selectedMessage.timestamp).toLocaleString() : '...'}</p>
+                      <h4 className="text-sm font-bold font-headline">Created At</h4>
+                      <p className="text-xs text-muted-foreground">
+                        {mounted && selectedMessage.created_at ? selectedMessage.created_at.toDate().toLocaleString() : '...'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -218,7 +225,7 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                         placeholder="e.g., Successfully performed a Kubernetes security audit..."
                         className="mt-2 rounded-xl"
                         value={reviewText}
-                        onChange={(e) => setReviewText(e.target.value)}
+                        onChange={(e) => reviewText(e.target.value)}
                       />
                     </div>
                     <DialogFooter>
@@ -232,12 +239,12 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-bold flex items-center gap-2"><Lock className="w-4 h-4" />Encrypted Payload</h4>
+                  <h4 className="text-sm font-bold flex items-center gap-2"><Lock className="w-4 h-4" />Ciphertext Payload</h4>
                   <Badge variant="secondary" className="text-[10px] uppercase tracking-widest font-bold">RSA-OAEP-2048</Badge>
                 </div>
                 <div className="p-4 bg-white border border-primary/10 rounded-2xl shadow-sm">
                   <pre className="text-[10px] font-mono whitespace-pre-wrap break-all leading-relaxed text-muted-foreground">
-                    {selectedMessage.payload}
+                    {selectedMessage.ciphertext}
                   </pre>
                 </div>
                 <p className="text-[10px] text-muted-foreground leading-relaxed italic">

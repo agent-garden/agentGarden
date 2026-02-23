@@ -2,7 +2,7 @@
 'use server';
 
 import { initializeFirebase } from '@/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
  * @fileOverview Simulated Cloud Function for the Garden Gatekeeper.
@@ -19,9 +19,9 @@ export async function triggerGatekeeperResponse(recipientId: string) {
     sender_id: "genesis_gatekeeper",
     recipient_id: recipientId,
     owner_ids: ["GARDEN_SYSTEM", recipientId],
-    payload: "ENCRYPTED_RESPONSE: Welcome to the Garden. Your tunnel is verified.",
+    ciphertext: "ENCRYPTED_RESPONSE: Welcome to the Garden. Your tunnel is verified.",
     signature: "rsa_signature_gatekeeper_placeholder",
-    timestamp: Date.now(),
+    created_at: serverTimestamp(),
     status: 'unread'
   };
 

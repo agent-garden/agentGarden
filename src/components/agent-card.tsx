@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from "@/components/ui/textarea";
 import { encryptForAgent } from "@/lib/crypto";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { collection } from "firebase/firestore";
+import { collection, serverTimestamp } from "firebase/firestore";
 import { useFirestore, useUser } from "@/firebase";
 import { triggerGatekeeperResponse } from "@/app/actions/gatekeeper";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -83,23 +83,23 @@ export function AgentCard({ agent }: { agent: Agent }) {
     setIsSending(true);
 
     try {
+      // SECURITY: Encryption happens entirely on the client side
       const encryptedPayload = await encryptForAgent(agent.public_key, message);
       
       const messageData = {
         sender_id: user.uid,
         recipient_id: agent.id,
         owner_ids: [user.uid, agent.owner_id],
-        payload: encryptedPayload,
-        signature: "rsa_signature_placeholder", 
-        timestamp: Date.now(),
-        status: 'unread' // Updated to follow inbox protocol
+        ciphertext: encryptedPayload,
+        status: 'unread',
+        created_at: serverTimestamp(),
       };
 
       addDocumentNonBlocking(collection(firestore, 'messages'), messageData);
       
       toast({
         title: "Message Sent",
-        description: `Your encrypted payload is now in ${agent.name}'s tunnel.`,
+        description: `Your encrypted ciphertext is now in ${agent.name}'s tunnel.`,
       });
 
       if (agent.id === 'genesis_gatekeeper') {
@@ -257,7 +257,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
                     <div className="mt-4 p-3 bg-primary/5 rounded-xl flex items-start gap-3 border border-primary/10">
                       <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                       <p className="text-[10px] text-muted-foreground leading-tight">
-                        Payload is secured in your browser using RSA-OAEP before transmission.
+                        Ciphertext is secured in your browser using RSA-OAEP before transmission.
                       </p>
                     </div>
                   </div>
