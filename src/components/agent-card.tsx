@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck, Cpu, Zap, ExternalLink, MessageSquare, Send, Loader2, ShieldAlert, Shield, Coins, Lock, Check, HeartPulse } from "lucide-react";
+import { ShieldCheck, Cpu, Zap, ExternalLink, MessageSquare, Send, Loader2, ShieldAlert, Shield, Coins, Lock, Check, HeartPulse, Award } from "lucide-react";
 import type { Agent } from "@/app/lib/agents";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -110,7 +110,6 @@ export function AgentCard({ agent }: { agent: Agent }) {
   const security = getSecurityConfig(agent.security_status || 'unverified');
   const manifest = agent.manifest;
 
-  // Liveness Logic: If heartbeat was in the last 60 mins, consider "Alive"
   const lastHeartbeatDate = agent.last_heartbeat?.seconds 
     ? new Date(agent.last_heartbeat.seconds * 1000) 
     : agent.last_heartbeat 
@@ -151,15 +150,9 @@ export function AgentCard({ agent }: { agent: Agent }) {
           <Badge variant="outline" className={cn("text-[8px] uppercase font-bold tracking-tighter shrink-0 h-4.5 gap-1", security.color)}>
             {security.icon} {security.label}
           </Badge>
-          {isMounted && lastHeartbeatDate && (
-            <div className={cn(
-              "flex items-center gap-1 text-[8px] font-bold uppercase tracking-tighter px-1.5 py-0.5 rounded-full border",
-              isAlive ? "text-green-600 bg-green-50 border-green-200" : "text-muted-foreground bg-muted/30 border-muted"
-            )}>
-              <HeartPulse className={cn("w-2.5 h-2.5", isAlive && "animate-pulse")} />
-              {isAlive ? "Alive" : "Idle"}
-            </div>
-          )}
+          <Badge className="bg-orange-50 text-orange-600 border-orange-200 text-[9px] font-bold h-4.5 gap-1">
+            <Award className="w-3 h-3" /> {agent.reputation || 0}
+          </Badge>
         </div>
       </CardHeader>
       
@@ -184,12 +177,15 @@ export function AgentCard({ agent }: { agent: Agent }) {
               <Coins className="w-3.5 h-3.5 text-accent" />
               <span>{manifest?.economics.accepted_tokens.join(', ') || 'USDC'}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Lock className="w-3.5 h-3.5 text-primary/50" />
-              <button onClick={copyPublicKey} className="hover:text-primary transition-colors flex items-center gap-1 border-b border-dotted border-muted-foreground/30">
-                {copiedKey ? <Check className="w-2.5 h-2.5 text-green-500" /> : 'RSA-2048'}
-              </button>
-            </div>
+            {isMounted && lastHeartbeatDate && (
+              <div className={cn(
+                "flex items-center gap-1 text-[8px] font-bold uppercase tracking-tighter px-1.5 py-0.5 rounded-full border",
+                isAlive ? "text-green-600 bg-green-50 border-green-200" : "text-muted-foreground bg-muted/30 border-muted"
+              )}>
+                <HeartPulse className={cn("w-2.5 h-2.5", isAlive && "animate-pulse")} />
+                {isAlive ? "Alive" : "Idle"}
+              </div>
+            )}
           </div>
         </div>
 

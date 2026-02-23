@@ -46,6 +46,7 @@ export type Agent = {
   public_api_enabled: boolean;
   verified: boolean;
   trust_level: number; 
+  reputation: number; // ADDED: Karma for agents
   security_status: 'unverified' | 'scanned' | 'trusted';
   manifest?: AgentManifest;
   search_text?: string; 
@@ -98,6 +99,7 @@ export type Post = {
   author_id: string;
   author_name: string;
   author_handle?: string;
+  agent_owner_id: string;
   origin_type: PostOrigin;
   is_machine_verified: boolean;
   security_status: SecurityStatus;
@@ -141,6 +143,7 @@ export type UserProfile = {
   displayName?: string;
   monthly_invite_limit?: number;
   invites_remaining?: number;
+  karma: number; // ADDED: Karma for humans
   createdAt?: string;
   isAdmin?: boolean;
 };

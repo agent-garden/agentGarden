@@ -1,15 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { User, Brain, Cpu, ShieldCheck, Clock, Send, MessageSquare, Loader2 } from 'lucide-react';
+import { User, Brain, Cpu, ShieldCheck, Clock, Send, MessageSquare, Loader2, ArrowBigUp, ArrowBigDown } from 'lucide-react';
 import { createComment } from '@/app/actions/activity-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { Post, Comment, PostOrigin } from '@/app/lib/agents';
+import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 interface PostCardProps {
   post: Post;
@@ -22,6 +24,16 @@ export function PostCard({ post, comments, user, isMounted }: PostCardProps) {
   const [commentText, setCommentText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const db = useFirestore();
+
+  // Voting State
+  const voteRef = useMemoFirebase(() => {
+    if (!db || !user || !post.id) return null;
+    return doc(db, 'posts', post.id, 'votes', user.uid);
+  }, [db, user, post.id]);
+
+  const { data: myVoteDoc } = useDoc<{ value: number }>(voteRef);
+  const myVoteValue = myVoteDoc?.value || 0;
 
   const handleAddComment = async () => {
     if (!user || !commentText.trim()) return;
@@ -39,6 +51,19 @@ export function PostCard({ post, comments, user, isMounted }: PostCardProps) {
     }
   };
 
+  const handleVote = async (val: number) => {
+    if (!user) return toast({ title: "Auth Required", description: "Login to vote." });
+    if (!voteRef) return;
+
+    if (myVoteValue === val) {
+      // Unvote
+      deleteDoc(voteRef);
+    } else {
+      // Cast or Change Vote
+      setDoc(voteRef, { value: val });
+    }
+  };
+
   const getOriginConfig = (origin: PostOrigin) => {
     switch (origin) {
       case 'gardener': return { icon: <User className="w-3.5 h-3.5" />, label: '👤 [USER]', color: 'bg-primary/10 text-primary border-primary/20' };
@@ -49,6 +74,7 @@ export function PostCard({ post, comments, user, isMounted }: PostCardProps) {
   };
 
   const origin = getOriginConfig(post.origin_type || 'gardener');
+  const netScore = (post.upvotes || 0) - (post.downvotes || 0);
 
   return (
     <Card className="border-none shadow-xl bg-white/80 backdrop-blur-md overflow-hidden group transition-all hover:shadow-2xl">
@@ -58,6 +84,34 @@ export function PostCard({ post, comments, user, isMounted }: PostCardProps) {
       )} />
       <CardContent className="p-8 space-y-6">
         <div className="flex items-start gap-6">
+          {/* Voting Sidebar */}
+          <div className="flex flex-col items-center gap-1 shrink-0 pt-2">
+            <button 
+              onClick={() => handleVote(1)}
+              className={cn(
+                "p-1 rounded-md transition-colors",
+                myVoteValue === 1 ? "text-orange-500 bg-orange-50" : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              <ArrowBigUp className={cn("w-8 h-8", myVoteValue === 1 && "fill-current")} />
+            </button>
+            <span className={cn(
+              "font-headline text-xl",
+              myVoteValue === 1 ? "text-orange-600" : myVoteValue === -1 ? "text-blue-600" : "text-muted-foreground"
+            )}>
+              {netScore}
+            </span>
+            <button 
+              onClick={() => handleVote(-1)}
+              className={cn(
+                "p-1 rounded-md transition-colors",
+                myVoteValue === -1 ? "text-blue-500 bg-blue-50" : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              <ArrowBigDown className={cn("w-8 h-8", myVoteValue === -1 && "fill-current")} />
+            </button>
+          </div>
+
           <div className={cn(
             "w-16 h-16 rounded-3xl flex items-center justify-center relative shrink-0 border shadow-inner", 
             post.origin_type === 'autonomous' ? 'bg-purple-50 text-purple-600 border-purple-100' : 'bg-primary/5 text-primary border-primary/10'
@@ -69,6 +123,7 @@ export function PostCard({ post, comments, user, isMounted }: PostCardProps) {
               </div>
             )}
           </div>
+
           <div className="flex-1 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex flex-col">

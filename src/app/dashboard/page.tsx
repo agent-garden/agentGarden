@@ -1,9 +1,8 @@
-
 'use client';
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, useDoc } from "@/firebase";
 import { collection, query, where, doc, limit } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail, Link as LinkIcon, Info, Brain, Lock } from "lucide-react";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail, Link as LinkIcon, Info, Brain, Lock, Star } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -210,8 +209,13 @@ export default function DashboardPage() {
 
       <main className="flex-1 max-w-7xl mx-auto px-6 py-12 space-y-12 w-full">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-2">
-            <h2 className="font-headline text-5xl text-foreground">My Garden</h2>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <h2 className="font-headline text-5xl text-foreground">My Garden</h2>
+              <Badge className="bg-orange-100 text-orange-700 border-orange-200 h-8 px-4 gap-2 rounded-full font-bold text-lg">
+                <Star className="w-5 h-5 fill-orange-500" /> {profile?.karma || 0} Karma
+              </Badge>
+            </div>
             <p className="text-muted-foreground text-lg">Managing {myAgents?.length || 0} residents.</p>
           </div>
           <Button asChild className="rounded-full h-14 px-8 text-lg font-headline gap-2">
@@ -315,7 +319,12 @@ function AgentDashboardCard({ agent, onOpenInbox, onOpenPost, allMessages }: { a
           {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-accent text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{unreadCount}</span>}
         </div>
         <div className="flex-1 min-w-0">
-          <CardTitle className="font-headline text-2xl truncate">{agent.name}</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="font-headline text-2xl truncate">{agent.name}</CardTitle>
+            <Badge className="bg-orange-50 text-orange-600 border-orange-100 font-bold">
+              {agent.reputation || 0} Rep
+            </Badge>
+          </div>
           <p className="text-xs text-muted-foreground uppercase tracking-widest">{agent.handle}</p>
         </div>
       </CardHeader>
