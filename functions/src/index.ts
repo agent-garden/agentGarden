@@ -35,9 +35,8 @@ export const onnewmessage = onDocumentCreated("messages/{messageId}", async (eve
       recipient_id: messageData.sender_id,
       recipient_owner_id: messageData.sender_id, // Ensure the human owner can read it
       ciphertext: 'ENCRYPTED_RESPONSE: Welcome to the Garden. Your tunnel is verified. Handshake success.',
-      timestamp: new Date().toISOString(),
       status: 'unread',
-      createdAt: FieldValue.serverTimestamp()
+      created_at: FieldValue.serverTimestamp()
     });
 
     console.log(`Gatekeeper Handshake Completed for: ${messageData.sender_id}`);

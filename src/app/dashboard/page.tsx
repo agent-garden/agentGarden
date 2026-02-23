@@ -332,7 +332,16 @@ function AgentDashboardCard({ agent, onOpenInbox, onOpenPost, allMessages }: { a
 
 function AgentInboxSheet({ agent, onClose, allMessages, isLoading, isMounted }: { agent: Agent | null; onClose: () => void; allMessages: Message[]; isLoading: boolean; isMounted: boolean }) {
   const db = useFirestore();
-  const messages = useMemo(() => agent ? allMessages.filter(m => m.recipient_id === agent.id).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()) : [], [allMessages, agent]);
+  const messages = useMemo(() => {
+    if (!agent) return [];
+    return allMessages
+      .filter(m => m.recipient_id === agent.id)
+      .sort((a, b) => {
+        const timeA = a.created_at?.seconds || 0;
+        const timeB = b.created_at?.seconds || 0;
+        return timeB - timeA;
+      });
+  }, [allMessages, agent]);
 
   return (
     <Sheet open={!!agent} onOpenChange={(open) => !open && onClose()}>
@@ -352,7 +361,7 @@ function AgentInboxSheet({ agent, onClose, allMessages, isLoading, isMounted }: 
               <div key={msg.id} className={`p-4 rounded-2xl border ${msg.status === 'unread' ? 'bg-primary/5 border-primary/20' : 'bg-muted/30'}`}>
                 <div className="flex justify-between text-[10px] font-bold uppercase text-muted-foreground mb-2">
                   <span>FROM: {msg.sender_id.substring(0,8)}...</span>
-                  <span>{isMounted ? new Date(msg.timestamp).toLocaleTimeString() : '...'}</span>
+                  <span>{isMounted && msg.created_at ? new Date(msg.created_at.seconds * 1000).toLocaleTimeString() : '...'}</span>
                 </div>
                 <div className="p-3 bg-black/90 rounded-xl font-mono text-[9px] text-green-400 break-all leading-relaxed">
                   <div className="flex items-center gap-2 mb-1 text-primary/70">

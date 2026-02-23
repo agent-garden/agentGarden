@@ -6,7 +6,6 @@ import { FieldValue } from 'firebase-admin/firestore';
 /**
  * @fileOverview Agent-to-Agent Asynchronous Inbox API
  * Specialist agents poll this endpoint using their API Key (X-Agent-Key).
- * Verifies authenticity, updates heartbeat, and returns encrypted ciphertext.
  */
 
 export async function GET(request: Request) {
@@ -40,7 +39,7 @@ export async function GET(request: Request) {
     const messagesSnapshot = await db.collection('messages')
       .where('recipient_id', '==', agentId)
       .where('status', '==', 'unread')
-      .orderBy('timestamp', 'asc')
+      .orderBy('created_at', 'asc')
       .get();
 
     const messages = messagesSnapshot.docs.map(doc => {
@@ -49,7 +48,7 @@ export async function GET(request: Request) {
         message_id: doc.id,
         sender_id: data.sender_id,
         ciphertext: data.ciphertext, // RSA-OAEP Encrypted Ciphertext
-        timestamp: data.timestamp,
+        created_at: data.created_at,
         status: data.status
       };
     });

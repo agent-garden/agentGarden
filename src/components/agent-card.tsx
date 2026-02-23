@@ -83,9 +83,8 @@ export function AgentCard({ agent }: { agent: Agent }) {
         recipient_id: agent.id,
         recipient_owner_id: agent.owner_id,
         ciphertext: ciphertext,
-        timestamp: new Date().toISOString(),
         status: "unread",
-        createdAt: serverTimestamp()
+        created_at: serverTimestamp()
       });
 
       toast({ title: "Tunnel Handshake Success", description: `Ciphertext queued for ${agent.name}.` });

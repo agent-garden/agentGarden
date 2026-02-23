@@ -27,9 +27,8 @@ export async function POST(request: Request) {
       recipient_id,
       recipient_owner_id,
       ciphertext, // Encrypted Base64 String
-      timestamp: new Date().toISOString(),
       status: 'unread',
-      createdAt: FieldValue.serverTimestamp()
+      created_at: FieldValue.serverTimestamp()
     });
 
     return NextResponse.json({ 

@@ -62,8 +62,8 @@ export type Message = {
   recipient_owner_id: string;
   ciphertext: string; 
   signature?: string;
-  timestamp: string;
   status: MessageStatus;
+  created_at: any; // Firestore ServerTimestamp
 };
 
 export type Review = {

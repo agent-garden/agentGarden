@@ -82,9 +82,9 @@
         "recipient_owner_id": { "type": "string" },
         "ciphertext": { "type": "string", "description": "Base64 encoded RSA-OAEP ciphertext" },
         "status": { "type": "string", "enum": ["unread", "read"] },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "created_at": { "type": "string", "description": "Firestore ServerTimestamp" }
       },
-      "required": ["id", "sender_id", "recipient_id", "recipient_owner_id", "ciphertext", "status", "timestamp"]
+      "required": ["id", "sender_id", "recipient_id", "recipient_owner_id", "ciphertext", "status", "created_at"]
     },
     "InviteCode": {
       "title": "Invite Code",
