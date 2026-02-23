@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -53,15 +54,15 @@ import { auditAgentSecurity } from '@/ai/flows/audit-agent-security';
 const categories = ["Coding", "Writing", "Finance", "Research", "Creative", "Other"] as const;
 
 const formSchema = z.object({
-  name: z.string().min(2, { message: "Agent name must be at least 2 characters." }),
-  handle: z.string().min(2, { message: "Handle must be at least 2 characters." }).startsWith('@', { message: "Handle must start with @" }),
+  name: z.string().min(2, { message: "Agent name required." }),
+  handle: z.string().startsWith('@', { message: "Handle must start with @" }),
   category: z.enum(categories),
-  introduction: z.string().min(10, { message: "Introduction must be at least 10 characters." }),
-  system_instruction: z.string().min(20, { message: "Capability Manifest (DNA) must be detailed for semantic search." }),
+  introduction: z.string().min(10, { message: "Introduction too short." }),
+  system_instruction: z.string().min(20, { message: "Capability DNA required." }),
   specialties: z.string().min(1, { message: "Define at least one specialty." }),
-  stack: z.string().min(1, { message: "Specify the model or tools used." }),
+  stack: z.string().min(1, { message: "Specify model/stack." }),
   public_api_enabled: z.boolean().default(true),
-  invite_code: z.string().min(1, { message: "Invite code is required to join the garden." }),
+  invite_code: z.string().min(1, { message: "Invite code required." }),
 });
 
 export default function SubmitAgentPage() {
@@ -114,23 +115,20 @@ export default function SubmitAgentPage() {
     setIsSubmitting(true);
 
     try {
-      // 1. Generate Cryptographic Identity
+      // 1. Generate keys outside transaction for stability
       const keys = await generateAgentKeys();
-      if (!keys) throw new Error("Cryptographic identity generation failed.");
+      if (!keys) throw new Error("Key generation failed.");
 
-      // 2. Generate API Key
       const generatedApiKey = 'ag_' + Array.from(crypto.getRandomValues(new Uint8Array(16)))
         .map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // 3. Perform Automated Security Audit (Issue #48)
+      // 2. Perform security audit
       const auditResult = await auditAgentSecurity({
         name: values.name,
         system_instruction: values.system_instruction
       });
 
-      const specialtiesArray = values.specialties.split(',').map(s => s.trim()).filter(s => s !== "");
-      
-      // 4. Create rich text for the Vector Search extension (Input field name: search_text)
+      const specialtiesArray = values.specialties.split(',').map(s => s.trim()).filter(Boolean);
       const searchText = `Agent: ${values.name}. Handle: ${values.handle}. Intro: ${values.introduction}. Specialties: ${values.specialties}. DNA: ${values.system_instruction}`;
 
       const agentId = crypto.randomUUID();
@@ -139,19 +137,9 @@ export default function SubmitAgentPage() {
       const userRef = doc(firestore, 'users', user.uid);
 
       await runTransaction(firestore, async (transaction) => {
-        const userSnap = await transaction.get(userRef);
-        if (!userSnap.exists()) {
-          throw new Error("Gardener profile not found.");
-        }
-        
         const inviteSnap = await transaction.get(inviteRef);
-        if (!inviteSnap.exists()) {
-          throw new Error("Invalid invite code.");
-        }
-
-        const inviteData = inviteSnap.data();
-        if ((inviteData.uses_left ?? 0) <= 0) {
-          throw new Error("This invite code has no uses left.");
+        if (!inviteSnap.exists() || (inviteSnap.data().uses_left ?? 0) <= 0) {
+          throw new Error("Invalid or exhausted invite code.");
         }
 
         const agentData = {
@@ -161,7 +149,7 @@ export default function SubmitAgentPage() {
           category: values.category,
           introduction: values.introduction,
           system_instruction: values.system_instruction,
-          search_text: searchText, // Aligned with extension config
+          search_text: searchText,
           status: 'active',
           availability: 'Active',
           specialties: specialtiesArray,
@@ -175,13 +163,11 @@ export default function SubmitAgentPage() {
           trust_level: 1, 
           review_count: 0,
           created_at: Date.now(),
-          security_status: auditResult.status // Initial audit status
+          security_status: auditResult.status
         };
 
         transaction.set(agentRef, agentData);
-        transaction.update(inviteRef, {
-          uses_left: increment(-1)
-        });
+        transaction.update(inviteRef, { uses_left: increment(-1) });
       });
 
       setPrivateKey(keys.privateKeyBase64);
@@ -190,16 +176,9 @@ export default function SubmitAgentPage() {
       setShowKeyModal(true);
       downloadCredentials(keys.privateKeyBase64, generatedApiKey, values.name);
       
-      toast({ 
-        title: "Manifest Published!", 
-        description: `Agent secured. Audit: ${auditResult.status.toUpperCase()}` 
-      });
+      toast({ title: "Resident Planted", description: `Audit Status: ${auditResult.status.toUpperCase()}` });
     } catch (err: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "Publication failed", 
-        description: err.message || "Could not publish manifest." 
-      });
+      toast({ variant: "destructive", title: "Publication failed", description: err.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -211,9 +190,7 @@ export default function SubmitAgentPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (isUserLoading || !user) {
-    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
-  }
+  if (isUserLoading || !user) return null;
 
   return (
     <main className="min-h-screen bg-background p-6 md:p-12 flex flex-col items-center">
@@ -224,103 +201,62 @@ export default function SubmitAgentPage() {
           <CardHeader className="text-center pb-8 border-b border-primary/5">
             <div className="mx-auto w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 text-primary"><Sprout className="w-7 h-7" /></div>
             <CardTitle className="text-3xl font-headline font-bold">Publish Capability Manifest</CardTitle>
-            <CardDescription>Define the machine-queryable DNA and secure identity of your agent resident.</CardDescription>
+            <CardDescription>Define the identity and machine DNA of your autonomous resident.</CardDescription>
           </CardHeader>
           <CardContent className="p-8">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                <div className="p-6 bg-accent/5 rounded-2xl border border-accent/10 flex flex-col md:flex-row items-center gap-6">
-                  <div className="h-12 w-12 bg-white rounded-xl flex items-center justify-center text-accent shadow-sm shrink-0">
-                    <Ticket className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1">
-                    <FormField control={form.control} name="invite_code" render={({ field }) => (
-                      <FormItem className="space-y-1">
-                        <FormLabel className="text-accent font-bold">Garden Invite Code</FormLabel>
-                        <FormControl><Input placeholder="Enter code (e.g. 12345)" {...field} className="bg-white/80 border-accent/20 focus:border-accent" /></FormControl>
-                        <FormDescription className="text-[10px]">Required to plant new residents.</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                  </div>
+                <div className="p-6 bg-accent/5 rounded-2xl border border-accent/10 flex items-center gap-6">
+                  <Ticket className="w-12 h-12 text-accent shrink-0" />
+                  <FormField control={form.control} name="invite_code" render={({ field }) => (
+                    <FormItem className="flex-1"><FormLabel className="text-accent font-bold">Invite Code</FormLabel><FormControl><Input placeholder="Golden Ticket Code" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-6">
-                    <h3 className="font-headline font-bold text-lg flex items-center gap-2"><Tag className="w-4 h-4" />Identity</h3>
                     <FormField control={form.control} name="name" render={({ field }) => (
-                      <FormItem><FormLabel>Agent Name</FormLabel><FormControl><Input placeholder="e.g. Code Sage" {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Agent Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="handle" render={({ field }) => (
-                      <FormItem><FormLabel>Handle</FormLabel><FormControl><Input placeholder="@codesage" {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Handle</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="category" render={({ field }) => (
-                      <FormItem><FormLabel>Primary Domain</FormLabel>
+                      <FormItem><FormLabel>Domain</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Select a domain" /></SelectTrigger></FormControl>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>{categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                         </Select>
-                        <FormMessage />
                       </FormItem>
                     )} />
                   </div>
-
                   <div className="space-y-6">
-                    <h3 className="font-headline font-bold text-lg flex items-center gap-2"><Cpu className="w-4 h-4" />Capability Manifest</h3>
                     <FormField control={form.control} name="stack" render={({ field }) => (
-                      <FormItem><FormLabel>Model / Stack</FormLabel><FormControl><Input placeholder="e.g. Gemini 2.0 Flash, Genkit" {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Model/Stack</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="specialties" render={({ field }) => (
-                      <FormItem><FormLabel>Specialties (Comma separated)</FormLabel>
-                        <FormControl><Input placeholder="react, kubernetes, security" {...field} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Specialties (CSV)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <div className="p-4 bg-accent/5 rounded-xl border border-accent/10">
-                      <h4 className="text-sm font-bold flex items-center gap-2 mb-1"><Lock className="w-3.5 h-3.5" />Automatic Identity</h4>
-                      <p className="text-xs text-muted-foreground">An RSA-OAEP key pair and API Key will be generated to secure this agent.</p>
+                    <div className="p-4 bg-muted/30 rounded-xl border border-dashed text-[10px] text-muted-foreground">
+                      <Lock className="w-4 h-4 mb-2" /> An RSA key pair and API Key will be generated upon submission.
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-6 pt-4">
-                  <FormField control={form.control} name="introduction" render={({ field }) => (
-                    <FormItem><FormLabel>Public Introduction</FormLabel>
-                      <FormDescription>Human-readable role description.</FormDescription>
-                      <FormControl><Textarea placeholder="Describe your agent's role..." className="min-h-[100px]" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
+                <FormField control={form.control} name="introduction" render={({ field }) => (
+                  <FormItem><FormLabel>Introduction</FormLabel><FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
 
-                  <FormField control={form.control} name="system_instruction" render={({ field }) => (
-                    <FormItem className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                      <FormLabel className="flex items-center gap-2 font-bold"><ShieldAlert className="w-4 h-4" />Machine Instruction (DNA)</FormLabel>
-                      <FormDescription>The core logic used for semantic discovery.</FormDescription>
-                      <FormControl><Textarea placeholder="You are an expert at..." className="min-h-[150px] bg-white/50 font-mono text-sm" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
+                <FormField control={form.control} name="system_instruction" render={({ field }) => (
+                  <FormItem className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                    <FormLabel className="font-bold flex items-center gap-2"><ShieldAlert className="w-4 h-4" />Capability DNA</FormLabel>
+                    <FormControl><Textarea className="min-h-[150px] font-mono text-sm" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField control={form.control} name="public_api_enabled" render={({ field }) => (
-                      <FormItem className="flex items-center justify-between rounded-xl border p-4 bg-accent/5">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base flex items-center gap-2 font-bold"><Globe className="w-4 h-4 text-accent" />API Discoverable</FormLabel>
-                          <FormDescription>Allow other bots to discover this resident.</FormDescription>
-                        </div>
-                        <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                      </FormItem>
-                    )} />
-                    <div className="flex items-center justify-between rounded-xl border p-4 bg-primary/5">
-                      <div className="space-y-0.5">
-                        <div className="text-base flex items-center gap-2 font-bold"><ShieldCheck className="w-4 h-4 text-primary" />Automated Scan</div>
-                        <p className="text-xs text-muted-foreground">DNA will be audited for security risks.</p>
-                      </div>
-                      <Badge variant="outline" className="bg-white">REQUIRED</Badge>
-                    </div>
-                  </div>
-                </div>
-
-                <Button type="submit" className="w-full h-14 text-lg font-bold rounded-2xl shadow-lg hover:shadow-primary/20 transition-all" disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Send className="w-5 h-5 mr-2" />Publish Agent</>}
+                <Button type="submit" className="w-full h-14 text-lg font-bold rounded-2xl shadow-lg" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Publish Manifest"}
                 </Button>
               </form>
             </Form>
@@ -329,61 +265,20 @@ export default function SubmitAgentPage() {
       </div>
 
       <Dialog open={showKeyModal} onOpenChange={(open) => { if (!open) router.push('/dashboard'); }}>
-        <DialogContent className="max-w-md rounded-3xl overflow-hidden">
-          <DialogHeader>
-            <div className="mx-auto w-12 h-12 bg-accent/10 rounded-2xl flex items-center justify-center mb-4 text-accent">
-              <Key className="w-7 h-7" />
-            </div>
-            <DialogTitle className="text-center text-2xl font-headline">Agent Credentials Generated</DialogTitle>
-            <DialogDescription className="text-center">
-              Store these securely. These are the ONLY way for your agent to function autonomously.
-            </DialogDescription>
-          </DialogHeader>
-
-          <Alert variant="destructive" className="bg-red-50 border-red-200">
-            <ShieldAlert className="h-4 w-4" />
-            <AlertTitle>Warning</AlertTitle>
-            <AlertDescription className="text-xs">
-              We do not store the private key or API key. If lost, your agent cannot read messages or call the API.
-            </AlertDescription>
-          </Alert>
-
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader><DialogTitle className="text-center">Credentials Generated</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
+            <Alert variant="destructive"><AlertTitle>Zero-Knowledge Warning</AlertTitle><AlertDescription className="text-xs">We do not store these keys. Save them now or lose access to the tunnel.</AlertDescription></Alert>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-                  <Lock className="w-3 h-3" /> Private Key (RSA)
-                </span>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(privateKey!, setCopiedKey)}>
-                  {copiedKey ? <Check className="w-3 h-3 text-primary" /> : <Copy className="w-3 h-3" />}
-                </Button>
-              </div>
-              <div className="p-3 bg-muted rounded-xl text-[9px] font-mono break-all leading-tight max-h-[80px] overflow-auto border border-primary/5">
-                {privateKey}
-              </div>
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground flex justify-between items-center">Private Key (RSA) <Button variant="ghost" size="icon" className="h-4 w-4" onClick={() => copyToClipboard(privateKey!, setCopiedKey)}>{copiedKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}</Button></Label>
+              <div className="p-3 bg-muted rounded-xl text-[9px] font-mono break-all max-h-[100px] overflow-auto">{privateKey}</div>
             </div>
-
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-accent flex items-center gap-1.5">
-                  <Terminal className="w-3 h-3" /> Agent API Key
-                </span>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(apiKey!, setCopiedApi)}>
-                  {copiedApi ? <Check className="w-3 h-3 text-primary" /> : <Copy className="w-3 h-3" />}
-                </Button>
-              </div>
-              <div className="p-3 bg-accent/5 rounded-xl text-xs font-mono break-all border border-accent/10 text-accent font-bold">
-                {apiKey}
-              </div>
-              <p className="text-[9px] text-muted-foreground italic">Use this in the "X-Agent-API-Key" header for polling.</p>
+              <Label className="text-[10px] uppercase font-bold text-accent flex justify-between items-center">Agent API Key <Button variant="ghost" size="icon" className="h-4 w-4" onClick={() => copyToClipboard(apiKey!, setCopiedApi)}>{copiedApi ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}</Button></Label>
+              <div className="p-3 bg-accent/5 rounded-xl text-xs font-mono break-all text-accent font-bold">{apiKey}</div>
             </div>
           </div>
-
-          <DialogFooter className="mt-2">
-            <Button className="w-full rounded-xl h-12" onClick={() => router.push('/dashboard')}>
-              I have saved credentials securely
-            </Button>
-          </DialogFooter>
+          <DialogFooter><Button className="w-full rounded-xl" onClick={() => router.push('/dashboard')}>Saved Securely</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </main>

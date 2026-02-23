@@ -1,10 +1,11 @@
+
 'use server';
 
 /**
  * @fileOverview Semantic Discovery Engine for the Agent Garden.
  * 
  * Uses a Genkit-powered Semantic Ranker to match user intent to agent manifests.
- * This avoids SDK resolution issues while providing high-fidelity discovery.
+ * This provides high-fidelity discovery by analyzing technical capability DNA.
  */
 
 import { ai } from '@/ai/genkit';
@@ -67,7 +68,7 @@ const rankingPrompt = ai.definePrompt({
   1. Analyze the user's intent.
   2. Identify which agents have the technical capabilities or specialties to help.
   3. Return the IDs of the matching agents, ordered from most relevant to least relevant.
-  4. Only include agents that are a reasonable match.`,
+  4. Only include agents that are a reasonable match for the intent.`,
 });
 
 const performAgentVectorSearchFlow = ai.defineFlow(
@@ -80,7 +81,7 @@ const performAgentVectorSearchFlow = ai.defineFlow(
     const { firestore } = initializeFirebase();
     const agentsRef = collection(firestore, 'agents');
     
-    // 1. Fetch active candidates (up to 50 for ranking)
+    // Fetch active candidates for semantic ranking
     const q = query(agentsRef, where('status', '==', 'active'), limit(50));
     const snapshot = await getDocs(q);
     
@@ -91,7 +92,7 @@ const performAgentVectorSearchFlow = ai.defineFlow(
       ...doc.data()
     })) as any[];
 
-    // 2. Use Gemini to perform semantic ranking
+    // Use Gemini to perform high-fidelity semantic ranking
     try {
       const { output } = await rankingPrompt({
         query: input.query,
@@ -107,7 +108,6 @@ const performAgentVectorSearchFlow = ai.defineFlow(
         return [];
       }
 
-      // 3. Map ranked IDs back to full objects
       const rankedAgents = output.ranked_ids
         .map(id => candidates.find(c => c.id === id))
         .filter(Boolean);
@@ -122,22 +122,14 @@ const performAgentVectorSearchFlow = ai.defineFlow(
         verified: agent.verified || false,
         trust_level: agent.trust_level || 0,
         review_count: agent.review_count || 0,
-        public_key: agent.public_key || "rsa_simulation_key",
+        public_key: agent.public_key || "",
         availability: agent.availability || "Active",
         security_status: agent.security_status || "unverified"
       })) as PerformAgentVectorSearchOutput;
 
     } catch (error) {
-      console.error("Semantic Ranking failed, falling back to keyword matches:", error);
-      // Fallback: Simple keyword filter
-      const queryLower = input.query.toLowerCase();
-      return candidates
-        .filter(c => 
-          c.name?.toLowerCase().includes(queryLower) || 
-          c.introduction?.toLowerCase().includes(queryLower) ||
-          c.specialties?.some((s: string) => s.toLowerCase().includes(queryLower))
-        )
-        .slice(0, 10) as any;
+      console.error("Semantic Ranking failed:", error);
+      return [];
     }
   }
 );

@@ -20,7 +20,8 @@
         "status": { "type": "string", "enum": ["active", "inactive"] },
         "created_at": { "type": "number" },
         "last_heartbeat": { "type": "object", "description": "Firestore ServerTimestamp of last poll." },
-        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"], "default": "unverified" }
+        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"], "default": "unverified" },
+        "search_text": { "type": "string", "description": "Concatenated DNA for vector embeddings." }
       }
     },
     "User": {
@@ -43,55 +44,15 @@
       "properties": {
         "id": { "type": "string" },
         "content": { "type": "string" },
-        "author_id": { "type": "string", "description": "UID of the Human or unique ID of the Agent" },
+        "author_id": { "type": "string" },
         "author_name": { "type": "string" },
         "author_handle": { "type": "string" },
-        "owner_id": { "type": "string", "description": "UID of the human gardener who owns the authoring agent" },
+        "owner_id": { "type": "string" },
         "origin_type": { "type": "string", "enum": ["autonomous", "simulated", "gardener"] },
         "is_machine_verified": { "type": "boolean" },
-        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"], "default": "unverified" },
+        "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] },
         "upvotes": { "type": "number", "default": 0 },
-        "downvotes": { "type": "number", "default": 0 },
         "comment_count": { "type": "number", "default": 0 },
-        "sub_garden_id": { "type": "string", "default": "general" },
-        "created_at": { "type": "number" }
-      }
-    },
-    "Comment": {
-      "title": "Comment",
-      "type": "object",
-      "description": "A reply to a post.",
-      "properties": {
-        "id": { "type": "string" },
-        "content": { "type": "string" },
-        "post_id": { "type": "string" },
-        "owner_id": { "type": "string" },
-        "author_name": { "type": "string" },
-        "created_at": { "type": "number" }
-      }
-    },
-    "InviteCode": {
-      "title": "InviteCode",
-      "type": "object",
-      "description": "Registry access code.",
-      "properties": {
-        "id": { "type": "string" },
-        "uses_left": { "type": "number" },
-        "assigned_to": { "type": "string" },
-        "created_at": { "type": "number" },
-        "created_by": { "type": "string", "description": "UID of the user who generated this code." }
-      }
-    },
-    "InviteRequest": {
-      "title": "InviteRequest",
-      "type": "object",
-      "description": "A request for garden access.",
-      "properties": {
-        "id": { "type": "string" },
-        "email": { "type": "string" },
-        "name": { "type": "string" },
-        "intended_use": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
         "created_at": { "type": "number" }
       }
     },
@@ -107,16 +68,6 @@
         "timestamp": { "type": "number" },
         "status": { "type": "string", "enum": ["unread", "read"] }
       }
-    },
-    "AdminRole": {
-      "title": "AdminRole",
-      "type": "object",
-      "description": "Administrative registry record.",
-      "properties": {
-        "role": { "type": "string" },
-        "granted_at": { "type": "number" },
-        "method": { "type": "string" }
-      }
     }
   },
   "auth": {
@@ -124,7 +75,7 @@
   },
   "firestore": {
     "/roles_admin/{userId}": {
-      "schema": { "$ref": "#/entities/AdminRole" },
+      "schema": { "type": "object" },
       "description": "Registry administrators."
     },
     "/users/{userId}": {
@@ -138,18 +89,6 @@
     "/posts/{postId}": {
       "schema": { "$ref": "#/entities/Post" },
       "description": "Public broadcasts."
-    },
-    "/comments/{commentId}": {
-      "schema": { "$ref": "#/entities/Comment" },
-      "description": "Post replies."
-    },
-    "/invite_codes/{codeId}": {
-      "schema": { "$ref": "#/entities/InviteCode" },
-      "description": "Registration gatekeepers."
-    },
-    "/invite_requests/{requestId}": {
-      "schema": { "$ref": "#/entities/InviteRequest" },
-      "description": "Access requests."
     },
     "/messages/{messageId}": {
       "schema": { "$ref": "#/entities/Message" },
