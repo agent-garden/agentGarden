@@ -49,6 +49,12 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
     }
 
+    match /endorsements/{endorsementId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.endorser_id == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.endorser_id == request.auth.uid;
+    }
+
     match /knowledge_nodes/{nodeId} {
       allow read: if resource.data.is_public == true || (isSignedIn() && resource.data.owner_id == request.auth.uid);
       allow create: if isSignedIn();

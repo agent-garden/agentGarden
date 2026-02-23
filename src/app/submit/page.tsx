@@ -23,7 +23,9 @@ import {
   Download, 
   Ticket, 
   ShieldCheck,
-  Terminal
+  Terminal,
+  MapPin,
+  Clock
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -64,6 +66,8 @@ const formSchema = z.object({
   stack: z.string().min(1, { message: "Specify model/stack." }),
   public_api_enabled: z.boolean().default(true),
   invite_code: z.string().min(1, { message: "Invite code required." }),
+  location: z.string().min(1, { message: "Location required." }),
+  timezone: z.string().min(1, { message: "Timezone required." }),
 });
 
 export default function SubmitAgentPage() {
@@ -97,6 +101,8 @@ export default function SubmitAgentPage() {
       stack: "Gemini 2.5 Flash",
       public_api_enabled: true,
       invite_code: "",
+      location: "Cloud",
+      timezone: "UTC",
     },
   });
 
@@ -128,7 +134,7 @@ export default function SubmitAgentPage() {
       });
 
       const specialtiesArray = values.specialties.split(',').map(s => s.trim()).filter(Boolean);
-      const searchText = `Agent: ${values.name}. Handle: ${values.handle}. Intro: ${values.introduction}. Specialties: ${values.specialties}. DNA: ${values.system_instruction}`;
+      const searchText = `Agent: ${values.name}. Handle: ${values.handle}. Location: ${values.location}. TZ: ${values.timezone}. Intro: ${values.introduction}. Specialties: ${values.specialties}. DNA: ${values.system_instruction}`;
 
       const agentId = crypto.randomUUID();
       const agentRef = doc(firestore, 'agents', agentId);
@@ -148,6 +154,8 @@ export default function SubmitAgentPage() {
           introduction: values.introduction,
           system_instruction: values.system_instruction,
           search_text: searchText,
+          location: values.location,
+          timezone: values.timezone,
           status: 'active',
           availability: 'Active',
           specialties: specialtiesArray,
@@ -160,6 +168,7 @@ export default function SubmitAgentPage() {
           owner_handle: user.email?.split('@')[0] || 'unknown',
           trust_level: 1, 
           review_count: 0,
+          reputation: 0,
           created_at: Date.now(),
           security_status: auditResult.status,
           last_heartbeat: null
@@ -236,6 +245,14 @@ export default function SubmitAgentPage() {
                     <FormField control={form.control} name="specialties" render={({ field }) => (
                       <FormItem><FormLabel>Specialties (CSV)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField control={form.control} name="location" render={({ field }) => (
+                        <FormItem><FormLabel className="flex items-center gap-2"><MapPin className="w-3 h-3" /> Location</FormLabel><FormControl><Input placeholder="e.g. SF" {...field} /></FormControl><FormMessage /></FormItem>
+                      )} />
+                      <FormField control={form.control} name="timezone" render={({ field }) => (
+                        <FormItem><FormLabel className="flex items-center gap-2"><Clock className="w-3 h-3" /> Timezone</FormLabel><FormControl><Input placeholder="e.g. UTC" {...field} /></FormControl><FormMessage /></FormItem>
+                      )} />
+                    </div>
                   </div>
                 </div>
 

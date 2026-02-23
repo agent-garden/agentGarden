@@ -3,16 +3,43 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, ShieldCheck, Hammer, Atom, Zap, BrainCircuit, Code, Tag, Globe, Cpu, Lock, User, Copy, Check, Send, Star, Loader2, ShieldAlert, ShieldX, Info, ThumbsUp } from "lucide-react";
+import { 
+  CheckCircle, 
+  ShieldCheck, 
+  Hammer, 
+  Atom, 
+  Zap, 
+  BrainCircuit, 
+  Code, 
+  Tag, 
+  Globe, 
+  Cpu, 
+  Lock, 
+  User, 
+  Copy, 
+  Check, 
+  Send, 
+  Star, 
+  Loader2, 
+  ShieldAlert, 
+  ShieldX, 
+  Info, 
+  ThumbsUp,
+  MapPin,
+  Clock,
+  Award
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { encryptForAgent } from "@/lib/crypto";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { collection, serverTimestamp } from "firebase/firestore";
+import { collection, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import { useFirestore, useUser } from "@/firebase";
 import { triggerGatekeeperResponse } from "@/app/actions/gatekeeper";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -37,6 +64,8 @@ export interface Agent {
   review_count: number;
   reputation: number;
   security_status?: 'unverified' | 'scanned' | 'trusted';
+  location?: string;
+  timezone?: string;
 }
 
 const categoryIcons: Record<string, any> = {
@@ -55,10 +84,12 @@ const trustLevels = [
 ];
 
 export function AgentCard({ agent }: { agent: Agent }) {
-  const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState("");
+  const [endorseSkill, setEndorseSkill] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isEndorsing, setIsEndorsing] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEndorseOpen, setIsEndorseOpen] = useState(false);
   const [riskAcknowledged, setRiskAcknowledged] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -68,16 +99,6 @@ export function AgentCard({ agent }: { agent: Agent }) {
   const CategoryIcon = categoryIcons[agent.category] || Zap;
   const currentTrust = trustLevels[agent.trust_level || 0];
   const isTrusted = agent.security_status === 'trusted';
-
-  const copyId = () => {
-    navigator.clipboard.writeText(agent.id);
-    setCopied(true);
-    toast({
-      title: "ID Copied",
-      description: "Agent ID has been copied to your clipboard.",
-    });
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleSendMessage = async () => {
     if (!user || !firestore || !message.trim()) return;
@@ -119,6 +140,40 @@ export function AgentCard({ agent }: { agent: Agent }) {
     }
   };
 
+  const handleEndorse = async () => {
+    if (!user || !firestore || !endorseSkill.trim()) return;
+    setIsEndorsing(true);
+
+    try {
+      // Fetch user karma for weighting
+      const userDoc = await getDoc(doc(firestore, 'users', user.uid));
+      const userKarma = userDoc.data()?.karma || 0;
+      const weight = Math.max(1, Math.floor(userKarma / 10));
+
+      const endorsementData = {
+        endorser_id: user.uid,
+        endorsed_id: agent.id,
+        skill_tag: endorseSkill.trim().toLowerCase(),
+        weight: weight,
+        created_at: Date.now()
+      };
+
+      addDocumentNonBlocking(collection(firestore, 'endorsements'), endorsementData);
+      
+      toast({
+        title: "Endorsement Logged",
+        description: `Your vouch for ${endorseSkill} added ${weight} weight to ${agent.name}'s Expertise Graph.`,
+      });
+
+      setIsEndorseOpen(false);
+      setEndorseSkill("");
+    } catch (error) {
+      toast({ variant: "destructive", title: "Endorsement Failed" });
+    } finally {
+      setIsEndorsing(false);
+    }
+  };
+
   return (
     <Card className={cn(
       "hover:shadow-xl transition-all duration-300 border-primary/10 bg-white overflow-hidden group h-full flex flex-col",
@@ -132,7 +187,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
               <CategoryIcon className="w-3.5 h-3.5" />
               {agent.category}
             </Badge>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap gap-1">
               <Badge variant={agent.availability === 'Active' ? 'default' : 'secondary'} className="text-[10px] h-4 px-1.5">
                 {agent.availability}
               </Badge>
@@ -165,8 +220,9 @@ export function AgentCard({ agent }: { agent: Agent }) {
             {agent.name}
             {agent.trust_level === 2 && <Star className="w-4 h-4 text-primary fill-primary" />}
           </CardTitle>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="text-sm text-muted-foreground">{agent.handle}</span>
+          <div className="flex items-center gap-3 mt-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {agent.location || 'Cloud'}</span>
+            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {agent.timezone || 'UTC'}</span>
           </div>
         </div>
       </CardHeader>
@@ -187,7 +243,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
               if (!open) setRiskAcknowledged(false);
             }}>
               <DialogTrigger asChild>
-                <Button className="w-full rounded-xl gap-2 h-10 bg-primary hover:bg-accent shadow-sm" disabled={!user}>
+                <Button className="flex-1 rounded-xl gap-2 h-10 bg-primary hover:bg-accent shadow-sm" disabled={!user}>
                   <Send className="w-4 h-4" />
                   Connect
                 </Button>
@@ -238,6 +294,46 @@ export function AgentCard({ agent }: { agent: Agent }) {
                     disabled={isSending || !message.trim() || (!isTrusted && !riskAcknowledged)}
                   >
                     {isSending ? "Encrypting..." : "Send Through Tunnel"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={isEndorseOpen} onOpenChange={setIsEndorseOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-primary/20 text-primary" disabled={!user}>
+                  <Award className="w-5 h-5" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-3xl max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Award className="w-6 h-6 text-primary" />
+                    Endorse Expertise
+                  </DialogTitle>
+                  <DialogDescription>
+                    Vouch for this agent's proficiency in a specific domain. Your Karma will weight this endorsement.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="skill">Expertise Tag</Label>
+                    <Input 
+                      id="skill" 
+                      placeholder="e.g. k8s-security, zero-knowledge" 
+                      className="rounded-xl"
+                      value={endorseSkill}
+                      onChange={(e) => setEndorseSkill(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button 
+                    className="w-full h-12 rounded-xl font-bold" 
+                    onClick={handleEndorse}
+                    disabled={isEndorsing || !endorseSkill.trim()}
+                  >
+                    {isEndorsing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Commit Endorsement"}
                   </Button>
                 </DialogFooter>
               </DialogContent>

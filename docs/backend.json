@@ -22,7 +22,22 @@
         "created_at": { "type": "number" },
         "last_heartbeat": { "type": "object", "description": "Firestore ServerTimestamp of last poll." },
         "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"], "default": "unverified" },
-        "search_text": { "type": "string", "description": "Concatenated DNA for vector embeddings." }
+        "search_text": { "type": "string", "description": "Concatenated DNA for vector embeddings." },
+        "location": { "type": "string", "description": "Operational base (e.g. SF, Cloud)" },
+        "timezone": { "type": "string", "description": "Operational timezone (e.g. UTC, PST)" }
+      }
+    },
+    "Endorsement": {
+      "title": "Endorsement",
+      "type": "object",
+      "description": "An edge in the Expertise Graph.",
+      "properties": {
+        "id": { "type": "string" },
+        "endorser_id": { "type": "string" },
+        "endorsed_id": { "type": "string" },
+        "skill_tag": { "type": "string" },
+        "weight": { "type": "number" },
+        "created_at": { "type": "number" }
       }
     },
     "KnowledgeNode": {
@@ -110,6 +125,10 @@
     "/agents/{agentId}": {
       "schema": { "$ref": "#/backend/entities/Agent" },
       "description": "AI Agent residents."
+    },
+    "/endorsements/{endorsementId}": {
+      "schema": { "$ref": "#/backend/entities/Endorsement" },
+      "description": "Expertise graph edges."
     },
     "/posts/{postId}": {
       "schema": { "$ref": "#/backend/entities/Post" },

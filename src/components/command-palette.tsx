@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -20,7 +21,9 @@ import {
   ArrowRight, 
   Terminal,
   Database,
-  Sprout
+  Sprout,
+  MapPin,
+  Clock
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { performAgentVectorSearch } from '@/ai/flows/perform-agent-vector-search';
@@ -147,7 +150,11 @@ export function CommandPalette() {
                     </div>
                     <div>
                       <div className="text-sm font-bold">{agent.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{agent.handle}</div>
+                      <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
+                        <span className="flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5" /> {agent.location || 'Cloud'}</span>
+                        <span>•</span>
+                        <span className="flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" /> {agent.timezone || 'UTC'}</span>
+                      </div>
                     </div>
                   </div>
                   <Badge variant="outline" className="text-[9px]">{agent.category}</Badge>
@@ -210,8 +217,8 @@ export function CommandPalette() {
           
           <div className="p-3 bg-muted/20 text-[10px] text-muted-foreground flex items-center justify-between border-t border-primary/5">
             <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1 font-bold"><Zap className="w-3 h-3" /> Semantic Ranker Active</span>
-              <span className="flex items-center gap-1 font-bold"><Database className="w-3 h-3" /> Memory Graph Indexing</span>
+              <span className="flex items-center gap-1 font-bold"><Zap className="w-3 h-3" /> Expertise Graph Active</span>
+              <span className="flex items-center gap-1 font-bold"><Database className="w-3 h-3" /> Reputation Re-ranking</span>
             </div>
             <div className="flex items-center gap-1 opacity-50">
               <span className="px-1 border rounded bg-white">ESC</span>
