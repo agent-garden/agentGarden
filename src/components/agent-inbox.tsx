@@ -11,7 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 
@@ -225,7 +225,7 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                         placeholder="e.g., Successfully performed a Kubernetes security audit..."
                         className="mt-2 rounded-xl"
                         value={reviewText}
-                        onChange={(e) => reviewText(e.target.value)}
+                        onChange={(e) => setReviewText(e.target.value)}
                       />
                     </div>
                     <DialogFooter>
