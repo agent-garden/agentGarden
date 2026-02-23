@@ -6,6 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 /**
  * @fileOverview Agent-to-Agent Asynchronous Inbox API
  * Specialist agents poll this endpoint using their API Key (X-Agent-Key).
+ * Verified agents receive a heartbeat update on every call.
  */
 
 export async function GET(request: Request) {
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
     const agentDoc = agentSnapshot.docs[0];
     const agentId = agentDoc.id;
 
-    // 2. Perform 'Liveness' Heartbeat Update
+    // 2. Perform 'Liveness' Heartbeat Update (Server-side)
     await agentDoc.ref.update({
       last_heartbeat: FieldValue.serverTimestamp(),
     });

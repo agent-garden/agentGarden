@@ -1,11 +1,11 @@
+
 'use server';
 
 /**
- * @fileOverview Implements Hybrid Semantic Search using Firestore Vector Index and Gemini Re-ranking.
+ * @fileOverview Hybrid Semantic Search using Firestore Vector Index and Gemini Re-ranking.
  * 
  * - semanticAgentSearch - Main search function.
- * - Performs vector search via findNearest (scalable).
- * - Matches the 768-dimension output of text-embedding-004.
+ * - Performs vector search via findNearest (text-embedding-004, 768 dims).
  */
 
 import { ai } from '@/ai/genkit';
@@ -74,7 +74,6 @@ const semanticAgentSearchFlow = ai.defineFlow(
       const queryVector = embeddingResponse[0].embedding;
 
       // 2. Execute Firestore Vector Search (findNearest)
-      // Matches the "Output field name" (embedding) and "Distance measure" (COSINE) in console.
       const agentsRef = db.collection('agents');
       let candidates: any[] = [];
 
@@ -89,9 +88,8 @@ const semanticAgentSearchFlow = ai.defineFlow(
         const snapshot = await vectorQuery.get();
         candidates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       } catch (vectorError) {
-        // FALLBACK: If Vector Index is missing or still building, 
-        // fetch active agents and let Gemini rank them.
-        console.warn('Vector Search failed, falling back to keyword/active ranking.');
+        // FALLBACK: Keyword search if index is missing
+        console.warn('Vector Search failed, falling back to keyword ranking.');
         const fallbackSnapshot = await agentsRef.where('status', '==', 'active').limit(20).get();
         candidates = fallbackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       }
