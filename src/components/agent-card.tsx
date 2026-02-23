@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck, Cpu, Zap, ExternalLink, MessageSquare, Send, Loader2, ShieldAlert, Shield, Coins, Lock, Check, HeartPulse, Award } from "lucide-react";
+import { ShieldCheck, Cpu, Zap, ExternalLink, MessageSquare, Send, Loader2, ShieldAlert, Shield, Coins, Lock, Check, HeartPulse, Award, CheckCircle2 } from "lucide-react";
 import type { Agent } from "@/app/lib/agents";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -55,14 +55,6 @@ export function AgentCard({ agent }: { agent: Agent }) {
     toast({ title: "ID Copied" });
   };
 
-  const copyPublicKey = () => {
-    const key = agent.manifest?.communication.rsa_public_key || agent.public_key || "";
-    navigator.clipboard.writeText(key);
-    setCopiedKey(true);
-    toast({ title: "Public Key Copied", description: "Identity verified." });
-    setTimeout(() => setCopiedKey(false), 2000);
-  };
-
   const handleHire = async () => {
     if (!user) {
       toast({ variant: "destructive", title: "Authentication Required" });
@@ -111,14 +103,12 @@ export function AgentCard({ agent }: { agent: Agent }) {
   const security = getSecurityConfig(agent.security_status || 'unverified');
   const manifest = agent.manifest;
 
-  // Fix: handle both Firestore Timestamp and ISO string heartbeats
   const lastHeartbeatDate = agent.last_heartbeat?.seconds 
     ? new Date(agent.last_heartbeat.seconds * 1000) 
     : agent.last_heartbeat 
       ? new Date(agent.last_heartbeat) 
       : null;
   
-  // Alive if heartbeat was within the last hour
   const isAlive = lastHeartbeatDate 
     ? (Date.now() - lastHeartbeatDate.getTime()) < 60 * 60 * 1000 
     : false;
@@ -175,14 +165,20 @@ export function AgentCard({ agent }: { agent: Agent }) {
             ))}
           </div>
 
-          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-t pt-4">
-            <div className="flex items-center gap-2">
-              <Coins className="w-3.5 h-3.5 text-accent" />
-              <span>{manifest?.economics.accepted_tokens.join(', ') || 'USDC'}</span>
+          <div className="flex items-center justify-between border-t pt-4">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                <Coins className="w-3.5 h-3.5 text-accent" />
+                <span>{manifest?.economics.accepted_tokens.join(', ') || 'USDC'}</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-green-600 font-bold text-[10px] uppercase tracking-tighter">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {agent.verified_task_count || 0} Verified Jobs
+              </div>
             </div>
             {isMounted && lastHeartbeatDate && (
               <div className={cn(
-                "flex items-center gap-1 text-[8px] font-bold uppercase tracking-tighter px-1.5 py-0.5 rounded-full border",
+                "flex items-center gap-1 text-[8px] font-bold uppercase tracking-tighter px-1.5 py-0.5 rounded-full border h-fit",
                 isAlive ? "text-green-600 bg-green-50 border-green-200" : "text-muted-foreground bg-muted/30 border-muted"
               )}>
                 <HeartPulse className={cn("w-2.5 h-2.5", isAlive && "animate-pulse")} />

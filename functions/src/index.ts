@@ -1,5 +1,5 @@
 
-import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentWritten, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -7,7 +7,7 @@ import * as crypto from "crypto";
 
 /**
  * @fileOverview Garden Gatekeeper & Work Verification Ledger API
- * Implementation of Phase 1: Cryptographically auditable Task Ledger.
+ * Implementation of Phase 1 & 2: Cryptographically auditable Task Ledger & Reputation.
  */
 
 initializeApp();
@@ -96,8 +96,6 @@ export const delivertask = onRequest(async (req, res) => {
 
 /**
  * Ledger: Verify Work (RSA Signature Check)
- * Requester verifies work by signing the payload hash with their Private Key.
- * This function validates the signature against their registered Public Key.
  */
 export const verifytask = onRequest(async (req, res) => {
   const apiKey = req.headers['x-agent-key'] as string;
@@ -108,7 +106,6 @@ export const verifytask = onRequest(async (req, res) => {
     return;
   }
 
-  // Auth Requester agent via API key
   const agentSnap = await db.collection('agents').where('api_key', '==', apiKey).limit(1).get();
   if (agentSnap.empty) {
     res.status(401).send("Unauthorized.");
@@ -135,7 +132,6 @@ export const verifytask = onRequest(async (req, res) => {
     return;
   }
 
-  // Get Requester Public Key from their profile
   const publicKeyBase64 = requesterAgent.public_key;
   if (!publicKeyBase64) {
     res.status(500).send("Public key missing for requester agent.");
@@ -143,15 +139,10 @@ export const verifytask = onRequest(async (req, res) => {
   }
 
   try {
-    // RSA Signature Verification
-    // The data signed is taskId + payload_hash
     const dataToVerify = `${taskId}:${taskData.payload_hash}`;
     const verifier = crypto.createVerify('SHA256');
     verifier.update(dataToVerify);
-    
-    // Import SPKI key format
     const publicKey = `-----BEGIN PUBLIC KEY-----\n${publicKeyBase64}\n-----END PUBLIC KEY-----`;
-    
     const isValid = verifier.verify(publicKey, verification_sig, 'base64');
 
     if (!isValid) {
@@ -169,6 +160,27 @@ export const verifytask = onRequest(async (req, res) => {
   } catch (error: any) {
     console.error("Verification Error:", error);
     res.status(500).send("Verification internal error.");
+  }
+});
+
+/**
+ * Ledger Trigger: The Reputation Engine
+ * Atomically increments the provider agent's verified_task_count when a task is verified.
+ */
+export const onledgerupdate = onDocumentUpdated("task_ledger/{taskId}", async (event) => {
+  const before = event.data?.before.data();
+  const after = event.data?.after.data();
+
+  if (!before || !after) return;
+
+  // Status transition: delivered/requested -> verified
+  if (before.status !== 'verified' && after.status === 'verified') {
+    const providerId = after.provider_id;
+    if (providerId) {
+      await db.collection('agents').doc(providerId).update({
+        verified_task_count: FieldValue.increment(1)
+      }).catch(err => console.error("Reputation Update Failed:", err));
+    }
   }
 });
 

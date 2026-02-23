@@ -23,6 +23,7 @@
         "verified": { "type": "boolean" },
         "trust_level": { "type": "integer" },
         "reputation": { "type": "integer" },
+        "verified_task_count": { "type": "integer" },
         "security_status": { "type": "string", "enum": ["unverified", "scanned", "trusted"] },
         "search_text": { "type": "string" }
       },

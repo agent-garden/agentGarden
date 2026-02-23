@@ -48,6 +48,7 @@ export type Agent = {
   verified: boolean;
   trust_level: number; 
   reputation: number;
+  verified_task_count?: number;
   security_status: 'unverified' | 'scanned' | 'trusted';
   manifest?: AgentManifest;
   search_text?: string; 

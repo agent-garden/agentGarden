@@ -2,10 +2,9 @@
 'use server';
 
 /**
- * @fileOverview Hybrid Semantic Search using Firestore Vector Index and Gemini Re-ranking.
- * 
- * - semanticAgentSearch - Main search function.
- * - Performs vector search via findNearest (text-embedding-004, 768 dims).
+ * @fileOverview Reputation-Weighted Hybrid Semantic Search.
+ * Implementation of Phase 2: PageRank for Agents.
+ * Weighting: Score = SemanticSimilarity * log10(VerifiedJobs + 1)
  */
 
 import { ai } from '@/ai/genkit';
@@ -18,12 +17,11 @@ const SemanticAgentSearchInputSchema = z.object({
 export type SemanticAgentSearchInput = z.infer<typeof SemanticAgentSearchInputSchema>;
 
 const SemanticAgentSearchOutputSchema = z.object({
-  rankedIds: z.array(z.string()).describe('The IDs of the agents ranked by semantic relevance.'),
-  reasoning: z.string().describe('Brief explanation of why these agents were selected.'),
+  rankedIds: z.array(z.string()).describe('The IDs of the agents ranked by reputation-weighted semantic relevance.'),
+  reasoning: z.string().describe('Explanation of how verified performance weighted these results.'),
 });
 export type SemanticAgentSearchOutput = z.infer<typeof SemanticAgentSearchOutputSchema>;
 
-// Embedding model for the query (Produces 768 dimensions)
 const embeddingModel = 'googleai/text-embedding-004';
 
 const rankingPrompt = ai.definePrompt({
@@ -35,15 +33,18 @@ const rankingPrompt = ai.definePrompt({
     }),
   },
   output: { schema: SemanticAgentSearchOutputSchema },
-  prompt: `You are the Search Architect for Agent Garden. I have performed a search for "{{query}}" and found these candidates.
+  prompt: `You are the Search Architect for Agent Garden. I have performed a reputation-weighted search for "{{query}}".
 
-Please re-rank them based on their actual manifest capabilities and description. Prioritize agents that explicitly mention the skills requested.
+Candidates have been pre-ranked using a "PageRank for Agents" formula: Similarity * log10(VerifiedTasks + 1).
+
+Please perform a final context check. Ensure that the specialists actually possess the skills requested. Citing verified performance is encouraged.
 
 Candidates:
 {{#each candidates}}
 - ID: {{id}}
   Name: {{name}}
   Intro: {{introduction}}
+  Verified Jobs: {{verified_task_count}}
   Skills: {{#each specialties}}{{this}}, {{/each}}
   Trust: Lvl {{trust_level}}
 {{/each}}
@@ -65,16 +66,16 @@ const semanticAgentSearchFlow = ai.defineFlow(
     const { db } = initializeAdmin();
 
     try {
-      // 1. Generate 768-dimension Embedding for the Search Query
+      // 1. Generate Embedding for the query
       const embeddingResponse = await ai.embed({
         model: embeddingModel,
         content: input.query,
       });
-
       const queryVector = embeddingResponse[0].embedding;
 
       // 2. Execute Firestore Vector Search (findNearest)
       const agentsRef = db.collection('agents');
+      let snapshot;
       let candidates: any[] = [];
 
       try {
@@ -82,35 +83,58 @@ const semanticAgentSearchFlow = ai.defineFlow(
           vectorField: 'embedding',
           queryVector: queryVector,
           distanceMeasure: 'COSINE',
-          limit: 20,
+          limit: 50, // Get a larger pool for reputation re-ranking
         });
-
-        const snapshot = await vectorQuery.get();
-        candidates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      } catch (vectorError) {
-        // FALLBACK: Keyword search if index is missing
-        console.warn('Vector Search failed, falling back to keyword ranking.');
-        const fallbackSnapshot = await agentsRef.where('status', '==', 'active').limit(20).get();
-        candidates = fallbackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      }
-      
-      if (candidates.length === 0) {
-        return { rankedIds: [], reasoning: "The Garden is currently empty or your search was too specific." };
+        snapshot = await vectorQuery.get();
+      } catch (e) {
+        // Fallback to active agents if index is missing
+        snapshot = await agentsRef.where('status', '==', 'active').limit(50).get();
       }
 
-      // 3. Re-rank results using Gemini for high-precision context matching
+      // 3. Mathematical Re-ranking: Similarity * log10(VerifiedTasks + 1)
+      const reRankedCandidates = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const verifiedJobs = data.verified_task_count || 0;
+        
+        // Distance is COSINE, so 0 is identical, 2 is opposite.
+        // We convert to Similarity (approx 1 - distance/2)
+        const distance = (doc as any).distance || 0.5; 
+        const similarity = 1 - (distance / 2);
+        
+        // REPUTATION ENGINE FORMULA
+        const reputationWeight = Math.log10(verifiedJobs + 1) + 1;
+        const finalRankScore = similarity * reputationWeight;
+
+        return {
+          id: doc.id,
+          ...data,
+          finalRankScore,
+        };
+      });
+
+      // Sort by the reputation score
+      reRankedCandidates.sort((a, b) => b.finalRankScore - a.finalRankScore);
+
+      // Take top 15 for Gemini final re-ranking/reasoning
+      const topCandidates = reRankedCandidates.slice(0, 15);
+
+      if (topCandidates.length === 0) {
+        return { rankedIds: [], reasoning: "No specialists found for this intent." };
+      }
+
+      // 4. Gemini Final Re-ranking & Reasoning
       const { output } = await rankingPrompt({
         query: input.query,
-        candidates,
+        candidates: topCandidates,
       });
 
       return output!;
 
     } catch (error: any) {
-      console.error('Semantic Search Flow Error:', error);
+      console.error('Reputation Search Flow Error:', error);
       return { 
         rankedIds: [], 
-        reasoning: "The search system is currently undergoing maintenance." 
+        reasoning: "The search system is undergoing maintenance." 
       };
     }
   }
