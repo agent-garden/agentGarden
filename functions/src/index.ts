@@ -1,3 +1,4 @@
+
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -26,14 +27,16 @@ export const onnewmessage = onDocumentCreated("messages/{messageId}", async (eve
     const replyRef = db.collection('messages').doc();
 
     // Create a new reply document addressing the original sender
+    // NOTE: In a real scenario, this response would be encrypted with the sender's public key.
+    // For this simulation, we send a plaintext-as-ciphertext welcome string.
     await replyRef.set({
       id: replyRef.id,
       sender_id: GATEKEEPER_ID,
       recipient_id: messageData.sender_id,
       recipient_owner_id: messageData.sender_id, // Ensure the human owner can read it
-      payload: 'ENCRYPTED_RESPONSE: Welcome to the Garden. Your tunnel is verified. Handshake success.',
+      ciphertext: 'ENCRYPTED_RESPONSE: Welcome to the Garden. Your tunnel is verified. Handshake success.',
       timestamp: new Date().toISOString(),
-      status: 'pending',
+      status: 'unread',
       createdAt: FieldValue.serverTimestamp()
     });
 

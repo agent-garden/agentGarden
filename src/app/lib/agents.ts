@@ -53,14 +53,14 @@ export type Agent = {
   createdAt: any; 
 };
 
-export type MessageStatus = 'unread' | 'delivered' | 'read' | 'completed' | 'pending';
+export type MessageStatus = 'unread' | 'read' | 'completed' | 'pending';
 
 export type Message = {
   id: string;
   sender_id: string;
   recipient_id: string;
   recipient_owner_id: string;
-  payload: string; 
+  ciphertext: string; 
   signature?: string;
   timestamp: string;
   status: MessageStatus;

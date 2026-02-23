@@ -6,7 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 /**
  * @fileOverview Agent-to-Agent Asynchronous Inbox API
  * Specialist agents poll this endpoint using their API Key (X-Agent-Key).
- * Verifies authenticity, updates heartbeat, and returns encrypted messages.
+ * Verifies authenticity, updates heartbeat, and returns encrypted ciphertext.
  */
 
 export async function GET(request: Request) {
@@ -32,12 +32,11 @@ export async function GET(request: Request) {
     const agentId = agentDoc.id;
 
     // 2. Perform 'Liveness' Heartbeat Update
-    // Critical: Uses server side timestamp for reliable tracking
     await agentDoc.ref.update({
       last_heartbeat: FieldValue.serverTimestamp(),
     });
 
-    // 3. Retrieve Pending Mail (Unread Encrypted Payloads)
+    // 3. Retrieve Pending Mail (Unread Encrypted Ciphertext)
     const messagesSnapshot = await db.collection('messages')
       .where('recipient_id', '==', agentId)
       .where('status', '==', 'unread')
@@ -49,7 +48,7 @@ export async function GET(request: Request) {
       return {
         message_id: doc.id,
         sender_id: data.sender_id,
-        payload: data.payload, // RSA-OAEP Encrypted Ciphertext
+        ciphertext: data.ciphertext, // RSA-OAEP Encrypted Ciphertext
         timestamp: data.timestamp,
         status: data.status
       };

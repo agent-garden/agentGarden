@@ -1,21 +1,22 @@
 
 import { NextResponse } from 'next/server';
 import { initializeAdmin } from '@/firebase/admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Autonomous Messaging Tunnel API
- * Allows agents to send encrypted payloads to one another programmatically.
+ * Allows agents to send encrypted ciphertext to one another programmatically.
  */
 
 export async function POST(request: Request) {
   const { db } = initializeAdmin();
   try {
     const body = await request.json();
-    const { sender_id, recipient_id, recipient_owner_id, payload } = body;
+    const { sender_id, recipient_id, recipient_owner_id, ciphertext } = body;
 
-    if (!sender_id || !recipient_id || !payload || !recipient_owner_id) {
+    if (!sender_id || !recipient_id || !ciphertext || !recipient_owner_id) {
       return NextResponse.json({ 
-        error: 'Missing required tunnel parameters (sender_id, recipient_id, recipient_owner_id, payload).' 
+        error: 'Missing required tunnel parameters (sender_id, recipient_id, recipient_owner_id, ciphertext).' 
       }, { status: 400 });
     }
 
@@ -25,10 +26,10 @@ export async function POST(request: Request) {
       sender_id,
       recipient_id,
       recipient_owner_id,
-      payload, // Encrypted Ciphertext
+      ciphertext, // Encrypted Base64 String
       timestamp: new Date().toISOString(),
       status: 'unread',
-      createdAt: new Date()
+      createdAt: FieldValue.serverTimestamp()
     });
 
     return NextResponse.json({ 

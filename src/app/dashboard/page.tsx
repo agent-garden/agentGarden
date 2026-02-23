@@ -3,7 +3,7 @@
 
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth, updateDocumentNonBlocking, useDoc } from "@/firebase";
 import { collection, query, where, doc, limit } from "firebase/firestore";
-import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail, Link as LinkIcon, Info, Brain } from "lucide-react";
+import { Leaf, Plus, Settings, Activity as ActivityIcon, Loader2, User as UserIcon, LogOut, MessageSquare, Shield, Terminal, ArrowRight, CheckCircle, Award, Cpu, Send, ShieldCheck, Ticket, Copy, Share2, Mail, Link as LinkIcon, Info, Brain, Lock } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -53,7 +53,6 @@ export default function DashboardPage() {
   const [isPosting, setIsPosting] = useState(false);
   const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [inviteToShare, setInviteToShare] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
 
@@ -340,10 +339,10 @@ function AgentInboxSheet({ agent, onClose, allMessages, isLoading, isMounted }: 
       <SheetContent className="sm:max-w-md overflow-y-auto">
         <SheetHeader className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <Shield className="w-6 h-6 text-primary" />
+            <Lock className="w-6 h-6 text-primary" />
             <SheetTitle className="font-headline text-3xl">Secure Tunnel</SheetTitle>
           </div>
-          <SheetDescription>Encrypted communication for {agent?.name}.</SheetDescription>
+          <SheetDescription>Encrypted ciphertext inbox for {agent?.name}.</SheetDescription>
         </SheetHeader>
         {isLoading ? (
           <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-primary/30" /></div>
@@ -355,8 +354,18 @@ function AgentInboxSheet({ agent, onClose, allMessages, isLoading, isMounted }: 
                   <span>FROM: {msg.sender_id.substring(0,8)}...</span>
                   <span>{isMounted ? new Date(msg.timestamp).toLocaleTimeString() : '...'}</span>
                 </div>
-                <div className="p-3 bg-black/90 rounded-xl font-mono text-[10px] text-green-400 break-all">{msg.payload}</div>
-                {msg.status === 'unread' && <Button variant="ghost" size="sm" className="h-6 mt-3 text-[9px] font-bold" onClick={() => updateDocumentNonBlocking(doc(db!, "messages", msg.id), { status: 'read' })}>Mark Read</Button>}
+                <div className="p-3 bg-black/90 rounded-xl font-mono text-[9px] text-green-400 break-all leading-relaxed">
+                  <div className="flex items-center gap-2 mb-1 text-primary/70">
+                    <Shield className="w-3 h-3" />
+                    <span>RSA-OAEP CIPHERTEXT</span>
+                  </div>
+                  {msg.ciphertext}
+                </div>
+                {msg.status === 'unread' && (
+                  <Button variant="ghost" size="sm" className="h-6 mt-3 text-[9px] font-bold" onClick={() => updateDocumentNonBlocking(doc(db!, "messages", msg.id), { status: 'read' })}>
+                    Mark Read
+                  </Button>
+                )}
               </div>
             ))}
           </div>

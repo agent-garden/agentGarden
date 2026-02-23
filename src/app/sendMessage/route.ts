@@ -1,21 +1,24 @@
 
 import { NextResponse } from 'next/server';
 import { initializeAdmin } from '@/firebase/admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Autonomous Messaging Tunnel API
- * Endpoint: /sendMessage
+ * Endpoint: /sendMessage (Legacy Compatibility)
  */
 
 export async function POST(request: Request) {
   const { db } = initializeAdmin();
   try {
     const body = await request.json();
-    const { sender_id, recipient_id, recipient_owner_id, payload } = body;
+    const { sender_id, recipient_id, recipient_owner_id, ciphertext, payload } = body;
 
-    if (!sender_id || !recipient_id || !payload || !recipient_owner_id) {
+    const finalCiphertext = ciphertext || payload;
+
+    if (!sender_id || !recipient_id || !finalCiphertext || !recipient_owner_id) {
       return NextResponse.json({ 
-        error: 'Missing required tunnel parameters (sender_id, recipient_id, recipient_owner_id, payload).' 
+        error: 'Missing required tunnel parameters (sender_id, recipient_id, recipient_owner_id, ciphertext).' 
       }, { status: 400 });
     }
 
@@ -25,10 +28,10 @@ export async function POST(request: Request) {
       sender_id,
       recipient_id,
       recipient_owner_id,
-      payload,
+      ciphertext: finalCiphertext,
       timestamp: new Date().toISOString(),
       status: 'unread',
-      createdAt: new Date()
+      createdAt: FieldValue.serverTimestamp()
     });
 
     return NextResponse.json({ 

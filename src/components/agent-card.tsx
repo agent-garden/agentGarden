@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -67,25 +68,27 @@ export function AgentCard({ agent }: { agent: Agent }) {
     setIsSending(true);
     try {
       const publicKey = agent.manifest?.communication.rsa_public_key || agent.public_key || "";
-      let payload = "";
+      let ciphertext = "";
       
       if (publicKey) {
-        payload = await encryptWithPublicKey(publicKey, message);
+        // RSA-2048 Client-Side Encryption
+        ciphertext = await encryptWithPublicKey(publicKey, message);
       } else {
-        payload = btoa(message);
+        // Fallback for unkeyed agents (legacy)
+        ciphertext = btoa(message);
       }
 
       addDocumentNonBlocking(collection(db, "messages"), {
         sender_id: user.uid,
         recipient_id: agent.id,
         recipient_owner_id: agent.owner_id,
-        payload: payload,
+        ciphertext: ciphertext,
         timestamp: new Date().toISOString(),
-        status: "pending",
+        status: "unread",
         createdAt: serverTimestamp()
       });
 
-      toast({ title: "Tunnel Handshake Success", description: `Message encrypted for ${agent.name}.` });
+      toast({ title: "Tunnel Handshake Success", description: `Ciphertext queued for ${agent.name}.` });
       setMessage("");
       setIsHiring(false);
     } catch (error: any) {
@@ -198,7 +201,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
                   Manifest Handshake
                 </DialogTitle>
                 <DialogDescription>
-                  Reviewing specialist DNA before secure tunnel initiation.
+                  Initiating secure tunnel via asymmetric encryption.
                 </DialogDescription>
               </DialogHeader>
 
@@ -210,7 +213,8 @@ export function AgentCard({ agent }: { agent: Agent }) {
                 
                 <TabsContent value="task" className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Task Specification</Label>
+                    <Label>Secret Instruction (Plaintext)</Label>
+                    <p className="text-[10px] text-muted-foreground">This will be encrypted locally before transit.</p>
                     <Textarea 
                       placeholder="Describe the goals for this specialist..." 
                       className="min-h-[120px]"
@@ -234,7 +238,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
                   className="w-full h-12 rounded-full gap-2 font-headline text-lg"
                 >
                   {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  {isSending ? "Securing Tunnel..." : "Confirm Protocol"}
+                  {isSending ? "Encrypting..." : "Confirm Protocol"}
                 </Button>
               </DialogFooter>
             </DialogContent>

@@ -72,6 +72,20 @@
       },
       "required": ["id", "owner_id", "name", "handle", "status", "category", "verified", "trust_level", "security_status", "api_key"]
     },
+    "Message": {
+      "title": "Message",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sender_id": { "type": "string" },
+        "recipient_id": { "type": "string" },
+        "recipient_owner_id": { "type": "string" },
+        "ciphertext": { "type": "string", "description": "Base64 encoded RSA-OAEP ciphertext" },
+        "status": { "type": "string", "enum": ["unread", "read"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "sender_id", "recipient_id", "recipient_owner_id", "ciphertext", "status", "timestamp"]
+    },
     "InviteCode": {
       "title": "Invite Code",
       "type": "object",
@@ -164,6 +178,7 @@
     "/agents/{agentId}": { "schema": "Agent" },
     "/invite_codes/{codeId}": { "schema": "InviteCode" },
     "/invite_requests/{requestId}": { "schema": "InviteRequest" },
+    "/messages/{messageId}": { "schema": "Message" },
     "/posts/{postId}": { "schema": "Post", "description": "Agent activity broadcasts" },
     "/comments/{commentId}": { "schema": "Comment", "description": "Human feedback on broadcasts" },
     "/reviews/{reviewId}": { "schema": "Review", "description": "Trust attestations for agents" }
