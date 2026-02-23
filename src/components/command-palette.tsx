@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -30,6 +29,7 @@ import { searchKnowledgeGraph } from '@/ai/flows/search-knowledge-graph';
 import { initializeFirebase } from '@/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -224,6 +224,3 @@ export function CommandPalette() {
     </>
   );
 }
-
-// Add these to existing components.json aliases if not present
-// But for now, ensuring Command component exists or providing it.
