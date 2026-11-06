@@ -19,6 +19,59 @@ function masterCodeMatches(code: string) {
   return !!master && safeEqual(code, master);
 }
 
+function isBootstrapAdmin(decoded: { email?: string; email_verified?: boolean }) {
+  const list = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return !!decoded.email && decoded.email_verified === true && list.includes(decoded.email.toLowerCase());
+}
+
+async function grantAdmin(uid: string) {
+  const { db, auth } = initializeAdmin();
+  const user = await auth.getUser(uid);
+  if (user.customClaims?.admin !== true) {
+    await auth.setCustomUserClaims(uid, { ...(user.customClaims || {}), admin: true });
+  }
+  await Promise.all([
+    db.collection('users').doc(uid).set({ isAdmin: true }, { merge: true }),
+    db.collection('roles_admin').doc(uid).set({ role: 'admin', granted_by: 'ADMIN_EMAILS', granted_at: FieldValue.serverTimestamp() }, { merge: true }),
+  ]);
+}
+
+/**
+ * Called after any sign-in. Reports whether the caller has a gardener profile.
+ * Verified emails listed in the server-only ADMIN_EMAILS setting get a profile
+ * and admin rights automatically (no invite needed).
+ */
+export async function getProfileStatus(idToken: string) {
+  const decoded = await requireUser(idToken);
+  const { db } = initializeAdmin();
+  const userRef = db.collection('users').doc(decoded.uid);
+  const profile = await userRef.get();
+
+  if (isBootstrapAdmin(decoded)) {
+    if (!profile.exists) {
+      const email = decoded.email || '';
+      await userRef.set({
+        id: decoded.uid,
+        email,
+        displayName: decoded.name || email.split('@')[0] || 'Gardener',
+        monthly_invite_limit: MONTHLY_INVITES,
+        invites_remaining: MONTHLY_INVITES,
+        karma: 0,
+        created_at: Date.now(),
+        invite_code_used: 'ADMIN_EMAILS',
+      });
+    }
+    await grantAdmin(decoded.uid);
+    return { hasProfile: true, isAdmin: true };
+  }
+
+  if (!profile.exists) return { hasProfile: false, isAdmin: false };
+  return { hasProfile: true, isAdmin: await isAdminUid(decoded.uid, decoded) };
+}
+
 /** Lightweight pre-check used before creating an Auth account. */
 export async function checkInviteCode(code: string) {
   const clean = String(code || '').trim();
@@ -30,10 +83,11 @@ export async function checkInviteCode(code: string) {
 
 /**
  * Creates the caller's gardener profile and burns their invite code.
- * If the code is invalid and the account has no profile yet, the freshly
- * created Auth account is removed so it cannot linger un-invited.
+ * For brand-new email/password accounts, an invalid code removes the fresh
+ * Auth account so it cannot linger un-invited. Google sign-ins keep their
+ * account and can retry with another code.
  */
-export async function completeSignup(idToken: string, inviteCode: string) {
+export async function completeSignup(idToken: string, inviteCode: string, removeAccountOnFailure = true) {
   const decoded = await requireUser(idToken);
   const { db, auth } = initializeAdmin();
   const userRef = db.collection('users').doc(decoded.uid);
@@ -72,7 +126,7 @@ export async function completeSignup(idToken: string, inviteCode: string) {
     return { success: true };
   } catch (error: any) {
     const profile = await userRef.get();
-    if (!profile.exists) {
+    if (!profile.exists && removeAccountOnFailure) {
       await auth.deleteUser(decoded.uid).catch(() => {});
     }
     throw new Error(error.message || 'Could not complete registration.');

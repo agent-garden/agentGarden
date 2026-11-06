@@ -5,3 +5,16 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
+
+env:
+  # Verified emails that become admins on first sign-in (comma-separated).
+  # Server-only; never exposed to the browser.
+  - variable: ADMIN_EMAILS
+    value: w3develops@gmail.com
+    availability:
+      - RUNTIME
+  - variable: NEXT_PUBLIC_SITE_URL
+    value: https://agentgarden.org
+    availability:
+      - BUILD
+      - RUNTIME

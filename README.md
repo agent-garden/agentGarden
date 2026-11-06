@@ -19,10 +19,10 @@ An account is an admin if any of these is true:
 - a document exists at `roles_admin/{uid}`
 - `users/{uid}.isAdmin == true`
 
-Set one of these in the Firebase console. After that, admins can promote others with the `setAdminRole` server action.
+Verified emails listed in `ADMIN_EMAILS` (in `apphosting.yaml`) become admins automatically on their first sign-in, with no invite needed. Currently: w3develops@gmail.com. Admins can promote others with the `setAdminRole` server action.
 
 ## Invites
-Registration is invite-only. Admins generate codes at `/admin`; gardeners get 30 referral codes a month, refilled by the `monthlyinviterefill` function.
+Sign in with Google or email/password. Registration is invite-only. Admins generate codes at `/admin`; gardeners get 30 referral codes a month, refilled by the `monthlyinviterefill` function.
 To allow a bootstrap master code, set the `MASTER_INVITE_CODE` App Hosting secret/env var. It is off by default.
 
 ## Secrets (App Hosting)

@@ -24,7 +24,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth, useUser } from '@/firebase';
 import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
-import { checkInviteCode, completeSignup } from '@/app/actions/onboarding';
+import { checkInviteCode, completeSignup, getProfileStatus } from '@/app/actions/onboarding';
+import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { RequestInviteDialog } from '@/components/request-invite-dialog';
 
 const authSchema = z.object({
@@ -41,6 +42,8 @@ function AuthPageContent() {
   const { user, isUserLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
+  const [needsInvite, setNeedsInvite] = useState(false);
+  const [isCheckingProfile, setIsCheckingProfile] = useState(false);
   
   const redirect = searchParams.get('redirect') || '/';
   const urlCode = searchParams.get('code');
@@ -54,11 +57,67 @@ function AuthPageContent() {
     },
   });
 
+  // After any sign-in, ask the server whether this account has a gardener profile.
   useEffect(() => {
-    if (user && !isUserLoading) {
-      router.push(redirect);
+    let cancelled = false;
+    async function checkProfile() {
+      if (!user || isUserLoading) return;
+      setIsCheckingProfile(true);
+      try {
+        const status = await getProfileStatus(await user.getIdToken());
+        if (cancelled) return;
+        if (status.hasProfile) {
+          if (status.isAdmin) await user.getIdToken(true); // pick up admin claim
+          router.push(redirect);
+        } else {
+          setNeedsInvite(true);
+          setActiveTab('signup');
+        }
+      } catch (error: any) {
+        if (!cancelled) toast({ variant: "destructive", title: "Could not load your profile", description: error.message });
+      } finally {
+        if (!cancelled) setIsCheckingProfile(false);
+      }
     }
-  }, [user, isUserLoading, router, redirect]);
+    checkProfile();
+    return () => { cancelled = true; };
+  }, [user, isUserLoading, router, redirect, toast]);
+
+  async function onGoogleSignIn() {
+    setIsSubmitting(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithPopup(auth, provider);
+      toast({ title: "Signed in with Google", description: "Checking your gardener profile..." });
+    } catch (error: any) {
+      if (error?.code !== 'auth/popup-closed-by-user') {
+        toast({ variant: "destructive", title: "Google sign-in failed", description: error.message });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function onFinishJoining() {
+    if (!user) return;
+    const code = (form.getValues('inviteCode') || '').trim();
+    if (!code) {
+      form.setError("inviteCode", { message: "Invite code is required to finish joining." });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await completeSignup(await user.getIdToken(), code, false);
+      toast({ title: "Welcome to the Garden", description: "Your 30 monthly invites are ready." });
+      setNeedsInvite(false);
+      router.push(redirect);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Could not finish joining", description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   useEffect(() => {
     if (urlCode) {
@@ -103,6 +162,8 @@ function AuthPageContent() {
       await completeSignup(idToken, code);
 
       toast({ title: "Account Created!", description: "Welcome to the garden. Your 30 monthly invites are ready." });
+      setNeedsInvite(false);
+      router.push(redirect);
     } catch (error: any) {
       toast({ 
         variant: "destructive", 
@@ -114,7 +175,7 @@ function AuthPageContent() {
     }
   }
 
-  if (isUserLoading) {
+  if (isUserLoading || (user && isCheckingProfile && !needsInvite)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -141,6 +202,52 @@ function AuthPageContent() {
             <CardDescription>Discover and share specialized AI agents.</CardDescription>
           </CardHeader>
           <CardContent className="p-8">
+            {user && needsInvite ? (
+              <Form {...form}>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground text-center">
+                    Signed in as <span className="font-semibold text-foreground">{user.email}</span>. Enter your invite code to finish joining the garden.
+                  </p>
+                  <FormField
+                    control={form.control}
+                    name="inviteCode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2 text-accent font-bold"><Ticket className="w-4 h-4" />Invite Code</FormLabel>
+                        <FormControl><Input placeholder="Enter your Golden Ticket" {...field} className="rounded-xl" /></FormControl>
+                        <FormDescription className="text-[10px] flex items-center gap-2">
+                          No code yet?
+                          <RequestInviteDialog trigger={<button type="button" className="text-primary hover:underline text-[10px]">Request one</button>} />
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="button" onClick={onFinishJoining} className="w-full rounded-xl h-12 font-headline font-bold gap-2" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                    Finish Joining
+                  </Button>
+                  <Button type="button" variant="ghost" className="w-full rounded-xl" onClick={() => { setNeedsInvite(false); signOut(auth); }}>
+                    Use a different account
+                  </Button>
+                </div>
+              </Form>
+            ) : (
+            <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onGoogleSignIn}
+              disabled={isSubmitting}
+              className="w-full rounded-xl h-12 mb-6 font-headline font-bold gap-3 bg-white"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="w-5 h-5"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.3v3.1C3.3 21.3 7.3 24 12 24z"/><path fill="#FBBC05" d="M5.3 14.3c-.2-.7-.4-1.5-.4-2.3s.1-1.6.4-2.3V6.6H1.3C.5 8.2 0 10 0 12s.5 3.8 1.3 5.4l4-3.1z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4C17.9 1.2 15.2 0 12 0 7.3 0 3.3 2.7 1.3 6.6l4 3.1c.9-2.9 3.6-4.9 6.7-4.9z"/></svg>
+              Continue with Google
+            </Button>
+            <div className="relative mb-6 text-center text-xs uppercase text-muted-foreground">
+              <span className="bg-white/70 px-2 relative z-10">or use email</span>
+              <div className="absolute inset-x-0 top-1/2 border-t" />
+            </div>
             <Tabs value={activeTab} className="w-full" onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-2 mb-8 rounded-xl">
                 <TabsTrigger value="login" className="rounded-lg">Login</TabsTrigger>
@@ -244,6 +351,8 @@ function AuthPageContent() {
                 </form>
               </Form>
             </Tabs>
+            </>
+            )}
           </CardContent>
         </Card>
       </div>
