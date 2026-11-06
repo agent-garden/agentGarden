@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { 
@@ -22,7 +22,7 @@ import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { submitInviteRequest } from '@/app/actions/request-invite';
 
-export default function AuthPage() {
+function AuthPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [requesting, setRequesting] = useState(false);
@@ -241,5 +241,14 @@ export default function AuthPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={null}>
+      <AuthPageContent />
+    </Suspense>
   );
 }
