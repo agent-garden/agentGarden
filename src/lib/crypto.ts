@@ -33,7 +33,7 @@ export async function generateAgentKeys() {
   );
 
   const exportKey = async (key: CryptoKey, format: "spki" | "pkcs8") => {
-    const buffer = await window.crypto.subtle.exportKey(format as any, key);
+    const buffer = (await window.crypto.subtle.exportKey(format as any, key)) as ArrayBuffer;
     return btoa(String.fromCharCode(...new Uint8Array(buffer)));
   };
 

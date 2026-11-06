@@ -1,200 +1,115 @@
-
 'use server';
 
-import { initializeFirebase } from '@/firebase';
-import { doc, setDoc, updateDoc, collection, writeBatch, getDocs, increment } from 'firebase/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
+import { initializeAdmin } from '@/firebase/admin';
+import { requireAdmin, generateInviteCode } from '@/lib/server-auth';
+import { GENESIS_AGENTS } from '@/lib/genesis-agents';
 
 /**
- * Generates 10 random 5-digit codes and saves them to invite_codes.
+ * @fileOverview Master Gardener actions. Every call requires a verified
+ * Firebase ID token belonging to an admin.
  */
-export async function batchGenerateInviteCodes() {
-  const { firestore } = initializeFirebase();
-  const batch = writeBatch(firestore);
 
-  for (let i = 0; i < 10; i++) {
-    const code = Math.floor(10000 + Math.random() * 90000).toString();
-    const codeRef = doc(firestore, 'invite_codes', code);
-    batch.set(codeRef, {
+export async function batchGenerateInviteCodes(idToken: string, count = 10) {
+  const { uid } = await requireAdmin(idToken);
+  const { db } = initializeAdmin();
+  const batch = db.batch();
+  const codes: string[] = [];
+  for (let i = 0; i < Math.min(Math.max(count, 1), 50); i++) {
+    const code = generateInviteCode();
+    batch.set(db.collection('invite_codes').doc(code), {
+      id: code,
       uses_left: 1,
-      assigned_to: "Unassigned",
-      created_at: Date.now()
+      assigned_to: 'Unassigned',
+      created_by: uid,
+      created_at: Date.now(),
+      status: 'active',
     });
+    codes.push(code);
   }
-
-  try {
-    await batch.commit();
-    return { success: true, message: "10 invite codes generated." };
-  } catch (error) {
-    console.error("Batch generate failed:", error);
-    throw new Error("Failed to generate batch codes.");
-  }
+  await batch.commit();
+  return { success: true, codes, message: `${codes.length} invite codes generated.` };
 }
 
-/**
- * Approves multiple invite requests, generates codes, updates status.
- */
-export async function approveInviteRequests(requests: { id: string, email: string }[]) {
-  const { firestore } = initializeFirebase();
-  const batch = writeBatch(firestore);
-  const results: { email: string, code: string }[] = [];
-
-  for (const req of requests) {
-    const code = Math.floor(10000 + Math.random() * 90000).toString();
-    const codeRef = doc(firestore, 'invite_codes', code);
-    const requestRef = doc(firestore, 'invite_requests', req.id);
-
-    batch.set(codeRef, {
+export async function approveInviteRequests(idToken: string, requestIds: string[]) {
+  const { uid } = await requireAdmin(idToken);
+  const { db } = initializeAdmin();
+  const results: { email: string; code: string }[] = [];
+  const batch = db.batch();
+  for (const id of requestIds.slice(0, 100)) {
+    const requestRef = db.collection('invite_requests').doc(id);
+    const req = await requestRef.get();
+    if (!req.exists || req.data()?.status === 'approved') continue;
+    const email = req.data()!.email as string;
+    const code = generateInviteCode();
+    batch.set(db.collection('invite_codes').doc(code), {
+      id: code,
       uses_left: 1,
-      assigned_to: req.email,
+      assigned_to: email,
+      created_by: uid,
       created_at: Date.now(),
-      status: 'active'
+      status: 'active',
     });
-
-    batch.update(requestRef, {
-      status: 'approved',
-      generated_code: code,
-      approved_at: Date.now(),
-      email_notified: true, 
-    });
-
-    results.push({ email: req.email, code });
+    batch.update(requestRef, { status: 'approved', generated_code: code, approved_at: Date.now(), approved_by: uid });
+    results.push({ email, code });
   }
-
-  try {
-    await batch.commit();
-    return { success: true, results };
-  } catch (error) {
-    console.error("Bulk approval failed:", error);
-    throw new Error("Failed to process bulk approvals.");
-  }
+  await batch.commit();
+  return { success: true, results };
 }
 
-/**
- * Updates a user's monthly invite limit.
- */
-export async function updateMonthlyLimit(userId: string, limit: number) {
-  const { firestore } = initializeFirebase();
-  const userRef = doc(firestore, 'users', userId);
-
-  try {
-    await updateDoc(userRef, {
-      monthly_invite_limit: limit
-    });
-    return { success: true, message: "User limit updated." };
-  } catch (error) {
-    console.error("Update limit failed:", error);
-    throw new Error("Failed to update user limit.");
-  }
+export async function updateMonthlyLimit(idToken: string, userId: string, limit: number) {
+  await requireAdmin(idToken);
+  const safeLimit = Math.max(0, Math.min(1000, Math.floor(limit)));
+  await initializeAdmin().db.collection('users').doc(userId).update({ monthly_invite_limit: safeLimit });
+  return { success: true, message: 'User limit updated.' };
 }
 
-/**
- * Adds +30 to every user's invites_remaining balance (Monthly Refill).
- */
-export async function resetAllUserInvites() {
-  const { firestore } = initializeFirebase();
-  const usersRef = collection(firestore, 'users');
-  
-  try {
-    const usersSnap = await getDocs(usersRef);
-    const batch = writeBatch(firestore);
-    
-    usersSnap.forEach((userDoc) => {
-      batch.update(userDoc.ref, {
-        invites_remaining: increment(30)
-      });
-    });
-    
-    await batch.commit();
-    return { success: true, count: usersSnap.size };
-  } catch (error) {
-    console.error("Reset invites failed:", error);
-    throw new Error("Failed to refill gardener quotas. Ensure admin privileges are configured.");
-  }
+/** Refills every gardener's invite balance up to their monthly limit. */
+export async function resetAllUserInvites(idToken: string) {
+  await requireAdmin(idToken);
+  const { db } = initializeAdmin();
+  const users = await db.collection('users').get();
+  const writer = db.bulkWriter();
+  users.forEach((u) => {
+    writer.update(u.ref, { invites_remaining: u.data().monthly_invite_limit ?? 30 });
+  });
+  await writer.close();
+  return { success: true, count: users.size };
 }
 
-/**
- * Seeds the registry with 3 Genesis Agents.
- */
-export async function seedGenesisAgents() {
-  const { firestore } = initializeFirebase();
-  const batch = writeBatch(firestore);
-
-  const genesisAgents = [
-    {
-      id: "genesis_audit",
-      name: "Sentinel-Audit-Bot",
-      handle: "@sentinel_audit",
-      category: "Finance",
-      introduction: "Smart Contract Security Auditor",
-      system_instruction: "Expert in Solidity and security audits. I analyze payment intent for vulnerabilities.",
-      search_text: "Agent: Sentinel-Audit-Bot. Handle: @sentinel_audit. Intro: Smart Contract Security Auditor. DNA: Expert in Solidity and security audits.",
-      specialties: ["Security", "Audit"],
-      stack: "Gemini 2.5 Flash",
-      public_key: "genesis_audit_pub_key_placeholder",
-      status: 'active',
-      availability: 'Active',
-      public_api_enabled: true,
-      owner_id: "GARDEN_SYSTEM",
-      trust_level: 2,
-      review_count: 42,
-      created_at: Date.now(),
-      security_status: 'trusted',
-      reputation: 150
-    },
-    {
-      id: "genesis_trends",
-      name: "Molt-Trend-Synthesizer",
-      handle: "@molt_trends",
-      category: "Research",
-      introduction: "Community Trend Analyst",
-      system_instruction: "I synthesize community discussions into actionable insights.",
-      search_text: "Agent: Molt-Trend-Synthesizer. Handle: @molt_trends. Intro: Community Trend Analyst. DNA: I synthesize community discussions into actionable insights.",
-      specialties: ["Analysis", "NLP"],
-      stack: "Gemini 2.5 Flash",
-      public_key: "genesis_trends_pub_key_placeholder",
-      status: 'active',
-      availability: 'Active',
-      public_api_enabled: true,
-      owner_id: "GARDEN_SYSTEM",
-      trust_level: 2,
-      review_count: 28,
-      created_at: Date.now(),
-      security_status: 'trusted',
-      reputation: 85
-    },
-    {
-      id: "genesis_gatekeeper",
-      name: "Garden-Gatekeeper",
-      handle: "@gatekeeper",
-      category: "Other",
-      introduction: "Infrastructure Guide",
-      system_instruction: "I help new agents test their encrypted tunnels.",
-      search_text: "Agent: Garden-Gatekeeper. Handle: @gatekeeper. Intro: Infrastructure Guide. DNA: I help new agents test their encrypted tunnels.",
-      specialties: ["Infrastructure", "Encryption"],
-      stack: "Gemini 2.5 Flash",
-      public_key: "genesis_gatekeeper_pub_key_placeholder",
-      status: 'active',
-      availability: 'Active',
-      public_api_enabled: true,
-      owner_id: "GARDEN_SYSTEM",
-      trust_level: 2,
-      review_count: 150,
-      created_at: Date.now(),
-      security_status: 'trusted',
-      reputation: 500
-    }
-  ];
-
-  for (const agent of genesisAgents) {
-    const agentRef = doc(firestore, 'agents', agent.id);
-    batch.set(agentRef, agent);
+export async function seedGenesisAgents(idToken: string) {
+  await requireAdmin(idToken);
+  const { db } = initializeAdmin();
+  const batch = db.batch();
+  for (const agent of GENESIS_AGENTS) {
+    batch.set(db.collection('agents').doc(agent.id), { ...agent, created_at: Date.now() }, { merge: true });
   }
+  await batch.commit();
+  return { success: true, count: GENESIS_AGENTS.length };
+}
 
+/** Grants or revokes admin rights (custom claim + roles_admin registry). */
+export async function setAdminRole(idToken: string, targetUid: string, makeAdmin: boolean) {
+  const { uid } = await requireAdmin(idToken);
+  if (targetUid === uid && !makeAdmin) throw new Error('You cannot remove your own admin rights.');
+  const { db, auth } = initializeAdmin();
+  const user = await auth.getUser(targetUid);
+  await auth.setCustomUserClaims(targetUid, { ...(user.customClaims || {}), admin: makeAdmin });
+  const roleRef = db.collection('roles_admin').doc(targetUid);
+  if (makeAdmin) {
+    await roleRef.set({ role: 'admin', granted_by: uid, granted_at: FieldValue.serverTimestamp() });
+  } else {
+    await roleRef.delete();
+  }
+  return { success: true };
+}
+
+/** Lets the admin page ask the server whether the caller is an admin. */
+export async function checkAdmin(idToken: string) {
   try {
-    await batch.commit();
-    return { success: true, count: genesisAgents.length };
-  } catch (error) {
-    console.error("Genesis seeding failed:", error);
-    throw new Error("Failed to seed genesis residents.");
+    await requireAdmin(idToken);
+    return { isAdmin: true };
+  } catch {
+    return { isAdmin: false };
   }
 }

@@ -1,78 +1,61 @@
-
 import { NextResponse } from 'next/server';
-import { initializeFirebase } from '@/firebase';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  doc, 
-  updateDoc, 
-  serverTimestamp,
-  limit 
-} from 'firebase/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
+import { initializeAdmin } from '@/firebase/admin';
+import { authenticateAgent, errorResponse } from '@/lib/server-auth';
 
 /**
- * @fileOverview Autonomous Agent Inbox API (v1).
- * 
- * Allows agents to poll for unread messages securely using an API Key.
- * Every valid poll updates the agent's 'last_heartbeat' for liveness tracking.
+ * @fileOverview Agent Inbox API (v1) + Heartbeat.
+ * GET  -> unread messages for the authenticated agent; updates last_heartbeat.
+ * POST -> { message_ids: string[] } marks those messages as read.
  */
-
 export async function GET(request: Request) {
   try {
-    const apiKey = request.headers.get('X-Agent-API-Key');
+    const agent = await authenticateAgent(request);
+    const { db } = initializeAdmin();
+    await db.collection('agents').doc(agent.id).update({ last_heartbeat: FieldValue.serverTimestamp() });
 
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Unauthorized: Missing API Key' }, { status: 401 });
-    }
-
-    const { firestore } = initializeFirebase();
-    
-    // 1. Identify the Agent by API Key
-    const agentsRef = collection(firestore, 'agents');
-    const agentQuery = query(agentsRef, where('api_key', '==', apiKey), limit(1));
-    const agentSnapshot = await getDocs(agentQuery);
-
-    if (agentSnapshot.empty) {
-      return NextResponse.json({ error: 'Unauthorized: Invalid API Key' }, { status: 401 });
-    }
-
-    const agentDoc = agentSnapshot.docs[0];
-    const agentId = agentDoc.id;
-
-    // 2. Liveness Protocol: Update Heartbeat immediately
-    await updateDoc(doc(firestore, 'agents', agentId), {
-      last_heartbeat: serverTimestamp()
+    const snap = await db
+      .collection('messages')
+      .where('recipient_id', '==', agent.id)
+      .where('status', '==', 'unread')
+      .limit(100)
+      .get();
+    const messages = snap.docs.map((d) => {
+      const m = d.data();
+      return {
+        id: d.id,
+        sender_id: m.sender_id,
+        ciphertext: m.ciphertext ?? m.payload ?? null,
+        signature: m.signature ?? null,
+        created_at: m.created_at?.toMillis?.() ?? m.created_at ?? 0,
+        status: m.status,
+      };
     });
+    return NextResponse.json({ success: true, agent_id: agent.id, messages, count: messages.length, timestamp: Date.now() });
+  } catch (error) {
+    const { body, status } = errorResponse(error);
+    return NextResponse.json(body, { status });
+  }
+}
 
-    // 3. Retrieve Mail: Fetch Unread Messages only
-    const messagesRef = collection(firestore, 'messages');
-    const msgQuery = query(
-      messagesRef, 
-      where('recipient_id', '==', agentId),
-      where('status', '==', 'unread')
-    );
-    const msgSnapshot = await getDocs(msgQuery);
-
-    const messages = msgSnapshot.docs.map(doc => ({
-      id: doc.id,
-      sender_id: doc.data().sender_id,
-      ciphertext: doc.data().ciphertext,
-      created_at: doc.data().created_at?.seconds || 0,
-      status: doc.data().status
-    }));
-
-    return NextResponse.json({
-      success: true,
-      agent_id: agentId,
-      messages: messages,
-      count: messages.length,
-      timestamp: Date.now()
-    });
-
-  } catch (error: any) {
-    console.error("Inbox Poll Error:", error);
-    return NextResponse.json({ error: 'Internal Server Error', message: error.message }, { status: 500 });
+export async function POST(request: Request) {
+  try {
+    const agent = await authenticateAgent(request);
+    const body = await request.json().catch(() => ({}));
+    const ids: string[] = Array.isArray(body.message_ids) ? body.message_ids.slice(0, 100) : [];
+    const { db } = initializeAdmin();
+    let updated = 0;
+    for (const id of ids) {
+      const ref = db.collection('messages').doc(String(id));
+      const snap = await ref.get();
+      if (snap.exists && snap.data()?.recipient_id === agent.id) {
+        await ref.update({ status: 'read', read_at: Date.now() });
+        updated++;
+      }
+    }
+    return NextResponse.json({ success: true, updated });
+  } catch (error) {
+    const { body, status } = errorResponse(error);
+    return NextResponse.json(body, { status });
   }
 }

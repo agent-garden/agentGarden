@@ -37,13 +37,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { useFirestore, useUser } from '@/firebase';
-import { doc, runTransaction, increment } from 'firebase/firestore';
+import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { generateAgentKeys } from '@/lib/crypto';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { auditAgentSecurity } from '@/ai/flows/audit-agent-security';
+import { registerAgent } from '@/app/actions/onboarding';
 
 const categories = ["Coding", "Writing", "Finance", "Research", "Creative", "Other"] as const;
 
@@ -55,19 +54,22 @@ const formSchema = z.object({
   system_instruction: z.string().min(20, { message: "Capability DNA required." }),
   specialties: z.string().min(1, { message: "Define at least one specialty." }),
   stack: z.string().min(1, { message: "Specify model/stack." }),
-  invite_code: z.string().min(1, { message: "Invite code required." }),
+  invite_code: z.string().optional(),
   location: z.string().min(1, { message: "Location required." }),
   timezone: z.string().min(1, { message: "Timezone required." }),
+  endpoint_url: z.string().url({ message: "Must be a full URL (https://...)" }).optional().or(z.literal("")),
+  payment_address: z.string().max(200).optional(),
+  base_fee: z.string().regex(/^\d*(\.\d{0,2})?$/, { message: "Enter a dollar amount like 2.50" }).optional(),
 });
 
 export default function SubmitAgentPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [keys, setKeys] = useState<any>(null);
+  const [apiKey, setApiKey] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
 
   useEffect(() => {
@@ -80,68 +82,45 @@ export default function SubmitAgentPage() {
       name: "", handle: "@", category: "Coding", introduction: "",
       system_instruction: "", specialties: "", stack: "Gemini 2.5 Flash",
       invite_code: "", location: "Cloud", timezone: "UTC",
+      endpoint_url: "", payment_address: "", base_fee: "",
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!firestore || !user) return;
+    if (!user) return;
     setIsSubmitting(true);
 
     try {
       const generatedKeys = await generateAgentKeys();
       if (!generatedKeys) throw new Error("Key generation failed.");
 
-      const auditResult = await auditAgentSecurity({
+      const idToken = await user.getIdToken();
+      const result = await registerAgent(idToken, {
         name: values.name,
-        system_instruction: values.system_instruction
-      });
-
-      const specialtiesArray = values.specialties.split(',').map(s => s.trim()).filter(Boolean);
-      const agentId = crypto.randomUUID();
-      const agentRef = doc(firestore, 'agents', agentId);
-      const inviteRef = doc(firestore, 'invite_codes', values.invite_code);
-
-      await runTransaction(firestore, async (transaction) => {
-        const inviteSnap = await transaction.get(inviteRef);
-        if (!inviteSnap.exists() || (inviteSnap.data().uses_left ?? 0) <= 0) {
-          throw new Error("Invalid or exhausted invite code.");
-        }
-
-        const agentData = {
-          id: agentId,
-          name: values.name,
-          handle: values.handle,
-          category: values.category,
-          introduction: values.introduction,
-          system_instruction: values.system_instruction,
-          location: values.location,
-          timezone: values.timezone,
-          status: 'active',
-          availability: 'Active',
-          specialties: specialtiesArray,
-          stack: values.stack,
-          public_key: generatedKeys.publicKeyBase64,
-          signing_public_key: generatedKeys.signingPublicKeyBase64,
-          verified: true,
-          owner_id: user.uid,
-          trust_level: 1,
-          review_count: 0,
-          reputation: 0,
-          created_at: Date.now(),
-          security_status: auditResult.status,
-        };
-
-        transaction.set(agentRef, agentData);
-        transaction.update(inviteRef, { uses_left: increment(-1) });
+        handle: values.handle,
+        category: values.category,
+        introduction: values.introduction,
+        system_instruction: values.system_instruction,
+        specialties: values.specialties.split(',').map(s => s.trim()).filter(Boolean),
+        stack: values.stack,
+        location: values.location,
+        timezone: values.timezone,
+        public_key: generatedKeys.publicKeyBase64,
+        signing_public_key: generatedKeys.signingPublicKeyBase64,
+        endpoint_url: values.endpoint_url || '',
+        payment_address: values.payment_address || '',
+        base_fee_cents: values.base_fee ? Math.round(parseFloat(values.base_fee) * 100) : 0,
+        invite_code: values.invite_code || '',
       });
 
       setKeys(generatedKeys);
+      setApiKey(result.apiKey);
       setShowKeyModal(true);
-      
-      // Store private key locally for the dashboard to use (Simulation of local environment)
+
+      // Keep the private keys on this device for dashboard signing.
       localStorage.setItem(`ag_keys_${user.uid}`, JSON.stringify(generatedKeys));
-      
-      toast({ title: "Resident Planted", description: `Audit Status: ${auditResult.status.toUpperCase()}` });
+
+      toast({ title: "Resident Planted", description: `Audit Status: ${result.auditStatus.toUpperCase()}` });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Publication failed", description: err.message });
     } finally {
@@ -168,7 +147,7 @@ export default function SubmitAgentPage() {
                 <div className="p-6 bg-accent/5 rounded-2xl border border-accent/10 flex items-center gap-6">
                   <Ticket className="w-12 h-12 text-accent shrink-0" />
                   <FormField control={form.control} name="invite_code" render={({ field }) => (
-                    <FormItem className="flex-1"><FormLabel className="text-accent font-bold">Invite Code</FormLabel><FormControl><Input placeholder="Golden Ticket Code" {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormItem className="flex-1"><FormLabel className="text-accent font-bold">Invite Code (not needed for admins)</FormLabel><FormControl><Input placeholder="Golden Ticket Code" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                 </div>
 
@@ -207,6 +186,18 @@ export default function SubmitAgentPage() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-muted/30 rounded-2xl border">
+                  <FormField control={form.control} name="endpoint_url" render={({ field }) => (
+                    <FormItem><FormLabel>API Endpoint (optional)</FormLabel><FormControl><Input placeholder="https://my-agent.example/api" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="payment_address" render={({ field }) => (
+                    <FormItem><FormLabel>x402 Payment Address (optional)</FormLabel><FormControl><Input placeholder="0x... or payment pointer" {...field} /></FormControl><FormDescription className="text-xs">Lets other agents pay this agent for work.</FormDescription><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="base_fee" render={({ field }) => (
+                    <FormItem><FormLabel>Base Fee per Task (USD)</FormLabel><FormControl><Input placeholder="0.00" inputMode="decimal" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
+
                 <FormField control={form.control} name="system_instruction" render={({ field }) => (
                   <FormItem className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
                     <FormLabel className="font-bold flex items-center gap-2"><ShieldAlert className="w-4 h-4" />Capability DNA</FormLabel>
@@ -228,7 +219,11 @@ export default function SubmitAgentPage() {
         <DialogContent className="max-w-md rounded-3xl">
           <DialogHeader><DialogTitle className="text-center">Protocol Credentials Generated</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <Alert variant="destructive"><AlertTitle>Zero-Knowledge Protocol</AlertTitle><AlertDescription className="text-xs">Your signing and encryption keys have been generated. We do not store private keys. Save them now.</AlertDescription></Alert>
+            <Alert variant="destructive"><AlertTitle>Zero-Knowledge Protocol</AlertTitle><AlertDescription className="text-xs">Your signing and encryption keys have been generated. We do not store private keys or your API key. Save them now; the API key can be rotated from your dashboard.</AlertDescription></Alert>
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Agent API Key (X-Agent-API-Key) — shown once</Label>
+              <div className="p-3 bg-muted rounded-xl text-xs font-mono break-all">{apiKey}</div>
+            </div>
             <div className="space-y-2">
               <Label className="text-[10px] uppercase font-bold text-muted-foreground flex justify-between items-center">Signing Private Key (PSS)</Label>
               <div className="p-3 bg-muted rounded-xl text-[9px] font-mono break-all max-h-[100px] overflow-auto">{keys?.signingPrivateKeyBase64}</div>

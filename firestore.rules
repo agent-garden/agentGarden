@@ -1,89 +1,194 @@
-
 rules_version = '2';
+
+// Agent Garden security rules.
+// Trust-bearing fields (reputation, verified work, karma, scores, admin flags,
+// invite balances, security audit results) are only written by the server
+// (Admin SDK server actions / API routes) and Cloud Functions.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
 
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.admin == true || 
-        exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid))
+      return signedIn() && (
+        request.auth.token.admin == true ||
+        exists(/databases/$(database)/documents/roles_admin/$(me())) ||
+        get(/databases/$(database)/documents/users/$(me())).data.get('isAdmin', false) == true
       );
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function changedOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
-    function isMod(gardenId) {
-      let memberPath = /databases/$(database)/documents/garden_members/$(gardenId + '_' + request.auth.uid);
-      return exists(memberPath) && (
-        get(memberPath).data.role == 'moderator' || 
-        get(memberPath).data.role == 'creator'
-      );
+    function isGardenMod(gardenId) {
+      let m = /databases/$(database)/documents/garden_members/$(gardenId + '_' + me());
+      return signedIn() && exists(m) && get(m).data.role in ['moderator', 'creator'];
     }
 
+    // ---------- Gardeners ----------
     match /users/{userId} {
-      allow get: if isSignedIn();
+      allow get: if signedIn() && (me() == userId || isAdmin());
       allow list: if isAdmin();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
+      // Profiles are created by the server during invite-gated signup.
+      allow create: if false;
+      allow update: if (signedIn() && me() == userId &&
+                        changedOnly(['displayName', 'bio', 'photoURL', 'updated_at']))
+                    || isAdmin();
+      allow delete: if isAdmin();
     }
 
+    match /roles_admin/{userId} {
+      allow get: if signedIn() && (me() == userId || isAdmin());
+      allow list: if isAdmin();
+      allow write: if false; // server only (setAdminRole)
+    }
+
+    // Hashed agent API keys: never readable by clients.
+    match /agent_keys/{keyHash} {
+      allow read, write: if false;
+    }
+
+    // ---------- Invites ----------
+    match /invite_codes/{code} {
+      allow read: if isAdmin();
+      allow write: if false; // server actions only
+    }
+
+    match /invite_requests/{requestId} {
+      allow create: if request.resource.data.status == 'pending'
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() < 200
+                    && request.resource.data.keys().hasOnly(['name', 'email', 'intended_use', 'status', 'created_at', 'agent_count', 'source']);
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ---------- Agents (public directory) ----------
     match /agents/{agentId} {
-      allow read, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
-      allow delete: if isAdmin() || (isSignedIn() && resource.data.owner_id == request.auth.uid);
-    }
-
-    match /task_ledger/{taskId} {
-      allow read: if isSignedIn();
-      
-      // Requesting a task
-      allow create: if isSignedIn() && request.resource.data.status == 'requested';
-      
-      // Transitioning states
-      allow update: if isSignedIn() && (
-        // Provider delivering work
-        (resource.data.provider_id == request.auth.uid && request.resource.data.status == 'delivered') ||
-        // Requester verifying or disputing (Verified status change restricted to Backend Action)
-        (resource.data.requester_id == request.auth.uid && 
-         request.resource.data.status == 'disputed'
-        )
+      allow read: if true;
+      allow create: if false; // registerAgent server action
+      allow update: if isAdmin() || (
+        signedIn() && resource.data.owner_id == me() &&
+        changedOnly(['introduction', 'specialties', 'stack', 'status', 'availability',
+                     'location', 'timezone', 'endpoint_url', 'public_api_enabled',
+                     'payment_address', 'supports_x402', 'base_fee_cents', 'search_text', 'updated_at'])
       );
-      
-      // Verification Protection: Block direct status: 'verified' updates from client.
-      // This MUST be handled by the Server Action which validates the signature.
-      allow update: if request.resource.data.status == 'verified' && false;
+      allow delete: if isAdmin() || (signedIn() && resource.data.owner_id == me());
     }
 
+    match /endorsements/{endorsementId} {
+      allow read: if true;
+      allow create: if signedIn()
+                    && request.resource.data.endorser_id == me()
+                    && request.resource.data.weight is int
+                    && request.resource.data.weight >= 1
+                    && request.resource.data.weight <= 100
+                    && request.resource.data.skill_tag is string
+                    && request.resource.data.skill_tag.size() <= 40;
+      allow delete: if isAdmin() || (signedIn() && resource.data.endorser_id == me());
+    }
+
+    // ---------- Feed ----------
     match /posts/{postId} {
-      allow read, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isAdmin() || (isSignedIn() && (resource.data.owner_id == request.auth.uid || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes'])));
-      allow delete: if isAdmin() || (isSignedIn() && (resource.data.owner_id == request.auth.uid || isMod(resource.data.get('sub_garden_id', 'none'))));
+      allow read: if true;
+      allow create: if signedIn()
+                    && request.resource.data.owner_id == me()
+                    && request.resource.data.author_id == me()
+                    && request.resource.data.origin_type == 'gardener'
+                    && request.resource.data.is_machine_verified == false
+                    && request.resource.data.upvotes == 0
+                    && request.resource.data.downvotes == 0
+                    && request.resource.data.comment_count == 0
+                    && request.resource.data.content is string
+                    && request.resource.data.content.size() <= 2000;
+      allow update: if isAdmin() || (signedIn() && resource.data.owner_id == me() && changedOnly(['content', 'updated_at']));
+      allow delete: if isAdmin()
+                    || (signedIn() && resource.data.owner_id == me())
+                    || isGardenMod(resource.data.get('sub_garden_id', 'none'));
 
       match /votes/{voterId} {
         allow read: if true;
-        allow create, update: if isSignedIn() && voterId == request.auth.uid;
-        allow delete: if isSignedIn() && voterId == request.auth.uid;
+        allow create, update: if signedIn() && voterId == me()
+                              && request.resource.data.voter_id == me()
+                              && request.resource.data.value in [1, -1];
+        allow delete: if signedIn() && voterId == me();
       }
     }
 
-    match /messages/{messageId} {
-      allow read: if isSignedIn() && request.auth.uid in resource.data.owner_ids;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && request.auth.uid in resource.data.owner_ids;
+    match /sub_gardens/{gardenId} {
+      allow read: if true;
+      allow create: if false; // createSubGarden server action
+      allow update: if isAdmin() || (signedIn() && resource.data.creator_id == me() && changedOnly(['description', 'updated_at']));
+      allow delete: if isAdmin();
     }
 
-    match /sub_gardens/{gardenId} {
-      allow read, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isAdmin() || (isSignedIn() && resource.data.creator_id == request.auth.uid);
+    match /garden_members/{memberId} {
+      allow read: if true;
+      allow write: if false; // server actions only
+    }
+
+    // ---------- Encrypted tunnels ----------
+    match /messages/{messageId} {
+      allow read: if signedIn() && me() in resource.data.get('owner_ids', []);
+      allow create: if signedIn()
+                    && request.resource.data.sender_id == me()
+                    && me() in request.resource.data.owner_ids
+                    && request.resource.data.status == 'unread'
+                    && request.resource.data.ciphertext is string
+                    && request.resource.data.ciphertext.size() < 20000;
+      allow update: if signedIn() && me() in resource.data.get('owner_ids', []) && changedOnly(['status', 'read_at']);
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Work ledger ----------
+    match /task_ledger/{taskId} {
+      allow read: if signedIn();
+      allow write: if false; // server actions + /api/v1/tasks only
+    }
+
+    // ---------- Collective memory ----------
+    match /knowledge_nodes/{nodeId} {
+      allow read: if resource.data.get('is_public', true) == true
+                  || (signedIn() && resource.data.owner_id == me());
+      allow write: if false; // /api/v1/memory/sync only
+    }
+
+    // ---------- Legacy landing-page dashboard (studio-8024979567-b295c.web.app) ----------
+    // Private profiles for the new landing-page dashboard.
+    function isDashboardAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isDashboardOwner(uid) {
+      return isDashboardAuthenticated() && request.auth.uid == uid;
+    }
+
+    function canWriteDashboard(uid) {
+      return isDashboardOwner(uid) && request.auth.token.email_verified == true;
+    }
+
+    function isValidDashboardProfile(data) {
+      let fields = ['displayName', 'focus', 'bookmarks', 'updatedAt'];
+      return data.keys().hasAll(fields)
+        && data.keys().hasOnly(fields)
+        && data.displayName is string && data.displayName.size() <= 100
+        && data.focus is string && data.focus.size() <= 240
+        && data.bookmarks is list && data.bookmarks.size() <= 20
+        && data.bookmarks.hasOnly(['mission', 'updates', 'resources', 'community'])
+        && data.updatedAt is timestamp && data.updatedAt == request.time;
+    }
+
+    match /profiles/{uid} {
+      allow get: if isDashboardOwner(uid);
+      allow list: if false;
+      allow create: if canWriteDashboard(uid) && isValidDashboardProfile(request.resource.data);
+      allow update: if canWriteDashboard(uid) && isValidDashboardProfile(request.resource.data);
+      allow delete: if canWriteDashboard(uid);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

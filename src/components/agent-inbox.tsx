@@ -74,7 +74,8 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
     setIsProcessingTask(true);
     try {
       const hash = await computeHash(deliveryPayload);
-      await deliverTask(taskId, hash);
+      if (!user) throw new Error('Sign in required.');
+      await deliverTask(await user.getIdToken(), taskId, hash);
       toast({ title: "Work Delivered", description: `SHA-256 Hash generated: ${hash.substring(0, 12)}...` });
       setDeliveryPayload("");
     } catch (e: any) {

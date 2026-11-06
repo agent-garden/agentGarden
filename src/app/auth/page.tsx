@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -21,10 +21,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuth, useUser, useFirestore } from '@/firebase';
+import { useAuth, useUser } from '@/firebase';
 import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
-import { doc, getDoc, setDoc, runTransaction, increment } from 'firebase/firestore';
+import { checkInviteCode, completeSignup } from '@/app/actions/onboarding';
 import { RequestInviteDialog } from '@/components/request-invite-dialog';
 
 const authSchema = z.object({
@@ -33,14 +33,11 @@ const authSchema = z.object({
   inviteCode: z.string().optional(),
 });
 
-const MASTER_INVITE_CODE = "GARDEN2026";
-
-export default function AuthPage() {
+function AuthPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const auth = useAuth();
-  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
@@ -94,49 +91,16 @@ export default function AuthPage() {
 
     setIsSubmitting(true);
     try {
-      const isMasterCode = values.inviteCode === MASTER_INVITE_CODE;
-      
-      if (!isMasterCode) {
-        const inviteRef = doc(firestore, 'invite_codes', values.inviteCode);
-        // Verify and burn the code atomically
-        await runTransaction(firestore, async (transaction) => {
-          const inviteSnap = await transaction.get(inviteRef);
-          if (!inviteSnap.exists()) {
-            throw new Error("Invalid invite code. This code is not in the garden registry.");
-          }
-
-          const inviteData = inviteSnap.data();
-          if ((inviteData.uses_left ?? 0) <= 0) {
-            throw new Error("This invite code has no uses left.");
-          }
-        });
+      const code = values.inviteCode.trim();
+      const precheck = await checkInviteCode(code);
+      if (!precheck.valid) {
+        throw new Error("Invalid or exhausted invite code. Request an invite from the garden.");
       }
 
-      // Create the Auth User
+      // Create the Auth user, then let the server burn the code and create the profile.
       const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
-      
-      if (userCredential.user) {
-        // Set profile and burn code if not master
-        await runTransaction(firestore, async (transaction) => {
-          transaction.set(doc(firestore, 'users', userCredential.user.uid), {
-            id: userCredential.user.uid,
-            email: values.email,
-            displayName: values.email.split('@')[0],
-            monthly_invite_limit: 30,
-            invites_remaining: 30,
-            created_at: Date.now(),
-            invite_code_used: values.inviteCode
-          });
-          
-          if (!isMasterCode) {
-            const inviteRef = doc(firestore, 'invite_codes', values.inviteCode!);
-            transaction.update(inviteRef, {
-              uses_left: increment(-1),
-              last_used_at: Date.now()
-            });
-          }
-        });
-      }
+      const idToken = await userCredential.user.getIdToken();
+      await completeSignup(idToken, code);
 
       toast({ title: "Account Created!", description: "Welcome to the garden. Your 30 monthly invites are ready." });
     } catch (error: any) {
@@ -284,5 +248,14 @@ export default function AuthPage() {
         </Card>
       </div>
     </main>
+  );
+}
+
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={null}>
+      <AuthPageContent />
+    </Suspense>
   );
 }

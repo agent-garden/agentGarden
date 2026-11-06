@@ -54,7 +54,7 @@ export function CreateGardenDialog() {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      await createSubGarden(user.uid, values.name, values.description);
+      await createSubGarden(await user.getIdToken(), values.name, values.description);
       toast({
         title: "Sub-Garden Seeded",
         description: `The ${values.name} community is now active.`,

@@ -1,17 +1,21 @@
-
 'use server';
 
 /**
- * @fileOverview Reputation-Aware Discovery Engine for the Agent Garden.
- * 
- * Uses a Genkit-powered Semantic Ranker to match user intent to agent manifests.
- * Re-ranks results based on Reputation, Performance (Verified Jobs), and Expertise Graph.
+ * @fileOverview Reputation-weighted semantic agent search.
+ *
+ * 1. Embed the query (text-embedding-004, same model family the Firestore
+ *    Vector Search extension uses to embed each agent's `search_text`).
+ * 2. Firestore `findNearest` over `agents.embedding` (COSINE, top 50).
+ * 3. Re-rank: similarity * (log10(verified_task_count + 1) + 1).
+ * 4. Final relevance check by an LLM over the top 15.
+ *
+ * If embeddings or the vector index are unavailable, falls back to active
+ * agents sorted by verified work so search still returns something useful.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { initializeFirebase } from '@/firebase';
-import { collection, getDocs, query, where, limit } from 'firebase/firestore';
+import { initializeAdmin } from '@/firebase/admin';
 
 const PerformAgentVectorSearchInputSchema = z.object({
   query: z.string().describe('The search query describing the needed agent capability.'),
@@ -37,20 +41,21 @@ const AgentSchema = z.object({
   security_status: z.string().optional(),
   location: z.string().optional(),
   timezone: z.string().optional(),
+  supports_x402: z.boolean().optional(),
+  base_fee_cents: z.number().optional(),
+  last_heartbeat: z.number().optional(),
 });
 
 const PerformAgentVectorSearchOutputSchema = z.array(AgentSchema);
 export type PerformAgentVectorSearchOutput = z.infer<typeof PerformAgentVectorSearchOutputSchema>;
 
-/**
- * Performs a deep semantic discovery using Genkit ranking augmented by performance reputation.
- */
-export async function performAgentVectorSearch(input: PerformAgentVectorSearchInput): Promise<PerformAgentVectorSearchOutput> {
-  return performAgentVectorSearchFlow(input);
-}
+const EMBEDDING_MODEL = 'googleai/text-embedding-004';
+const VECTOR_POOL = 50;
+const RERANK_POOL = 15;
+const MAX_QUERY_LENGTH = 500;
 
 const rankingPrompt = ai.definePrompt({
-  name: 'rankingPrompt',
+  name: 'agentRankingPrompt',
   input: {
     schema: z.object({
       query: z.string(),
@@ -59,26 +64,62 @@ const rankingPrompt = ai.definePrompt({
   },
   output: {
     schema: z.object({
-      ranked_ids: z.array(z.string()).describe('IDs of the agents that match the query, ordered by relevance and verified authority.'),
+      ranked_ids: z
+        .array(z.string())
+        .describe('IDs of agents that genuinely match the query, most relevant first. Omit agents that lack the requested skills.'),
     }),
   },
-  prompt: `You are the Discovery Engine for the Agent Garden. 
-  A user is looking for an AI agent with this intent: "{{query}}"
-  
-  Here is a list of candidate agents in the garden, with their performance stats:
-  {{#each agents}}
-  - ID: {{id}}, Name: {{name}}, Intro: {{introduction}}, Specialties: {{#each specialties}}{{this}}, {{/each}}, Verified Jobs: {{verified_task_count}}, Reputation: {{reputation}}
-  {{/each}}
-  
-  TASK:
-  1. Analyze the user's intent.
-  2. Rank agents by a combination of Technical Capability and Verified Historical Performance.
-  3. RE-RANKING LOGIC (PageRank for Agents):
-     - Treat "Verified Jobs" as the primary signal of trust. 
-     - Use a logarithmic scale for performance: An agent with 100 verified jobs should significantly outrank one with 0, but relevance to the query still matters.
-     - Multiply your semantic relevance score by log10(verified_task_count + 1).
-  4. Return the IDs of the matching agents, ordered from most relevant/authoritative to least.`,
+  prompt: `You are the Discovery Engine for the Agent Garden.
+A user is looking for an AI agent with this intent: "{{query}}"
+
+Candidates were pre-ranked by semantic similarity weighted by verified work
+("PageRank for Agents": similarity * log10(verified jobs + 1)).
+
+{{#each agents}}
+- ID: {{id}} | Name: {{name}} | Intro: {{introduction}} | Specialties: {{#each specialties}}{{this}}, {{/each}} | Verified Jobs: {{verified_task_count}} | Reputation: {{reputation}}
+{{/each}}
+
+Confirm each candidate actually has the skills requested. Keep the pre-ranked
+order unless relevance clearly says otherwise. Return the matching IDs.`,
 });
+
+function toNumberTimestamp(value: any): number | undefined {
+  if (!value) return undefined;
+  if (typeof value === 'number') return value;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function toPublicAgent(id: string, a: any): z.infer<typeof AgentSchema> {
+  return {
+    id,
+    name: a.name || 'Unknown Agent',
+    handle: a.handle || '@unknown',
+    introduction: a.introduction || '',
+    specialties: Array.isArray(a.specialties) ? a.specialties : [],
+    stack: a.stack || 'Unknown',
+    verified: !!a.verified,
+    trust_level: a.trust_level ?? 0,
+    reputation: a.reputation ?? 0,
+    verified_task_count: a.verified_task_count ?? 0,
+    review_count: a.review_count ?? 0,
+    public_key: a.public_key || '',
+    availability: a.availability || 'Active',
+    security_status: a.security_status || 'unverified',
+    location: a.location || undefined,
+    timezone: a.timezone || undefined,
+    supports_x402: a.supports_x402 ?? false,
+    base_fee_cents: a.base_fee_cents ?? 0,
+    last_heartbeat: toNumberTimestamp(a.last_heartbeat),
+  };
+}
+
+export async function performAgentVectorSearch(
+  input: PerformAgentVectorSearchInput
+): Promise<PerformAgentVectorSearchOutput> {
+  return performAgentVectorSearchFlow(input);
+}
 
 const performAgentVectorSearchFlow = ai.defineFlow(
   {
@@ -87,76 +128,87 @@ const performAgentVectorSearchFlow = ai.defineFlow(
     outputSchema: PerformAgentVectorSearchOutputSchema,
   },
   async (input) => {
-    const { firestore } = initializeFirebase();
-    const agentsRef = collection(firestore, 'agents');
-    
-    // 1. Fetch Candidates with optional filters
-    let baseQuery = query(agentsRef, where('status', '==', 'active'));
-    
+    const queryText = input.query.trim().slice(0, MAX_QUERY_LENGTH);
+    if (!queryText) return [];
+
+    const { db } = initializeAdmin();
+    const agentsRef = db.collection('agents');
+
+    type Candidate = { id: string; data: any; score: number };
+    let candidates: Candidate[] = [];
+
+    // 1-2. Semantic retrieval
+    try {
+      const [embedding] = await ai.embed({ embedder: EMBEDDING_MODEL, content: queryText });
+      const snapshot = await agentsRef
+        .findNearest({
+          vectorField: 'embedding',
+          queryVector: embedding.embedding,
+          distanceMeasure: 'COSINE',
+          limit: VECTOR_POOL,
+          distanceResultField: '_distance',
+        })
+        .get();
+
+      candidates = snapshot.docs
+        .filter((d) => d.data().status === 'active')
+        .map((d) => {
+          const data = d.data();
+          const distance = typeof data._distance === 'number' ? data._distance : 1;
+          const similarity = 1 - distance / 2; // COSINE distance 0..2 -> similarity 1..0
+          const reputationWeight = Math.log10((data.verified_task_count || 0) + 1) + 1;
+          return { id: d.id, data, score: similarity * reputationWeight };
+        });
+    } catch (error) {
+      console.warn('Vector retrieval unavailable, using reputation fallback:', error);
+    }
+
+    // Fallback: no embeddings yet (missing key, index or backfill)
+    if (candidates.length === 0) {
+      const snapshot = await agentsRef.where('status', '==', 'active').limit(100).get();
+      candidates = snapshot.docs.map((d) => ({
+        id: d.id,
+        data: d.data(),
+        score: Math.log10((d.data().verified_task_count || 0) + 1),
+      }));
+    }
+
+    // Optional structured filters
     if (input.location) {
-      baseQuery = query(baseQuery, where('location', '==', input.location));
+      const loc = input.location.toLowerCase();
+      candidates = candidates.filter((c) => (c.data.location || '').toLowerCase() === loc);
     }
     if (input.timezone) {
-      baseQuery = query(baseQuery, where('timezone', '==', input.timezone));
+      candidates = candidates.filter((c) => c.data.timezone === input.timezone);
     }
+    if (candidates.length === 0) return [];
 
-    const snapshot = await getDocs(query(baseQuery, limit(100)));
-    
-    if (snapshot.empty) return [];
+    // 3. Reputation-weighted order
+    candidates.sort((a, b) => b.score - a.score);
+    const top = candidates.slice(0, RERANK_POOL);
 
-    const candidates = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as any[];
-
-    // 2. Map candidates for the ranker
-    const candidatesForRanker = candidates.map(c => ({
-      id: c.id,
-      name: c.name,
-      introduction: c.introduction,
-      specialties: c.specialties || [],
-      reputation: c.reputation || 0,
-      verified_task_count: c.verified_task_count || 0
-    }));
-
-    // 3. Use Gemini to perform performance-weighted semantic ranking
+    // 4. LLM relevance check over the short list
+    let ordered = top;
     try {
       const { output } = await rankingPrompt({
-        query: input.query,
-        agents: candidatesForRanker
+        query: queryText,
+        agents: top.map((c) => ({
+          id: c.id,
+          name: c.data.name,
+          introduction: c.data.introduction,
+          specialties: c.data.specialties || [],
+          verified_task_count: c.data.verified_task_count || 0,
+          reputation: c.data.reputation || 0,
+        })),
       });
-
-      if (!output?.ranked_ids || output.ranked_ids.length === 0) {
-        // Fallback to performance sort if AI ranking yields nothing
-        return candidates.sort((a, b) => (b.verified_task_count || 0) - (a.verified_task_count || 0)).slice(0, 20) as any;
-      }
-
-      const rankedAgents = output.ranked_ids
-        .map(id => candidates.find(c => c.id === id))
-        .filter(Boolean);
-
-      return rankedAgents.map(agent => ({
-        id: agent.id,
-        name: agent.name || "Unknown Agent",
-        handle: agent.handle || "@unknown",
-        introduction: agent.introduction || "",
-        specialties: agent.specialties || [],
-        stack: agent.stack || "Unknown",
-        verified: agent.verified || false,
-        trust_level: agent.trust_level || 0,
-        reputation: agent.reputation || 0,
-        verified_task_count: agent.verified_task_count || 0,
-        review_count: agent.review_count || 0,
-        public_key: agent.public_key || "",
-        availability: agent.availability || "Active",
-        security_status: agent.security_status || "unverified",
-        location: agent.location || "Cloud",
-        timezone: agent.timezone || "UTC"
-      })) as PerformAgentVectorSearchOutput;
-
+      const ids = output?.ranked_ids ?? [];
+      const byId = new Map(top.map((c) => [c.id, c]));
+      const reranked = ids.map((id) => byId.get(id)).filter(Boolean) as Candidate[];
+      if (reranked.length > 0) ordered = reranked;
     } catch (error) {
-      console.error("Semantic Ranking failed:", error);
-      return [];
+      console.warn('LLM re-rank unavailable, keeping reputation order:', error);
     }
+
+    return ordered.map((c) => toPublicAgent(c.id, c.data));
   }
 );

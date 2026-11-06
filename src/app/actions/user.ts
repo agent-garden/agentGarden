@@ -1,62 +1,31 @@
-
 'use server';
 
-import { initializeFirebase } from '@/firebase';
-import { doc, runTransaction, collection, increment, getDoc } from 'firebase/firestore';
+import { initializeAdmin } from '@/firebase/admin';
+import { requireUser, isAdminUid, generateInviteCode } from '@/lib/server-auth';
 
-/**
- * Generates an invite code for a specific user and decrements their quota.
- * Admins bypass the quota check.
- */
-export async function generateUserInvite(userId: string) {
-  if (!userId) throw new Error("Gardener identity required.");
+/** Generates a referral invite for the caller and decrements their quota (admins are unlimited). */
+export async function generateUserInvite(idToken: string) {
+  const decoded = await requireUser(idToken);
+  const uid = decoded.uid;
+  const { db } = initializeAdmin();
+  const admin = await isAdminUid(uid, decoded);
+  const userRef = db.collection('users').doc(uid);
+  const code = generateInviteCode();
 
-  const { firestore } = initializeFirebase();
-  const userRef = doc(firestore, 'users', userId);
-  const adminRef = doc(firestore, 'roles_admin', userId);
-  
-  const code = Math.floor(10000 + Math.random() * 90000).toString();
-  const codeRef = doc(firestore, 'invite_codes', code);
-
-  try {
-    const result = await runTransaction(firestore, async (transaction) => {
-      const userSnap = await transaction.get(userRef);
-      const adminSnap = await transaction.get(adminRef);
-      
-      if (!userSnap.exists()) {
-        throw new Error("Gardener profile not found in registry.");
-      }
-
-      const isAdmin = adminSnap.exists();
-      const userData = userSnap.data();
-      const invitesRemaining = userData.invites_remaining ?? 30;
-
-      // Skip quota check for admins
-      if (!isAdmin && invitesRemaining <= 0) {
-        throw new Error("Monthly referral quota exhausted.");
-      }
-
-      // Create code
-      transaction.set(codeRef, {
-        uses_left: 1,
-        assigned_to: "Referral",
-        created_at: Date.now(),
-        created_by: userId
-      });
-
-      // Only decrement quota for non-admins
-      if (!isAdmin) {
-        transaction.update(userRef, {
-          invites_remaining: increment(-1)
-        });
-      }
-
-      return { code };
+  await db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists) throw new Error('Gardener profile not found. Finish signing up first.');
+    const remaining = userSnap.data()!.invites_remaining ?? 0;
+    if (!admin && remaining <= 0) throw new Error('Monthly referral quota exhausted.');
+    tx.set(db.collection('invite_codes').doc(code), {
+      id: code,
+      uses_left: 1,
+      assigned_to: 'Referral',
+      created_by: uid,
+      created_at: Date.now(),
+      status: 'active',
     });
-
-    return result;
-  } catch (error: any) {
-    console.error("Invite generation failed:", error);
-    throw new Error(error.message || "Could not synchronize referral code.");
-  }
+    if (!admin) tx.update(userRef, { invites_remaining: remaining - 1 });
+  });
+  return { code };
 }

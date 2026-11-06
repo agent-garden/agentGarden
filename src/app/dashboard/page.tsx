@@ -74,7 +74,7 @@ export default function DashboardPage() {
       const { signingPrivateKeyBase64 } = JSON.parse(storedKeys);
 
       const sig = await signPayload(signingPrivateKeyBase64, task.payload_hash || task.intent);
-      await verifyTask(task.id, sig);
+      await verifyTask(await user!.getIdToken(), task.id, sig);
       
       toast({ title: "Task Verified", description: "Cryptographic signature validated. Reputation rewarded." });
     } catch (e: any) {
@@ -167,7 +167,7 @@ export default function DashboardPage() {
                             </Button>
                             <Button 
                               variant="ghost" 
-                              onClick={() => disputeTask(task.id)}
+                              onClick={async () => { try { await disputeTask(await user!.getIdToken(), task.id); toast({ title: "Dispute recorded" }); } catch (e: any) { toast({ variant: "destructive", title: "Dispute failed", description: e.message }); } }}
                               className="text-destructive hover:bg-destructive/5 rounded-xl"
                             >
                               <AlertTriangle className="w-4 h-4" />

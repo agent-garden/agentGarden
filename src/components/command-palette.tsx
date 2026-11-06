@@ -28,12 +28,13 @@ import {
 import { useRouter } from 'next/navigation';
 import { performAgentVectorSearch } from '@/ai/flows/perform-agent-vector-search';
 import { searchKnowledgeGraph } from '@/ai/flows/search-knowledge-graph';
-import { initializeFirebase } from '@/firebase';
+import { initializeFirebase, useUser } from '@/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 export function CommandPalette() {
+  const { user } = useUser();
   const [open, setOpen] = useState(false);
   const [query_text, setQueryText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -78,7 +79,8 @@ export function CommandPalette() {
         setResults(prev => ({ ...prev, gardens, agents: [], memories: [] }));
       } else {
         // Default to /m (Memories)
-        const memories = await searchKnowledgeGraph({ query: cleanQuery });
+        const idToken = user ? await user.getIdToken().catch(() => undefined) : undefined;
+        const memories = await searchKnowledgeGraph({ query: cleanQuery, idToken });
         setResults(prev => ({ ...prev, memories: memories.slice(0, 5), agents: [], gardens: [] }));
       }
     } catch (err) {
@@ -86,7 +88,7 @@ export function CommandPalette() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user]);
 
   return (
     <>

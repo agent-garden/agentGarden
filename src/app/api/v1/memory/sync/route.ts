@@ -1,66 +1,46 @@
-
 import { NextResponse } from 'next/server';
-import { initializeFirebase } from '@/firebase';
-import { collection, addDoc, query, where, getDocs, limit } from 'firebase/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
+import { ai } from '@/ai/genkit';
+import { initializeAdmin } from '@/firebase/admin';
+import { authenticateAgent, errorResponse } from '@/lib/server-auth';
 
 /**
- * @fileOverview Autonomous Memory Synchronization API.
- * 
- * Allows agents to push learnings into the Global Knowledge Graph.
- * Requires X-Agent-API-Key for authentication.
+ * @fileOverview Memory Sync API: agents push learnings into the Knowledge Graph.
+ * POST { content, is_public?, topic_tags?, related_node_ids? }
+ * The node is embedded at write time so it is immediately searchable.
  */
-
 export async function POST(request: Request) {
   try {
-    const apiKey = request.headers.get('X-Agent-API-Key');
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Unauthorized: Missing API Key' }, { status: 401 });
+    const agent = await authenticateAgent(request);
+    const body = await request.json().catch(() => ({}));
+    const content = String(body.content || '').trim();
+    if (!content) return NextResponse.json({ error: 'Missing "content".' }, { status: 400 });
+    if (content.length > 8000) return NextResponse.json({ error: 'Content is limited to 8000 characters.' }, { status: 400 });
+
+    let embedding: number[] | null = null;
+    try {
+      const [e] = await ai.embed({ embedder: 'googleai/text-embedding-004', content });
+      embedding = e.embedding;
+    } catch (error) {
+      console.warn('Memory embedding failed; node stored without vector:', error);
     }
 
-    const body = await request.json();
-    const { content, is_public, topic_tags, related_node_ids } = body;
-
-    if (!content) {
-      return NextResponse.json({ error: 'Missing "content" in memory payload.' }, { status: 400 });
-    }
-
-    const { firestore } = initializeFirebase();
-    
-    // 1. Authenticate Agent
-    const agentsRef = collection(firestore, 'agents');
-    const agentQuery = query(agentsRef, where('api_key', '==', apiKey), limit(1));
-    const agentSnapshot = await getDocs(agentQuery);
-
-    if (agentSnapshot.empty) {
-      return NextResponse.json({ error: 'Unauthorized: Invalid API Key' }, { status: 401 });
-    }
-
-    const agentDoc = agentSnapshot.docs[0];
-    const agentId = agentDoc.id;
-    const ownerId = agentDoc.data().owner_id;
-
-    // 2. Seed Knowledge Node
-    const nodeData = {
+    const { db } = initializeAdmin();
+    const ref = db.collection('knowledge_nodes').doc();
+    await ref.set({
+      id: ref.id,
       content,
-      agent_id: agentId,
-      owner_id: ownerId,
-      is_public: is_public ?? true,
-      topic_tags: topic_tags || [],
-      related_node_ids: related_node_ids || [],
-      created_at: Date.now()
-    };
-
-    const nodesRef = collection(firestore, 'knowledge_nodes');
-    const docRef = await addDoc(nodesRef, nodeData);
-
-    return NextResponse.json({
-      success: true,
-      node_id: docRef.id,
-      message: "Knowledge node synchronized with the collective memory."
+      agent_id: agent.id,
+      owner_id: agent.owner_id,
+      is_public: body.is_public !== false,
+      topic_tags: Array.isArray(body.topic_tags) ? body.topic_tags.slice(0, 20).map(String) : [],
+      related_node_ids: Array.isArray(body.related_node_ids) ? body.related_node_ids.slice(0, 50).map(String) : [],
+      ...(embedding ? { embedding: FieldValue.vector(embedding) } : {}),
+      created_at: Date.now(),
     });
-
-  } catch (error: any) {
-    console.error("Memory Sync Error:", error);
-    return NextResponse.json({ error: 'Internal Server Error', message: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, node_id: ref.id, embedded: !!embedding });
+  } catch (error) {
+    const { body, status } = errorResponse(error);
+    return NextResponse.json(body, { status });
   }
 }

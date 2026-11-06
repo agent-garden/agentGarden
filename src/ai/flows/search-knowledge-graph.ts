@@ -1,22 +1,21 @@
-
 'use server';
 
 /**
- * @fileOverview Semantic Memory Discovery for the Knowledge Graph.
- * 
- * Implements privacy-aware search across collective agent memories.
- * Respects 'is_public' boundaries while allowing owners to query their own private data.
+ * @fileOverview Semantic memory discovery over the Knowledge Graph.
+ *
+ * Public nodes are searchable by anyone. Private nodes are only included when
+ * the caller proves who they are with a Firebase ID token, and only that
+ * caller's own nodes are returned. Nodes are embedded at write time by the
+ * memory sync API (`embedding` field, 768-dim text-embedding-004).
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { initializeFirebase } from '@/firebase';
-import { collection, getDocs, query, where, limit, orderBy } from 'firebase/firestore';
+import { initializeAdmin } from '@/firebase/admin';
 
 const SearchKnowledgeGraphInputSchema = z.object({
   query: z.string().describe('The knowledge topic to retrieve from the collective memory.'),
-  agent_id: z.string().optional().describe('The ID of the searching agent (for private memory access).'),
-  owner_id: z.string().optional().describe('The ID of the searching gardener.'),
+  idToken: z.string().optional().describe('Caller Firebase ID token; unlocks their own private nodes.'),
 });
 export type SearchKnowledgeGraphInput = z.infer<typeof SearchKnowledgeGraphInputSchema>;
 
@@ -32,36 +31,24 @@ const KnowledgeNodeSchema = z.object({
 const SearchKnowledgeGraphOutputSchema = z.array(KnowledgeNodeSchema);
 export type SearchKnowledgeGraphOutput = z.infer<typeof SearchKnowledgeGraphOutputSchema>;
 
+const EMBEDDING_MODEL = 'googleai/text-embedding-004';
+
 export async function searchKnowledgeGraph(input: SearchKnowledgeGraphInput): Promise<SearchKnowledgeGraphOutput> {
   return searchKnowledgeGraphFlow(input);
 }
 
-const rankerPrompt = ai.definePrompt({
-  name: 'knowledgeRankerPrompt',
-  input: {
-    schema: z.object({
-      query: z.string(),
-      nodes: z.array(z.any()),
-    }),
-  },
-  output: {
-    schema: z.object({
-      ranked_ids: z.array(z.string()).describe('IDs of the memory nodes that match the query, ordered by relevance.'),
-    }),
-  },
-  prompt: `You are the Memory Librarian for the Agent Garden. 
-  An agent/human is searching the collective knowledge graph for: "{{query}}"
-  
-  Available memory nodes:
-  {{#each nodes}}
-  - ID: {{id}}, Content: {{content}}, Topics: {{#each topic_tags}}{{this}}, {{/each}}
-  {{/each}}
-  
-  TASK:
-  1. Identify nodes that provide specific information or context related to the query.
-  2. Order the IDs by relevance (most useful first).
-  3. Only return IDs for nodes that are a solid match.`,
-});
+function toNode(id: string, d: any): z.infer<typeof KnowledgeNodeSchema> {
+  const created =
+    typeof d.created_at === 'number' ? d.created_at : d.created_at?.toMillis?.() ?? 0;
+  return {
+    id,
+    content: String(d.content || ''),
+    agent_id: String(d.agent_id || ''),
+    is_public: d.is_public !== false,
+    topic_tags: Array.isArray(d.topic_tags) ? d.topic_tags : [],
+    created_at: created,
+  };
+}
 
 const searchKnowledgeGraphFlow = ai.defineFlow(
   {
@@ -70,59 +57,53 @@ const searchKnowledgeGraphFlow = ai.defineFlow(
     outputSchema: SearchKnowledgeGraphOutputSchema,
   },
   async (input) => {
-    const { firestore } = initializeFirebase();
-    const nodesRef = collection(firestore, 'knowledge_nodes');
-    
-    // Privacy-Aware Fetch
-    // 1. Fetch all public nodes
-    const publicQuery = query(nodesRef, where('is_public', '==', true), limit(50));
-    const publicSnapshot = await getDocs(publicQuery);
-    
-    let candidateDocs = publicSnapshot.docs;
+    const queryText = input.query.trim().slice(0, 500);
+    if (!queryText) return [];
 
-    // 2. If an owner_id is provided, also fetch their private nodes
-    if (input.owner_id) {
-      const privateQuery = query(
-        nodesRef, 
-        where('owner_id', '==', input.owner_id), 
-        where('is_public', '==', false),
-        limit(50)
-      );
-      const privateSnapshot = await getDocs(privateQuery);
-      candidateDocs = [...candidateDocs, ...privateSnapshot.docs];
+    const { db, auth } = initializeAdmin();
+    const nodesRef = db.collection('knowledge_nodes');
+
+    let ownerUid: string | null = null;
+    if (input.idToken) {
+      try {
+        ownerUid = (await auth.verifyIdToken(input.idToken)).uid;
+      } catch {
+        ownerUid = null;
+      }
     }
 
-    if (candidateDocs.length === 0) return [];
-
-    const candidates = candidateDocs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as any[];
-
-    // Deduplicate in case of overlap
-    const uniqueCandidates = Array.from(new Map(candidates.map(c => [c.id, c])).values());
-
-    // AI Semantic Ranking
     try {
-      const { output } = await rankerPrompt({
-        query: input.query,
-        nodes: uniqueCandidates.map(c => ({
-          id: c.id,
-          content: c.content,
-          topic_tags: c.topic_tags
-        }))
-      });
+      const [embedding] = await ai.embed({ embedder: EMBEDDING_MODEL, content: queryText });
+      const vector = embedding.embedding;
 
-      if (!output?.ranked_ids || output.ranked_ids.length === 0) {
-        return [];
+      const searches = [
+        nodesRef
+          .where('is_public', '==', true)
+          .findNearest({ vectorField: 'embedding', queryVector: vector, distanceMeasure: 'COSINE', limit: 10 })
+          .get(),
+      ];
+      if (ownerUid) {
+        searches.push(
+          nodesRef
+            .where('owner_id', '==', ownerUid)
+            .findNearest({ vectorField: 'embedding', queryVector: vector, distanceMeasure: 'COSINE', limit: 10 })
+            .get()
+        );
       }
 
-      return output.ranked_ids
-        .map(id => uniqueCandidates.find(c => c.id === id))
-        .filter(Boolean) as SearchKnowledgeGraphOutput;
-
+      const snapshots = await Promise.all(searches);
+      const seen = new Map<string, z.infer<typeof KnowledgeNodeSchema>>();
+      for (const snap of snapshots) {
+        for (const doc of snap.docs) {
+          const data = doc.data();
+          // Never leak someone else's private node.
+          if (data.is_public === false && data.owner_id !== ownerUid) continue;
+          if (!seen.has(doc.id)) seen.set(doc.id, toNode(doc.id, data));
+        }
+      }
+      return Array.from(seen.values());
     } catch (error) {
-      console.error("Knowledge Ranking failed:", error);
+      console.warn('Memory vector search unavailable:', error);
       return [];
     }
   }

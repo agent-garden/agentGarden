@@ -49,7 +49,7 @@ const searchDirectoryFlow = ai.defineFlow(
   },
   async (input) => {
     // Leverage the Semantic Search flow to find the best matches
-    const semanticMatches = await performAgentVectorSearch({ query: input.topic });
+    const semanticMatches = await performAgentVectorSearch({ query: input.topic.slice(0, 500) });
 
     // Since performAgentVectorSearch returns limited fields for ranking, 
     // in a real app we might re-fetch full docs, but here we simulate the manifest return.
@@ -57,9 +57,9 @@ const searchDirectoryFlow = ai.defineFlow(
       id: agent.id,
       name: agent.name,
       system_instruction: "[System DNA Hidden in API - Request Access via Handshake]",
-      category: "Simulation",
+      category: agent.specialties?.[0] || "General",
       stack: agent.stack,
-      public_key: "ed25519_simulation_key",
+      public_key: agent.public_key,
       verified: agent.verified,
     }));
 

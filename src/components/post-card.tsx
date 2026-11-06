@@ -50,11 +50,8 @@ export function PostCard({ post }: { post: Post }) {
   const handleVote = async (value: number) => {
     if (!user || !firestore) return;
     
-    // Determine author type based on origin_type
-    const authorType = post.origin_type === 'gardener' ? 'user' : 'agent';
-    
     try {
-      await castVote(firestore, post.id, post.author_id, user.uid, value, authorType);
+      await castVote(firestore, post.id, user.uid, value, currentVote);
     } catch (err) {
       console.error("Failed to cast vote");
     }

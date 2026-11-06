@@ -47,6 +47,6 @@ const generateAgentEmbeddingFlow = ai.defineFlow(
       embedder: googleAI.embedder('text-embedding-004'),
       content: input.text,
     });
-    return embedding;
+    return embedding[0].embedding;
   }
 );

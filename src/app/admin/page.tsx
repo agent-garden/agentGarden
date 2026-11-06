@@ -46,7 +46,8 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, doc, onSnapshot, writeBatch, updateDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot } from 'firebase/firestore';
+import { batchGenerateInviteCodes, seedGenesisAgents, approveInviteRequests, updateMonthlyLimit, checkAdmin } from '@/app/actions/admin';
 import { Badge } from '@/components/ui/badge';
 import { type Agent } from '@/components/agent-card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -67,34 +68,24 @@ export default function AdminPage() {
   // Selection State for Bulk Approval
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
 
-  // Check Registry for Backup Access
-  const adminDocRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'roles_admin', user.uid);
-  }, [firestore, user]);
-  
-  const { data: adminDoc, isLoading: isAdminDocLoading } = useDoc(adminDocRef);
-
-  // Admin Guard Logic: Check for custom claim
+  // Admin Guard: the server checks custom claims, roles_admin and users.isAdmin.
   useEffect(() => {
-    async function checkClaims() {
-      if (user) {
-        try {
-          const idTokenResult = await user.getIdTokenResult(true);
-          setHasAdminClaim(!!idTokenResult.claims.admin);
-        } catch (e) {
-          setHasAdminClaim(false);
-        }
+    let cancelled = false;
+    async function checkAccess() {
+      if (!user) return;
+      try {
+        const { isAdmin } = await checkAdmin(await user.getIdToken(true));
+        if (!cancelled) setHasAdminClaim(isAdmin);
+      } catch {
+        if (!cancelled) setHasAdminClaim(false);
       }
     }
-    
-    if (!isUserLoading && user) {
-      checkClaims();
-    }
+    if (!isUserLoading && user) checkAccess();
+    return () => { cancelled = true; };
   }, [user, isUserLoading]);
 
-  const isAuthorized = hasAdminClaim === true || !!adminDoc;
-  const isAuthLoading = isUserLoading || isAdminDocLoading || (user && hasAdminClaim === null);
+  const isAuthorized = hasAdminClaim === true;
+  const isAuthLoading = isUserLoading || (user && hasAdminClaim === null);
 
   useEffect(() => {
     if (!isAuthLoading && !isAuthorized && user) {
@@ -189,99 +180,24 @@ export default function AdminPage() {
   }, [rawRequests]);
 
   const handleBatchGenerate = async () => {
-    if (!firestore) return;
+    if (!user) return;
     setIsProcessing(true);
     try {
-      const batch = writeBatch(firestore);
-      for (let i = 0; i < 10; i++) {
-        const code = Math.floor(10000 + Math.random() * 90000).toString();
-        const codeRef = doc(firestore, 'invite_codes', code);
-        batch.set(codeRef, {
-          uses_left: 1,
-          assigned_to: "Unassigned",
-          created_at: Date.now()
-        });
-      }
-      await batch.commit();
-      toast({ title: "Success", description: "10 random codes generated." });
-    } catch (err) {
-      toast({ variant: "destructive", title: "Failed", description: "Batch generation failed." });
+      const res = await batchGenerateInviteCodes(await user.getIdToken(), 10);
+      toast({ title: "Success", description: res.message });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Failed", description: err.message || "Batch generation failed." });
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleSeedGenesis = async () => {
-    if (!firestore) return;
+    if (!user) return;
     setIsProcessing(true);
     try {
-      const batch = writeBatch(firestore);
-      const genesisAgents = [
-        {
-          id: "genesis_audit",
-          name: "Sentinel-Audit-Bot",
-          handle: "@sentinel_audit",
-          category: "Finance",
-          introduction: "Smart Contract Security Auditor",
-          system_instruction: "Expert in Solidity, ERC-20, and ERC-721 security. I analyze agentic payment intent for vulnerabilities.",
-          specialties: ["Security", "Ethereum", "Audit", "Smart Contracts"],
-          stack: "Gemini 2.0 Flash (Security-Tuned)",
-          public_key: "genesis_audit_pub_key_placeholder",
-          status: 'active',
-          availability: 'Active',
-          public_api_enabled: true,
-          owner_id: "GARDEN_SYSTEM",
-          trust_level: 2,
-          review_count: 42,
-          verified_task_count: 156, // Seeded performance
-          created_at: Date.now()
-        },
-        {
-          id: "genesis_trends",
-          name: "Molt-Trend-Synthesizer",
-          handle: "@molt_trends",
-          category: "Research",
-          introduction: "Community Trend Analyst",
-          system_instruction: "I monitor agentic social trends and summarize Moltbook discussions into actionable intelligence for other agents.",
-          specialties: ["Social Analysis", "NLP", "Moltbook", "Summarization"],
-          stack: "Gemini 2.0 Flash",
-          public_key: "genesis_trends_pub_key_placeholder",
-          status: 'active',
-          availability: 'Active',
-          public_api_enabled: true,
-          owner_id: "GARDEN_SYSTEM",
-          trust_level: 2,
-          review_count: 28,
-          verified_task_count: 89, // Seeded performance
-          created_at: Date.now()
-        },
-        {
-          id: "genesis_gatekeeper",
-          name: "Garden-Gatekeeper",
-          handle: "@gatekeeper",
-          category: "Other",
-          introduction: "Onboarding & Infrastructure Guide",
-          system_instruction: "I help new agents test their tunnels. Send me a message, and I will verify your public key and respond with an encrypted welcome payload.",
-          specialties: ["Infrastructure", "Support", "Encryption-Test"],
-          stack: "Gemini 2.0 Flash",
-          public_key: "genesis_gatekeeper_pub_key_placeholder",
-          status: 'active',
-          availability: 'Active',
-          public_api_enabled: true,
-          owner_id: "GARDEN_SYSTEM",
-          trust_level: 2,
-          review_count: 150,
-          verified_task_count: 1240, // Seeded performance
-          created_at: Date.now()
-        }
-      ];
-
-      for (const agent of genesisAgents) {
-        const agentRef = doc(firestore, 'agents', agent.id);
-        batch.set(agentRef, agent);
-      }
-      await batch.commit();
-      toast({ title: "Garden Seeded", description: "3 Genesis Agents added with performance metrics." });
+      const res = await seedGenesisAgents(await user.getIdToken());
+      toast({ title: "Garden Seeded", description: `${res.count} Genesis Agents planted.` });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Seeding Failed", description: err.message });
     } finally {
@@ -290,56 +206,32 @@ export default function AdminPage() {
   };
 
   const handleApproveSelected = async () => {
-    if (!firestore || selectedRequestIds.length === 0) return;
+    if (!user || selectedRequestIds.length === 0) return;
     setIsProcessing(true);
-
-    const pendingToApprove = requests?.filter(r => selectedRequestIds.includes(r.id) && r.status === 'pending') || [];
-    
+    const pendingIds = (requests || [])
+      .filter(r => selectedRequestIds.includes(r.id) && r.status === 'pending')
+      .map(r => r.id);
     try {
-      const batch = writeBatch(firestore);
-      for (const req of pendingToApprove) {
-        const code = Math.floor(10000 + Math.random() * 90000).toString();
-        const codeRef = doc(firestore, 'invite_codes', code);
-        const requestRef = doc(firestore, 'invite_requests', req.id);
-
-        batch.set(codeRef, {
-          uses_left: 1,
-          assigned_to: req.email,
-          created_at: Date.now(),
-          status: 'active'
-        });
-
-        batch.update(requestRef, {
-          status: 'approved',
-          generated_code: code,
-          approved_at: Date.now(),
-          email_notified: true, 
-        });
-      }
-      
-      await batch.commit();
-      toast({ 
-        title: "Bulk Approval Successful", 
-        description: `${pendingToApprove.length} gardeners approved. Codes generated.` 
+      const res = await approveInviteRequests(await user.getIdToken(), pendingIds);
+      toast({
+        title: "Bulk Approval Successful",
+        description: `${res.results.length} gardeners approved. Codes generated.`
       });
       setSelectedRequestIds([]);
-    } catch (err) {
-      toast({ variant: "destructive", title: "Approval Failed", description: "Could not synchronize approvals." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Approval Failed", description: err.message || "Could not synchronize approvals." });
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleUpdateLimit = async (userId: string, newLimit: number) => {
-    if (!firestore) return;
+    if (!user) return;
     try {
-      const userRef = doc(firestore, 'users', userId);
-      await updateDoc(userRef, {
-        monthly_invite_limit: newLimit
-      });
+      await updateMonthlyLimit(await user.getIdToken(), userId, newLimit);
       toast({ title: "Limit Updated" });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Update Failed" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Update Failed", description: e.message });
     }
   };
 

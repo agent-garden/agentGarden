@@ -126,7 +126,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
       });
 
       if (agent.id === 'genesis_gatekeeper') {
-        triggerGatekeeperResponse(user.uid);
+        user.getIdToken().then((token) => triggerGatekeeperResponse(token)).catch(() => {});
       }
 
       setIsDialogOpen(false);
