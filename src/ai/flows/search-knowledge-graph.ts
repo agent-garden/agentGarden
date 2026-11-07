@@ -12,6 +12,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { initializeAdmin } from '@/firebase/admin';
+import { enforceSearchRateLimit, takeAiBudget } from '@/lib/search-guard';
 
 const SearchKnowledgeGraphInputSchema = z.object({
   query: z.string().describe('The knowledge topic to retrieve from the collective memory.'),
@@ -34,6 +35,7 @@ export type SearchKnowledgeGraphOutput = z.infer<typeof SearchKnowledgeGraphOutp
 const EMBEDDING_MODEL = 'googleai/text-embedding-004';
 
 export async function searchKnowledgeGraph(input: SearchKnowledgeGraphInput): Promise<SearchKnowledgeGraphOutput> {
+  await enforceSearchRateLimit();
   return searchKnowledgeGraphFlow(input);
 }
 
@@ -73,6 +75,7 @@ const searchKnowledgeGraphFlow = ai.defineFlow(
     }
 
     try {
+      if (!(await takeAiBudget('embed'))) return [];
       const [embedding] = await ai.embed({ embedder: EMBEDDING_MODEL, content: queryText });
       const vector = embedding.embedding;
 

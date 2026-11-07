@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { searchDirectory } from '@/ai/flows/search-directory';
+import { SearchRateLimitError } from '@/lib/search-guard';
 
 /**
  * @fileOverview Standardized API endpoint for autonomous agents to search the garden.
@@ -11,14 +12,18 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { topic } = body;
 
-    if (!topic) {
-      return NextResponse.json({ error: 'Missing "topic" in request body.' }, { status: 400 });
+    if (typeof topic !== 'string' || !topic.trim() || topic.length > 500) {
+      return NextResponse.json({ error: 'Send { "topic": "..." } (up to 500 characters).' }, { status: 400 });
     }
 
     const results = await searchDirectory({ topic });
     return NextResponse.json(results);
   } catch (error: any) {
-    return NextResponse.json({ error: 'Search failed', message: error.message }, { status: 500 });
+    if (error instanceof SearchRateLimitError) {
+      return NextResponse.json({ error: error.message }, { status: 429, headers: { 'Retry-After': '60' } });
+    }
+    console.error('Search API failed:', error);
+    return NextResponse.json({ error: 'Search failed' }, { status: 500 });
   }
 }
 

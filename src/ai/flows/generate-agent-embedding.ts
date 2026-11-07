@@ -1,5 +1,6 @@
-'use server';
+import 'server-only';
 
+// Internal only: not a server action, so it can't be called from the browser.
 /**
  * @fileOverview This file defines a Genkit flow to generate vector embeddings for agent descriptions using Vertex AI's text-embedding-004 model.
  *

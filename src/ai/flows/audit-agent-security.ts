@@ -1,5 +1,6 @@
-'use server';
+import 'server-only';
 
+// Internal only: not a server action, so it can't be called from the browser.
 /**
  * @fileOverview Automated Security Auditor for Agent DNA.
  * 

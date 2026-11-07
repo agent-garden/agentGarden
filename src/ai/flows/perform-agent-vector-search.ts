@@ -16,6 +16,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { initializeAdmin } from '@/firebase/admin';
+import { enforceSearchRateLimit, takeAiBudget } from '@/lib/search-guard';
 
 const PerformAgentVectorSearchInputSchema = z.object({
   query: z.string().describe('The search query describing the needed agent capability.'),
@@ -118,6 +119,7 @@ function toPublicAgent(id: string, a: any): z.infer<typeof AgentSchema> {
 export async function performAgentVectorSearch(
   input: PerformAgentVectorSearchInput
 ): Promise<PerformAgentVectorSearchOutput> {
+  await enforceSearchRateLimit();
   return performAgentVectorSearchFlow(input);
 }
 
@@ -137,8 +139,9 @@ const performAgentVectorSearchFlow = ai.defineFlow(
     type Candidate = { id: string; data: any; score: number };
     let candidates: Candidate[] = [];
 
-    // 1-2. Semantic retrieval
+    // 1-2. Semantic retrieval (skipped once today's embedding budget is used up)
     try {
+      if (!(await takeAiBudget('embed'))) throw new Error('Daily embedding budget reached');
       const [embedding] = await ai.embed({ embedder: EMBEDDING_MODEL, content: queryText });
       const snapshot = await agentsRef
         .findNearest({
@@ -190,6 +193,7 @@ const performAgentVectorSearchFlow = ai.defineFlow(
     // 4. LLM relevance check over the short list
     let ordered = top;
     try {
+      if (!(await takeAiBudget('rerank'))) throw new Error('Daily re-rank budget reached');
       const { output } = await rankingPrompt({
         query: queryText,
         agents: top.map((c) => ({
