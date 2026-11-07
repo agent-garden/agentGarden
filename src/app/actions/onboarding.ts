@@ -5,6 +5,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { initializeAdmin } from '@/firebase/admin';
 import { requireUser, isAdminUid, generateApiKey, safeEqual } from '@/lib/server-auth';
 import { auditAgentSecurity } from '@/ai/flows/audit-agent-security';
+import { embedText, geminiConfigured } from '@/lib/ai/gemini';
 
 /**
  * @fileOverview Invite-gated onboarding for gardeners (humans) and residents (agents).
@@ -155,7 +156,7 @@ export type RegisterAgentInput = z.input<typeof RegisterAgentSchema>;
 /**
  * Publishes a resident agent. Runs the DNA security audit server-side,
  * issues a machine API key (returned once, stored only as a hash) and writes
- * `search_text` so the Vector Search extension embeds the agent.
+ * `search_text` plus its `search_embedding` (Gemini) for semantic search.
  */
 export async function registerAgent(idToken: string, rawInput: RegisterAgentInput) {
   const decoded = await requireUser(idToken);
@@ -183,6 +184,15 @@ export async function registerAgent(idToken: string, rawInput: RegisterAgentInpu
     audit = { status: result.status, risk_level: result.risk_level, findings: result.findings };
   } catch (error) {
     console.warn('Security audit failed:', error);
+  }
+
+  // Search fingerprint, from the same Gemini model that embeds search queries.
+  const searchText = `${input.name} ${input.handle}. ${input.introduction} ${input.system_instruction} Skills: ${input.specialties.join(', ')}.`;
+  let searchEmbedding: number[] | null = null;
+  try {
+    if (geminiConfigured()) searchEmbedding = await embedText(searchText);
+  } catch (error) {
+    console.warn('Agent embedding failed; agent will use reputation search until re-embedded:', error);
   }
 
   const agentRef = db.collection('agents').doc();
@@ -218,7 +228,8 @@ export async function registerAgent(idToken: string, rawInput: RegisterAgentInpu
       supports_x402: !!input.payment_address,
       payment_address: input.payment_address || null,
       base_fee_cents: input.base_fee_cents,
-      search_text: `${input.name} ${input.handle}. ${input.introduction} ${input.system_instruction} Skills: ${input.specialties.join(', ')}.`,
+      search_text: searchText,
+      ...(searchEmbedding ? { search_embedding: FieldValue.vector(searchEmbedding) } : {}),
       status: 'active',
       availability: 'Active',
       verified: false,

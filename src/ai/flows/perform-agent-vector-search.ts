@@ -3,23 +3,25 @@
 /**
  * @fileOverview Reputation-weighted semantic agent search.
  *
- * 1. Embed the query (text-embedding-004, same model family the Firestore
- *    Vector Search extension uses to embed each agent's `search_text`).
- * 2. Firestore `findNearest` over `agents.embedding` (COSINE, top 50).
+ * 1. Embed the query with Gemini (same model that embeds each agent's
+ *    `search_text` into `search_embedding` at registration).
+ * 2. Firestore `findNearest` over `agents.search_embedding` (COSINE, top 50).
  * 3. Re-rank: similarity * (log10(verified_task_count + 1) + 1).
- * 4. Final relevance check by an LLM over the top 15.
+ * 4. Final relevance check by Jev (TypeSafe) over the top 15: one yes/no
+ *    question per candidate ("does this agent genuinely match?").
  *
- * If embeddings or the vector index are unavailable, falls back to active
- * agents sorted by verified work so search still returns something useful.
+ * Without keys, or once today's AI budget is used up, search still works:
+ * it falls back to active agents sorted by verified work.
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { initializeAdmin } from '@/firebase/admin';
 import { enforceSearchRateLimit, takeAiBudget } from '@/lib/search-guard';
+import { embedText, geminiConfigured } from '@/lib/ai/gemini';
+import { askJev, jevConfigured, noulOf, type JevQuestion } from '@/lib/ai/jev';
 
 const PerformAgentVectorSearchInputSchema = z.object({
-  query: z.string().describe('The search query describing the needed agent capability.'),
+  query: z.string(),
   location: z.string().optional(),
   timezone: z.string().optional(),
 });
@@ -46,43 +48,15 @@ const AgentSchema = z.object({
   base_fee_cents: z.number().optional(),
   last_heartbeat: z.number().optional(),
 });
+export type PerformAgentVectorSearchOutput = z.infer<typeof AgentSchema>[];
 
-const PerformAgentVectorSearchOutputSchema = z.array(AgentSchema);
-export type PerformAgentVectorSearchOutput = z.infer<typeof PerformAgentVectorSearchOutputSchema>;
-
-const EMBEDDING_MODEL = 'googleai/text-embedding-004';
 const VECTOR_POOL = 50;
 const RERANK_POOL = 15;
 const MAX_QUERY_LENGTH = 500;
+/** Candidates Jev rates below this are dropped (unless that would drop everyone). */
+const MATCH_THRESHOLD = 0.35;
 
-const rankingPrompt = ai.definePrompt({
-  name: 'agentRankingPrompt',
-  input: {
-    schema: z.object({
-      query: z.string(),
-      agents: z.array(z.any()),
-    }),
-  },
-  output: {
-    schema: z.object({
-      ranked_ids: z
-        .array(z.string())
-        .describe('IDs of agents that genuinely match the query, most relevant first. Omit agents that lack the requested skills.'),
-    }),
-  },
-  prompt: `You are the Discovery Engine for the Agent Garden.
-A user is looking for an AI agent with this intent: "{{query}}"
-
-Candidates were pre-ranked by semantic similarity weighted by verified work
-("PageRank for Agents": similarity * log10(verified jobs + 1)).
-
-{{#each agents}}
-- ID: {{id}} | Name: {{name}} | Intro: {{introduction}} | Specialties: {{#each specialties}}{{this}}, {{/each}} | Verified Jobs: {{verified_task_count}} | Reputation: {{reputation}}
-{{/each}}
-
-Confirm each candidate actually has the skills requested. Keep the pre-ranked
-order unless relevance clearly says otherwise. Return the matching IDs.`,
-});
+type Candidate = { id: string; data: any; score: number };
 
 function toNumberTimestamp(value: any): number | undefined {
   if (!value) return undefined;
@@ -116,103 +90,105 @@ function toPublicAgent(id: string, a: any): z.infer<typeof AgentSchema> {
   };
 }
 
+/** Jev relevance check: keeps genuine matches, most likely first. */
+async function rerankWithJev(query: string, top: Candidate[]): Promise<Candidate[]> {
+  const questions: Record<string, JevQuestion> = {};
+  top.forEach((c, i) => {
+    questions[`match_${i}`] = {
+      type: 'noul',
+      instructions: `Does candidate #${i} ("${String(c.data.name || '').slice(0, 80)}") genuinely have the skills the searcher is asking for?`,
+    };
+  });
+  const answers = await askJev(
+    {
+      searcher_request: query,
+      candidates: top.map((c, i) => ({
+        number: i,
+        name: c.data.name,
+        introduction: String(c.data.introduction || '').slice(0, 400),
+        specialties: (c.data.specialties || []).slice(0, 12),
+        verified_jobs: c.data.verified_task_count || 0,
+      })),
+    },
+    questions
+  );
+  const rated = top.map((c, i) => ({ c, p: noulOf(answers[`match_${i}`]) ?? 0 }));
+  const kept = rated.filter((r) => r.p >= MATCH_THRESHOLD);
+  if (kept.length === 0) return top;
+  // Relevance first, then the reputation-weighted score for ties.
+  return kept.sort((a, b) => b.p - a.p || b.c.score - a.c.score).map((r) => r.c);
+}
+
 export async function performAgentVectorSearch(
   input: PerformAgentVectorSearchInput
 ): Promise<PerformAgentVectorSearchOutput> {
   await enforceSearchRateLimit();
-  return performAgentVectorSearchFlow(input);
-}
+  const { query, location, timezone } = PerformAgentVectorSearchInputSchema.parse(input);
+  const queryText = query.trim().slice(0, MAX_QUERY_LENGTH);
+  if (!queryText) return [];
 
-const performAgentVectorSearchFlow = ai.defineFlow(
-  {
-    name: 'performAgentVectorSearchFlow',
-    inputSchema: PerformAgentVectorSearchInputSchema,
-    outputSchema: PerformAgentVectorSearchOutputSchema,
-  },
-  async (input) => {
-    const queryText = input.query.trim().slice(0, MAX_QUERY_LENGTH);
-    if (!queryText) return [];
+  const { db } = initializeAdmin();
+  const agentsRef = db.collection('agents');
+  let candidates: Candidate[] = [];
 
-    const { db } = initializeAdmin();
-    const agentsRef = db.collection('agents');
+  // 1-2. Semantic retrieval (skipped without a key or once today's budget is used)
+  try {
+    if (!geminiConfigured()) throw new Error('Gemini not configured');
+    if (!(await takeAiBudget('embed'))) throw new Error('Daily embedding budget reached');
+    const vector = await embedText(queryText);
+    const snapshot = await agentsRef
+      .findNearest({
+        vectorField: 'search_embedding',
+        queryVector: vector,
+        distanceMeasure: 'COSINE',
+        limit: VECTOR_POOL,
+        distanceResultField: '_distance',
+      })
+      .get();
+    candidates = snapshot.docs
+      .filter((d) => d.data().status === 'active')
+      .map((d) => {
+        const data = d.data();
+        const distance = typeof data._distance === 'number' ? data._distance : 1;
+        const similarity = 1 - distance / 2; // COSINE distance 0..2 -> similarity 1..0
+        const reputationWeight = Math.log10((data.verified_task_count || 0) + 1) + 1;
+        return { id: d.id, data, score: similarity * reputationWeight };
+      });
+  } catch (error) {
+    console.warn('Vector retrieval unavailable, using reputation fallback:', (error as Error).message);
+  }
 
-    type Candidate = { id: string; data: any; score: number };
-    let candidates: Candidate[] = [];
+  // Fallback: no embeddings (missing key, index or budget)
+  if (candidates.length === 0) {
+    const snapshot = await agentsRef.where('status', '==', 'active').limit(100).get();
+    candidates = snapshot.docs.map((d) => ({
+      id: d.id,
+      data: d.data(),
+      score: Math.log10((d.data().verified_task_count || 0) + 1),
+    }));
+  }
 
-    // 1-2. Semantic retrieval (skipped once today's embedding budget is used up)
-    try {
-      if (!(await takeAiBudget('embed'))) throw new Error('Daily embedding budget reached');
-      const [embedding] = await ai.embed({ embedder: EMBEDDING_MODEL, content: queryText });
-      const snapshot = await agentsRef
-        .findNearest({
-          vectorField: 'embedding',
-          queryVector: embedding.embedding,
-          distanceMeasure: 'COSINE',
-          limit: VECTOR_POOL,
-          distanceResultField: '_distance',
-        })
-        .get();
+  if (location) {
+    const loc = location.toLowerCase();
+    candidates = candidates.filter((c) => (c.data.location || '').toLowerCase() === loc);
+  }
+  if (timezone) candidates = candidates.filter((c) => c.data.timezone === timezone);
+  if (candidates.length === 0) return [];
 
-      candidates = snapshot.docs
-        .filter((d) => d.data().status === 'active')
-        .map((d) => {
-          const data = d.data();
-          const distance = typeof data._distance === 'number' ? data._distance : 1;
-          const similarity = 1 - distance / 2; // COSINE distance 0..2 -> similarity 1..0
-          const reputationWeight = Math.log10((data.verified_task_count || 0) + 1) + 1;
-          return { id: d.id, data, score: similarity * reputationWeight };
-        });
-    } catch (error) {
-      console.warn('Vector retrieval unavailable, using reputation fallback:', error);
-    }
+  // 3. Reputation-weighted order
+  candidates.sort((a, b) => b.score - a.score);
+  const top = candidates.slice(0, RERANK_POOL);
 
-    // Fallback: no embeddings yet (missing key, index or backfill)
-    if (candidates.length === 0) {
-      const snapshot = await agentsRef.where('status', '==', 'active').limit(100).get();
-      candidates = snapshot.docs.map((d) => ({
-        id: d.id,
-        data: d.data(),
-        score: Math.log10((d.data().verified_task_count || 0) + 1),
-      }));
-    }
-
-    // Optional structured filters
-    if (input.location) {
-      const loc = input.location.toLowerCase();
-      candidates = candidates.filter((c) => (c.data.location || '').toLowerCase() === loc);
-    }
-    if (input.timezone) {
-      candidates = candidates.filter((c) => c.data.timezone === input.timezone);
-    }
-    if (candidates.length === 0) return [];
-
-    // 3. Reputation-weighted order
-    candidates.sort((a, b) => b.score - a.score);
-    const top = candidates.slice(0, RERANK_POOL);
-
-    // 4. LLM relevance check over the short list
-    let ordered = top;
+  // 4. Jev relevance check over the short list
+  let ordered = top;
+  if (jevConfigured() && top.length > 1) {
     try {
       if (!(await takeAiBudget('rerank'))) throw new Error('Daily re-rank budget reached');
-      const { output } = await rankingPrompt({
-        query: queryText,
-        agents: top.map((c) => ({
-          id: c.id,
-          name: c.data.name,
-          introduction: c.data.introduction,
-          specialties: c.data.specialties || [],
-          verified_task_count: c.data.verified_task_count || 0,
-          reputation: c.data.reputation || 0,
-        })),
-      });
-      const ids = output?.ranked_ids ?? [];
-      const byId = new Map(top.map((c) => [c.id, c]));
-      const reranked = ids.map((id) => byId.get(id)).filter(Boolean) as Candidate[];
-      if (reranked.length > 0) ordered = reranked;
+      ordered = await rerankWithJev(queryText, top);
     } catch (error) {
-      console.warn('LLM re-rank unavailable, keeping reputation order:', error);
+      console.warn('Jev re-rank unavailable, keeping reputation order:', (error as Error).message);
     }
-
-    return ordered.map((c) => toPublicAgent(c.id, c.data));
   }
-);
+
+  return ordered.map((c) => toPublicAgent(c.id, c.data));
+}

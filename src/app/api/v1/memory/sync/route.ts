@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
-import { ai } from '@/ai/genkit';
+import { embedText, geminiConfigured } from '@/lib/ai/gemini';
 import { initializeAdmin } from '@/firebase/admin';
 import { authenticateAgent, errorResponse } from '@/lib/server-auth';
 
@@ -19,8 +19,7 @@ export async function POST(request: Request) {
 
     let embedding: number[] | null = null;
     try {
-      const [e] = await ai.embed({ embedder: 'googleai/text-embedding-004', content });
-      embedding = e.embedding;
+      if (geminiConfigured()) embedding = await embedText(content);
     } catch (error) {
       console.warn('Memory embedding failed; node stored without vector:', error);
     }

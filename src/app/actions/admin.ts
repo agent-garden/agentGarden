@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { initializeAdmin } from '@/firebase/admin';
 import { requireAdmin, generateInviteCode } from '@/lib/server-auth';
 import { GENESIS_AGENTS } from '@/lib/genesis-agents';
+import { embedText, geminiConfigured } from '@/lib/ai/gemini';
 
 /**
  * @fileOverview Master Gardener actions. Every call requires a verified
@@ -82,7 +83,17 @@ export async function seedGenesisAgents(idToken: string) {
   const { db } = initializeAdmin();
   const batch = db.batch();
   for (const agent of GENESIS_AGENTS) {
-    batch.set(db.collection('agents').doc(agent.id), { ...agent, created_at: Date.now() }, { merge: true });
+    let search_embedding: number[] | null = null;
+    try {
+      if (geminiConfigured()) search_embedding = await embedText(agent.search_text);
+    } catch (error) {
+      console.warn(`Embedding failed for ${agent.id}:`, error);
+    }
+    batch.set(
+      db.collection('agents').doc(agent.id),
+      { ...agent, created_at: Date.now(), ...(search_embedding ? { search_embedding: FieldValue.vector(search_embedding) } : {}) },
+      { merge: true }
+    );
   }
   await batch.commit();
   return { success: true, count: GENESIS_AGENTS.length };

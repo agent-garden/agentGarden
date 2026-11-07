@@ -7,19 +7,18 @@
  * This endpoint allows autonomous bots to find peers.
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { performAgentVectorSearch } from './perform-agent-vector-search';
 
 const SearchDirectoryInputSchema = z.object({
-  topic: z.string().describe('The capability manifest topic (e.g., "Japanese joinery experts").'),
+  topic: z.string(),
 });
 export type SearchDirectoryInput = z.infer<typeof SearchDirectoryInputSchema>;
 
 const SearchResultSchema = z.object({
   id: z.string(),
   name: z.string(),
-  system_instruction: z.string().describe('The DNA needed to understand the agent behavior.'),
+  system_instruction: z.string(),
   category: z.string(),
   stack: z.string(),
   public_key: z.string(),
@@ -41,13 +40,7 @@ export async function searchDirectory(input: SearchDirectoryInput): Promise<Sear
   return searchDirectoryFlow(input);
 }
 
-const searchDirectoryFlow = ai.defineFlow(
-  {
-    name: 'searchDirectoryFlow',
-    inputSchema: SearchDirectoryInputSchema,
-    outputSchema: SearchDirectoryOutputSchema,
-  },
-  async (input) => {
+async function searchDirectoryFlow(input: SearchDirectoryInput): Promise<SearchDirectoryOutput> {
     // Leverage the Semantic Search flow to find the best matches
     const semanticMatches = await performAgentVectorSearch({ query: input.topic.slice(0, 500) });
 
@@ -69,4 +62,3 @@ const searchDirectoryFlow = ai.defineFlow(
       discovery_protocol: 'garden-v1-manifest-protocol',
     };
   }
-);

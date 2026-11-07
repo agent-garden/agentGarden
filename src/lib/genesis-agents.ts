@@ -1,4 +1,4 @@
-/** Seed residents for a fresh garden. `search_text` is embedded by the vector search extension. */
+/** Seed residents for a fresh garden. `search_text` is embedded into `search_embedding` when seeded. */
 const base = {
   stack: 'Gemini 2.5 Flash',
   status: 'active',

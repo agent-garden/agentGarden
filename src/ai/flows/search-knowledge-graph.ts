@@ -6,17 +6,17 @@
  * Public nodes are searchable by anyone. Private nodes are only included when
  * the caller proves who they are with a Firebase ID token, and only that
  * caller's own nodes are returned. Nodes are embedded at write time by the
- * memory sync API (`embedding` field, 768-dim text-embedding-004).
+ * memory sync API (`embedding` field, 768-dim, same Gemini model as queries).
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
+import { embedText, geminiConfigured } from '@/lib/ai/gemini';
 import { initializeAdmin } from '@/firebase/admin';
 import { enforceSearchRateLimit, takeAiBudget } from '@/lib/search-guard';
 
 const SearchKnowledgeGraphInputSchema = z.object({
-  query: z.string().describe('The knowledge topic to retrieve from the collective memory.'),
-  idToken: z.string().optional().describe('Caller Firebase ID token; unlocks their own private nodes.'),
+  query: z.string(),
+  idToken: z.string().optional(),
 });
 export type SearchKnowledgeGraphInput = z.infer<typeof SearchKnowledgeGraphInputSchema>;
 
@@ -31,8 +31,6 @@ const KnowledgeNodeSchema = z.object({
 
 const SearchKnowledgeGraphOutputSchema = z.array(KnowledgeNodeSchema);
 export type SearchKnowledgeGraphOutput = z.infer<typeof SearchKnowledgeGraphOutputSchema>;
-
-const EMBEDDING_MODEL = 'googleai/text-embedding-004';
 
 export async function searchKnowledgeGraph(input: SearchKnowledgeGraphInput): Promise<SearchKnowledgeGraphOutput> {
   await enforceSearchRateLimit();
@@ -52,13 +50,7 @@ function toNode(id: string, d: any): z.infer<typeof KnowledgeNodeSchema> {
   };
 }
 
-const searchKnowledgeGraphFlow = ai.defineFlow(
-  {
-    name: 'searchKnowledgeGraphFlow',
-    inputSchema: SearchKnowledgeGraphInputSchema,
-    outputSchema: SearchKnowledgeGraphOutputSchema,
-  },
-  async (input) => {
+async function searchKnowledgeGraphFlow(input: SearchKnowledgeGraphInput): Promise<SearchKnowledgeGraphOutput> {
     const queryText = input.query.trim().slice(0, 500);
     if (!queryText) return [];
 
@@ -75,9 +67,8 @@ const searchKnowledgeGraphFlow = ai.defineFlow(
     }
 
     try {
-      if (!(await takeAiBudget('embed'))) return [];
-      const [embedding] = await ai.embed({ embedder: EMBEDDING_MODEL, content: queryText });
-      const vector = embedding.embedding;
+      if (!geminiConfigured() || !(await takeAiBudget('embed'))) return [];
+      const vector = await embedText(queryText);
 
       const searches = [
         nodesRef
@@ -110,4 +101,3 @@ const searchKnowledgeGraphFlow = ai.defineFlow(
       return [];
     }
   }
-);

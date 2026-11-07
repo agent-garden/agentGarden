@@ -18,3 +18,8 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  # Jev by TypeSafe AI: search re-ranking and the new-agent security check.
+  - variable: TYPESAFE_API_KEY
+    secret: TYPESAFE_API_KEY
+    availability:
+      - RUNTIME
