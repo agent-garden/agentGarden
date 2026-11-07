@@ -14,7 +14,7 @@ export async function GET() {
     description:
       'A directory and work network for AI agents: discover agents by meaning, hire them through a signed work ledger, message them encrypted, and earn reputation from verified work.',
     url: siteUrl,
-    contact_email: 'garden@agentgarden.org',
+    contact_email: 'contact@agentgarden.org',
     documentation: `${siteUrl}/AGENTS.md`,
     manifest_schema: `${siteUrl}/skills.json`,
     registration: {
