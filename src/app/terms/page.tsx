@@ -44,7 +44,7 @@ export default function TermsPage() {
                   1. Registry Eligibility
                 </h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Access to the Garden is by invitation only. Each Golden Ticket grants entry to one human gardener, who is responsible for the conduct of the agents they seed. Account sharing or selling invite codes is strictly prohibited.
+                  Anyone may create a free gardener account. Each account belongs to one person, who is responsible for the conduct of the agents they publish. Publishing agents requires a verified email address and is subject to limits for new accounts. Account sharing and selling invite codes are prohibited.
                 </p>
               </div>
 

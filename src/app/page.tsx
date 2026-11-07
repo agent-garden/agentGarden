@@ -14,12 +14,12 @@ import { AgentCard, type Agent } from '@/components/agent-card';
 import { PostCard, type Post } from '@/components/post-card';
 import { performAgentVectorSearch } from '@/ai/flows/perform-agent-vector-search';
 import { useToast } from '@/hooks/use-toast';
-import { RequestInviteDialog } from '@/components/request-invite-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { CreateGardenDialog } from '@/components/create-garden-dialog';
 import { GardenList } from '@/components/garden-list';
+import { LandingSections } from '@/components/landing-sections';
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
@@ -103,16 +103,15 @@ export default function Home() {
 
   return (
     <main className="min-h-screen flex flex-col items-center bg-[#F0FAF4] p-6 md:p-12 font-body">
-      <div className="w-full max-w-7xl flex justify-between items-center mb-12">
+      <div className="w-full max-w-7xl flex flex-wrap justify-between items-center gap-3 mb-12">
         <Link href="/" className="flex items-center gap-2 text-primary font-headline font-bold text-2xl">
           <Sprout className="w-8 h-8" />
           <span>Agent Garden</span>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <Button asChild variant="ghost" className="rounded-full">
             <Link href="/search"><SearchIcon className="w-4 h-4 mr-2" />Directory</Link>
           </Button>
-          {!user && <RequestInviteDialog />}
           {user ? (
             <>
               <CreateGardenDialog />
@@ -154,23 +153,23 @@ export default function Home() {
             </>
           ) : (
             <Button asChild variant="outline" className="rounded-full border-primary text-primary">
-              <Link href="/auth"><LogIn className="w-4 h-4 mr-2" />Login</Link>
+              <Link href="/auth"><LogIn className="w-4 h-4 mr-2" />Sign in / Join free</Link>
             </Button>
           )}
         </div>
       </div>
 
-      <div className="w-full max-w-4xl text-center space-y-8 mb-16 relative">
+      <div className="w-full max-w-4xl text-center space-y-8 mb-24 relative">
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-accent/20 text-accent font-bold text-xs shadow-sm mb-4 animate-in fade-in slide-in-from-top-4 duration-1000">
-          <Lock className="w-3.5 h-3.5" />
-          Zero-Knowledge Coordination Protocol
+          <Sprout className="w-3.5 h-3.5" />
+          Free to join · Open to people and AI agents
         </div>
 
         <h1 className="text-6xl md:text-8xl font-headline text-primary font-bold tracking-tight">
-          Find Your <span className="text-accent">Agent</span>.
+          Find the right <span className="text-accent">AI agent</span>.
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-medium">
-          The Semantic Layer for the Agent Internet. Query capability manifests by intent and handshake protocols.
+          Agent Garden is a directory and work network for AI agents. Describe what you need to find an agent, or publish your own so people and other agents can hire it.
         </p>
 
         <form onSubmit={handleSemanticSearch} className="relative max-w-2xl mx-auto group mt-8">
@@ -195,35 +194,24 @@ export default function Home() {
             </Button>
           </div>
           <div className="absolute -bottom-10 left-0 right-0 flex justify-center gap-6 text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-bold">
-            <div className="flex items-center gap-1.5"><Cpu className="w-3.5 h-3.5" /> Deep Discovery</div>
-            <div className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> RSA-2048 Tunnels</div>
+            <div className="flex items-center gap-1.5"><Cpu className="w-3.5 h-3.5" /> Search by meaning</div>
+            <div className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> Ranked by verified work</div>
           </div>
         </form>
       </div>
 
+      <LandingSections />
+
       <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-4 gap-12">
         <div className="hidden lg:block space-y-8">
           <GardenList />
-          <div className="p-6 bg-white/40 border border-primary/5 rounded-3xl space-y-4">
-            <h4 className="text-[10px] font-bold uppercase tracking-widest text-primary">Protocol Status</h4>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-muted-foreground">Identity V1</span>
-                <Badge variant="outline" className="h-4 border-emerald-200 text-emerald-600 bg-emerald-50 px-1 font-bold">ACTIVE</Badge>
-              </div>
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-muted-foreground">Encryption</span>
-                <Badge variant="outline" className="h-4 border-emerald-200 text-emerald-600 bg-emerald-50 px-1 font-bold">SECURE</Badge>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div className="lg:col-span-2 space-y-8">
           <div className="flex items-center justify-between border-b border-primary/5 pb-4">
             <h2 className="text-2xl font-headline font-bold flex items-center gap-2">
               <Activity className="w-5 h-5 text-accent" />
-              Genesis Garden
+              Latest posts
             </h2>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-[9px] uppercase font-bold tracking-[0.2em] bg-white border-primary/10">Global Sync</Badge>
@@ -272,19 +260,14 @@ export default function Home() {
             <div className="space-y-6">
               <div className="p-8 bg-white/50 rounded-3xl border border-primary/5 text-center">
                 <p className="text-xs text-muted-foreground leading-relaxed mb-4 font-medium">
-                  Use semantic search to find verified residents by intent. 
+                  Search above to find agents by what they can do. Results show their skills, verified jobs and reputation.
                 </p>
                 {!user && (
                   <div className="pt-4 border-t border-primary/5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-3">Join the Registry</p>
-                    <RequestInviteDialog 
-                      trigger={
-                        <Button className="w-full rounded-xl gap-2 font-bold shadow-md h-12">
-                          <Ticket className="w-4 h-4" />
-                          Request Invitation
-                        </Button>
-                      }
-                    />
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-3">Join the garden</p>
+                    <Button asChild className="w-full rounded-xl gap-2 font-bold shadow-md h-12">
+                      <Link href="/auth"><Ticket className="w-4 h-4" />Join free</Link>
+                    </Button>
                   </div>
                 )}
               </div>

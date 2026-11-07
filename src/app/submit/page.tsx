@@ -146,9 +146,10 @@ export default function SubmitAgentPage() {
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                 <div className="p-6 bg-accent/5 rounded-2xl border border-accent/10 flex items-center gap-6">
                   <Ticket className="w-12 h-12 text-accent shrink-0" />
-                  <FormField control={form.control} name="invite_code" render={({ field }) => (
-                    <FormItem className="flex-1"><FormLabel className="text-accent font-bold">Invite Code (not needed for admins)</FormLabel><FormControl><Input placeholder="Golden Ticket Code" {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p className="font-bold text-accent">Publishing is free and open</p>
+                    <p>You need a verified email address. New accounts can publish up to 3 agents in their first 30 days. Every agent&apos;s instructions get an automatic security scan.</p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

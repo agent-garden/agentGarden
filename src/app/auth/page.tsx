@@ -25,7 +25,7 @@ import { useAuth, useUser } from '@/firebase';
 import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
 import { checkInviteCode, completeSignup, getProfileStatus } from '@/app/actions/onboarding';
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { GoogleAuthProvider, sendEmailVerification, signInWithPopup, signOut } from 'firebase/auth';
 import { RequestInviteDialog } from '@/components/request-invite-dialog';
 
 const authSchema = z.object({
@@ -102,10 +102,6 @@ function AuthPageContent() {
   async function onFinishJoining() {
     if (!user) return;
     const code = (form.getValues('inviteCode') || '').trim();
-    if (!code) {
-      form.setError("inviteCode", { message: "Invite code is required to finish joining." });
-      return;
-    }
     setIsSubmitting(true);
     try {
       await completeSignup(await user.getIdToken(), code, false);
@@ -143,25 +139,16 @@ function AuthPageContent() {
   }
 
   async function onSignUp(values: z.infer<typeof authSchema>) {
-    if (!values.inviteCode) {
-      form.setError("inviteCode", { message: "Invite code is required for registration." });
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      const code = values.inviteCode.trim();
-      const precheck = await checkInviteCode(code);
-      if (!precheck.valid) {
-        throw new Error("Invalid or exhausted invite code. Request an invite from the garden.");
-      }
-
-      // Create the Auth user, then let the server burn the code and create the profile.
+      // Sign-up is open. An invite code is optional and only recorded if valid.
+      const code = (values.inviteCode || '').trim();
       const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
+      await sendEmailVerification(userCredential.user).catch(() => {});
       const idToken = await userCredential.user.getIdToken();
       await completeSignup(idToken, code);
 
-      toast({ title: "Account Created!", description: "Welcome to the garden. Your 30 monthly invites are ready." });
+      toast({ title: "Account Created!", description: "Check your email for a verification link. You'll need it to publish an agent." });
       setNeedsInvite(false);
       router.push(redirect);
     } catch (error: any) {
@@ -213,8 +200,8 @@ function AuthPageContent() {
                     name="inviteCode"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="flex items-center gap-2 text-accent font-bold"><Ticket className="w-4 h-4" />Invite Code</FormLabel>
-                        <FormControl><Input placeholder="Enter your Golden Ticket" {...field} className="rounded-xl" /></FormControl>
+                        <FormLabel className="flex items-center gap-2 text-accent font-bold"><Ticket className="w-4 h-4" />Invite Code (optional)</FormLabel>
+                        <FormControl><Input placeholder="Have an invite code? Enter it here" {...field} className="rounded-xl" /></FormControl>
                         <FormDescription className="text-[10px] flex items-center gap-2">
                           No code yet?
                           <RequestInviteDialog trigger={<button type="button" className="text-primary hover:underline text-[10px]">Request one</button>} />
@@ -291,12 +278,12 @@ function AuthPageContent() {
                         <FormItem className="pt-2">
                           <FormLabel className="flex items-center gap-2 text-accent font-bold">
                             <Ticket className="w-4 h-4" />
-                            Invite Code
+                            Invite Code (optional)
                           </FormLabel>
                           <FormControl>
                             <div className="relative">
                               <Input 
-                                placeholder="Enter your Golden Ticket" 
+                                placeholder="Have an invite code? Enter it here" 
                                 {...field} 
                                 className={`rounded-xl border-accent/20 focus:border-accent ${urlCode ? 'bg-muted pr-10' : ''}`}
                                 readOnly={!!urlCode}
@@ -307,7 +294,7 @@ function AuthPageContent() {
                             </div>
                           </FormControl>
                           <FormDescription className="text-[10px] flex items-center gap-2">
-                            {urlCode ? "Invite code applied from link." : "Required for entry to the gardener registry."}
+                            {urlCode ? "Invite code applied from link." : "Optional. Sign-up is open to everyone."}
                             {!urlCode && (
                               <RequestInviteDialog 
                                 trigger={

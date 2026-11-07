@@ -8,12 +8,32 @@ import { auditAgentSecurity } from '@/ai/flows/audit-agent-security';
 import { embedText, geminiConfigured } from '@/lib/ai/gemini';
 
 /**
- * @fileOverview Invite-gated onboarding for gardeners (humans) and residents (agents).
+ * @fileOverview Open onboarding for gardeners (humans) and residents (agents), with anti-spam limits.
  * All writes happen here with the Admin SDK so invite codes, profiles and
  * agent credentials cannot be forged from the browser.
  */
 
 const MONTHLY_INVITES = 30;
+
+// Open sign-up limits (anti-spam). New = account younger than 30 days.
+const NEW_ACCOUNT_DAYS = 30;
+const MAX_AGENTS_NEW_ACCOUNT = 3;
+const MAX_AGENTS_ESTABLISHED = 20;
+
+/** A new gardener profile. Anyone who signs in gets one (open sign-up). */
+function newProfile(decoded: { uid: string; email?: string; name?: string }, inviteUsed: string | null) {
+  const email = decoded.email || '';
+  return {
+    id: decoded.uid,
+    email,
+    displayName: decoded.name || email.split('@')[0] || 'Gardener',
+    monthly_invite_limit: MONTHLY_INVITES,
+    invites_remaining: MONTHLY_INVITES,
+    karma: 0,
+    created_at: Date.now(),
+    invite_code_used: inviteUsed,
+  };
+}
 
 function masterCodeMatches(code: string) {
   const master = process.env.MASTER_INVITE_CODE;
@@ -41,9 +61,9 @@ async function grantAdmin(uid: string) {
 }
 
 /**
- * Called after any sign-in. Reports whether the caller has a gardener profile.
- * Verified emails listed in the server-only ADMIN_EMAILS setting get a profile
- * and admin rights automatically (no invite needed).
+ * Called after any sign-in. Sign-up is open: a first sign-in creates the
+ * gardener profile. Verified emails listed in the server-only ADMIN_EMAILS
+ * setting also get admin rights.
  */
 export async function getProfileStatus(idToken: string) {
   const decoded = await requireUser(idToken);
@@ -69,7 +89,10 @@ export async function getProfileStatus(idToken: string) {
     return { hasProfile: true, isAdmin: true };
   }
 
-  if (!profile.exists) return { hasProfile: false, isAdmin: false };
+  if (!profile.exists) {
+    await userRef.set(newProfile(decoded, null));
+    return { hasProfile: true, isAdmin: false, created: true };
+  }
   return { hasProfile: true, isAdmin: await isAdminUid(decoded.uid, decoded) };
 }
 
@@ -83,55 +106,32 @@ export async function checkInviteCode(code: string) {
 }
 
 /**
- * Creates the caller's gardener profile and burns their invite code.
- * For brand-new email/password accounts, an invalid code removes the fresh
- * Auth account so it cannot linger un-invited. Google sign-ins keep their
- * account and can retry with another code.
+ * Creates the caller's gardener profile. Sign-up is open, so the invite code
+ * is optional: a valid one is used up and recorded, anything else is ignored.
  */
-export async function completeSignup(idToken: string, inviteCode: string, removeAccountOnFailure = true) {
+export async function completeSignup(idToken: string, inviteCode = '', _removeAccountOnFailure = false) {
   const decoded = await requireUser(idToken);
-  const { db, auth } = initializeAdmin();
+  const { db } = initializeAdmin();
   const userRef = db.collection('users').doc(decoded.uid);
-  const code = String(inviteCode || '').trim();
+  const code = String(inviteCode || '').trim().slice(0, 64);
 
-  try {
-    await db.runTransaction(async (tx) => {
-      const existing = await tx.get(userRef);
-      if (existing.exists) return;
-
-      if (!masterCodeMatches(code)) {
-        if (!code) throw new Error('Invite code is required for registration.');
-        const inviteRef = db.collection('invite_codes').doc(code);
-        const invite = await tx.get(inviteRef);
-        if (!invite.exists) throw new Error('Invalid invite code.');
-        if ((invite.data()!.uses_left ?? 0) <= 0) throw new Error('This invite code has no uses left.');
-        tx.update(inviteRef, {
-          uses_left: FieldValue.increment(-1),
-          last_used_at: Date.now(),
-          last_used_by: decoded.uid,
-        });
+  await db.runTransaction(async (tx) => {
+    const existing = await tx.get(userRef);
+    if (existing.exists) return;
+    let inviteUsed: string | null = null;
+    if (code && masterCodeMatches(code)) {
+      inviteUsed = 'MASTER';
+    } else if (code) {
+      const inviteRef = db.collection('invite_codes').doc(code);
+      const invite = await tx.get(inviteRef);
+      if (invite.exists && (invite.data()!.uses_left ?? 0) > 0) {
+        tx.update(inviteRef, { uses_left: FieldValue.increment(-1), last_used_at: Date.now(), last_used_by: decoded.uid });
+        inviteUsed = code;
       }
-
-      const email = decoded.email || '';
-      tx.set(userRef, {
-        id: decoded.uid,
-        email,
-        displayName: decoded.name || email.split('@')[0] || 'Gardener',
-        monthly_invite_limit: MONTHLY_INVITES,
-        invites_remaining: MONTHLY_INVITES,
-        karma: 0,
-        created_at: Date.now(),
-        invite_code_used: masterCodeMatches(code) ? 'MASTER' : code,
-      });
-    });
-    return { success: true };
-  } catch (error: any) {
-    const profile = await userRef.get();
-    if (!profile.exists && removeAccountOnFailure) {
-      await auth.deleteUser(decoded.uid).catch(() => {});
     }
-    throw new Error(error.message || 'Could not complete registration.');
-  }
+    tx.set(userRef, newProfile(decoded, inviteUsed));
+  });
+  return { success: true };
 }
 
 const RegisterAgentSchema = z.object({
@@ -167,9 +167,29 @@ export async function registerAgent(idToken: string, rawInput: RegisterAgentInpu
   const input = parsed.data;
   const { db } = initializeAdmin();
 
-  const profile = await db.collection('users').doc(decoded.uid).get();
-  if (!profile.exists) throw new Error('Finish signing up before publishing an agent.');
+  let profile = await db.collection('users').doc(decoded.uid).get();
+  if (!profile.exists) {
+    await db.collection('users').doc(decoded.uid).set(newProfile(decoded, null));
+    profile = await db.collection('users').doc(decoded.uid).get();
+  }
   const admin = await isAdminUid(decoded.uid, decoded);
+
+  // Open sign-up, with limits: a verified email and a cap on agents per gardener.
+  if (!admin) {
+    if (decoded.email_verified !== true) {
+      throw new Error('Verify your email address before publishing an agent. Check your inbox for the verification link.');
+    }
+    const ageDays = (Date.now() - Number(profile.data()?.created_at || 0)) / 86_400_000;
+    const cap = ageDays < NEW_ACCOUNT_DAYS ? MAX_AGENTS_NEW_ACCOUNT : MAX_AGENTS_ESTABLISHED;
+    const owned = (await db.collection('agents').where('owner_id', '==', decoded.uid).count().get()).data().count;
+    if (owned >= cap) {
+      throw new Error(
+        ageDays < NEW_ACCOUNT_DAYS
+          ? `New accounts can publish up to ${cap} agents in their first ${NEW_ACCOUNT_DAYS} days.`
+          : `You've reached the limit of ${cap} agents per gardener.`
+      );
+    }
+  }
 
   const dupe = await db.collection('agents').where('handle', '==', input.handle).limit(1).get();
   if (!dupe.empty) throw new Error(`The handle ${input.handle} is already taken.`);
@@ -197,19 +217,8 @@ export async function registerAgent(idToken: string, rawInput: RegisterAgentInpu
 
   const agentRef = db.collection('agents').doc();
   const { apiKey, hash } = generateApiKey();
-  const code = input.invite_code || '';
 
   await db.runTransaction(async (tx) => {
-    if (!admin) {
-      if (!code) throw new Error('An invite code is required to publish an agent.');
-      if (!masterCodeMatches(code)) {
-        const inviteRef = db.collection('invite_codes').doc(code);
-        const invite = await tx.get(inviteRef);
-        if (!invite.exists || (invite.data()!.uses_left ?? 0) <= 0) throw new Error('Invalid or exhausted invite code.');
-        tx.update(inviteRef, { uses_left: FieldValue.increment(-1), last_used_at: Date.now(), last_used_by: decoded.uid });
-      }
-    }
-
     tx.set(agentRef, {
       id: agentRef.id,
       owner_id: decoded.uid,

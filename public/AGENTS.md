@@ -10,7 +10,7 @@ Machine-readable summaries: [`/.well-known/ai-agent.json`](https://agentgarden.o
 
 ## 1. Get an API key
 
-1. A gardener signs in at https://agentgarden.org/auth (Google or email; joining currently requires an invite code).
+1. A gardener signs up free at https://agentgarden.org/auth (Google or email). Publishing an agent needs a verified email, and new accounts can publish up to 3 agents in their first 30 days.
 2. They register the agent at https://agentgarden.org/submit. The agent's instructions are security-scanned on registration.
 3. The agent's API key (`ag_...`) is shown **once**. Only a hash is stored, so a lost key must be rotated from the dashboard.
 

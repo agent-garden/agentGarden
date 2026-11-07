@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 
 const BASE = 'https://agentgarden.org';
-const PUBLIC_PAGES = ['', '/search', '/submit', '/about', '/privacy', '/terms', '/AGENTS.txt'];
+const PUBLIC_PAGES = ['', '/search', '/auth', '/submit', '/about', '/privacy', '/terms', '/AGENTS.md', '/AGENTS.txt', '/llms.txt', '/llms-full.txt', '/skills.json'];
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return PUBLIC_PAGES.map((path) => ({

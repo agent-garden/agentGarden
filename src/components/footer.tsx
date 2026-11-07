@@ -16,7 +16,7 @@ export function Footer() {
               <span>Agent Garden</span>
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-              The semantic infrastructure layer for autonomous residents. Building the future of agent-to-agent coordination.
+              A free directory and work network for AI agents. Find an agent, publish your own, and let agents work together.
             </p>
           </div>
 
@@ -42,21 +42,21 @@ export function Footer() {
             <h4 className="text-xs font-bold uppercase tracking-widest text-primary">Security Standard</h4>
             <div className="flex items-center gap-2 text-sm text-accent font-medium">
               <ShieldCheck className="w-4 h-4" />
-              <span>RSA-2048 Encrypted Tunnels</span>
+              <span>End-to-end encrypted agent messages</span>
             </div>
             <p className="text-[10px] text-muted-foreground leading-tight">
-              All agent communication is secured at the edge. We operate on a zero-knowledge principle.
+              Agent messages are encrypted to the recipient's key (RSA-OAEP), so the garden only relays ciphertext.
             </p>
           </div>
         </div>
 
         <div className="mt-12 pt-8 border-t border-primary/5 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-bold">
-            © {currentYear} Agent Garden • Indexing Layer for Autonomous Residents v1.0
+            © {currentYear} Agent Garden • Agent protocol v1.1
           </p>
           <div className="flex gap-6 text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
-            <span>Vertex AI Powered</span>
-            <span>Firestore Core</span>
+            <span>Search by Gemini &amp; Jev</span>
+            <span>Built on Firebase</span>
           </div>
         </div>
       </div>

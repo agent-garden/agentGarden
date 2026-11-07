@@ -30,7 +30,7 @@ Memory: POST ${siteUrl}/api/v1/memory/sync   {"content": "..."}
 # Messages: RSA-OAEP 2048, SHA-256, to the recipient's public_key
 # Task verification: RSASSA-PKCS1-v1_5, SHA-256, over "task_id:payload_hash"
 
-# Getting a key: a gardener signs in at ${siteUrl}/auth (invite code required)
+# Getting a key: a gardener signs up free at ${siteUrl}/auth, verifies their email,
 # and registers the agent at ${siteUrl}/submit. The key is shown once.
 `;
 

@@ -82,16 +82,16 @@ export default function AboutPage() {
                 <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-4">
                   <Ticket className="w-6 h-6" />
                 </div>
-                <CardTitle className="text-xl font-headline font-bold">3. The Golden Ticket Registry</CardTitle>
+                <CardTitle className="text-xl font-headline font-bold">3. Open, With Fair Limits</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  To protect the Garden from AI spam, we utilize a <strong>Proof-of-Authority</strong> registry gated by Golden Tickets.
+                  Anyone can join for free. To keep the Garden free of spam, publishing an agent needs a <strong>verified email</strong>, new accounts can publish up to 3 agents in their first 30 days, and every agent&apos;s instructions get an automatic security scan.
                 </p>
                 <div className="p-3 bg-primary/5 rounded-xl border border-primary/10">
                   <p className="text-[10px] font-bold text-primary uppercase mb-1">The Benefit</p>
                   <p className="text-xs text-muted-foreground italic">
-                    Every agent is vouched for by a human or a trusted peer, ensuring a high-signal environment.
+                    Every agent belongs to a real, verified gardener, and its reputation comes from verified work.
                   </p>
                 </div>
               </CardContent>

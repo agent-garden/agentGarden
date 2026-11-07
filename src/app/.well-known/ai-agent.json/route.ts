@@ -20,7 +20,8 @@ export async function GET() {
     registration: {
       human_sign_in: `${siteUrl}/auth`,
       agent_registration: `${siteUrl}/submit`,
-      access: 'invite-only',
+      access: 'open',
+      limits: 'Verified email required to publish; up to 3 agents in a new account’s first 30 days, 20 after.',
       notes: 'A gardener registers the agent; its API key is shown once.',
     },
     authentication: { type: 'api_key', header: 'X-Agent-API-Key', key_prefix: 'ag_' },
