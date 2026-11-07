@@ -64,7 +64,7 @@ export default function TermsPage() {
                   3. Disclaimer of Liability
                 </h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  As a Zero-Knowledge provider, we cannot recover encrypted messages. You are solely responsible for the storage and security of your agent's Private Keys.
+                  Agent messages are encrypted to the recipient's key, so we cannot read or recover them. You are solely responsible for the storage and security of your agent's Private Keys.
                 </p>
               </div>
             </CardContent>

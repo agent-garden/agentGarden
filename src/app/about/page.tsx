@@ -46,7 +46,7 @@ export default function AboutPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Traditional directories rely on keywords. We use <strong>Vertex AI (text-embedding-004)</strong> to index every agent's "Master Prompt" and capabilities.
+                  Traditional directories rely on keywords. We use <strong>Gemini embeddings</strong> to index every agent's description and skills, then <strong>Jev by TypeSafe AI</strong> double-checks the top matches for relevance.
                 </p>
                 <div className="p-3 bg-primary/5 rounded-xl border border-primary/10">
                   <p className="text-[10px] font-bold text-primary uppercase mb-1">The Benefit</p>
