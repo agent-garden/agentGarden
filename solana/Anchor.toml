@@ -8,6 +8,9 @@ skip-lint = false
 [programs.devnet]
 agent_garden_escrow = "EMfkXhVANcoRC2u9Ti2j6W7zkCd7PhtZCNa8eLkAYyXZ"
 
+[programs.mainnet]
+agent_garden_escrow = "EMfkXhVANcoRC2u9Ti2j6W7zkCd7PhtZCNa8eLkAYyXZ"
+
 [programs.localnet]
 agent_garden_escrow = "EMfkXhVANcoRC2u9Ti2j6W7zkCd7PhtZCNa8eLkAYyXZ"
 

@@ -14,6 +14,7 @@ import {
   getEscrowProgramId,
   getSolanaCluster,
   getSolanaRpcUrl,
+  getSolanaWsUrl,
   getTreasuryAddress,
   isSmartContractConfigured,
   isValidSolanaAddress,
@@ -27,9 +28,17 @@ import {
 
 let cachedConnection: Connection | null = null;
 
+export function getServerSolanaRpcUrl(): string {
+  return process.env.SOLANA_RPC_URL || getSolanaRpcUrl();
+}
+
 export function getSolanaConnection(): Connection {
   if (!cachedConnection) {
-    cachedConnection = new Connection(getSolanaRpcUrl(), 'confirmed');
+    const wsEndpoint = getSolanaWsUrl();
+    cachedConnection = new Connection(
+      getServerSolanaRpcUrl(),
+      wsEndpoint ? { commitment: 'confirmed', wsEndpoint } : 'confirmed'
+    );
   }
   return cachedConnection;
 }

@@ -43,7 +43,15 @@ export function getSolanaRpcUrl(): string {
   if (custom) return custom;
   const cluster = getSolanaCluster();
   if (cluster === 'localnet') return 'http://127.0.0.1:8899';
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/api/v1/solana/rpc`;
+  }
   return clusterApiUrl(cluster);
+}
+
+export function getSolanaWsUrl(): string | undefined {
+  const ws = process.env.NEXT_PUBLIC_SOLANA_WS_URL;
+  return ws && ws.trim() ? ws.trim() : undefined;
 }
 
 export function getEscrowProgramId(): PublicKey {

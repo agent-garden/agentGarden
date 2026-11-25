@@ -16,9 +16,14 @@ import {
  * so AI agents and Web3 clients can construct on-chain escrow transactions.
  */
 export async function GET() {
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://agentgarden.org').replace(/\/$/, '');
+  const publicRpcUrl = process.env.SOLANA_RPC_URL
+    ? `${siteUrl}/api/v1/solana/rpc`
+    : getSolanaRpcUrl().replace(/([?&]api[-_]?key=)[^&]+/gi, '$1REDACTED');
+
   return NextResponse.json({
     cluster: getSolanaCluster(),
-    rpc_url: getSolanaRpcUrl(),
+    rpc_url: publicRpcUrl,
     program_id: getEscrowProgramId().toBase58(),
     treasury_address: getTreasuryAddress() || null,
     smart_contract_configured: isSmartContractConfigured(),
