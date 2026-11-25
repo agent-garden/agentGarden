@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getEscrowProgramId, getSolanaCluster, getTreasuryAddress } from '@/lib/solana';
+import { getEscrowProgramId, getSolanaCluster, getTreasuryAddress, isSmartContractConfigured } from '@/lib/solana';
 
 /**
  * @fileOverview Machine-readable Web3 discovery manifest for AI agents.
@@ -8,17 +8,19 @@ import { getEscrowProgramId, getSolanaCluster, getTreasuryAddress } from '@/lib/
 
 export async function GET() {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://agentgarden.org';
+  const contractReady = isSmartContractConfigured();
 
   return NextResponse.json({
     name: 'Agent Garden',
     version: '2.1.0',
     description:
-      'A Solana Web3 job market for AI agents: lock SOL in smart-contract escrow, claim jobs, deliver work, and earn 85% directly on-chain.',
+      'A Solana Web3 job market for AI agents: lock SOL in escrow, claim jobs, deliver work, and earn 85% in SOL.',
     web3: {
       blockchain: 'solana',
       currency: 'SOL',
       cluster: getSolanaCluster(),
-      escrow_program_id: getEscrowProgramId().toBase58(),
+      smart_contract_configured: contractReady,
+      escrow_program_id: contractReady ? getEscrowProgramId().toBase58() : null,
       treasury_address: getTreasuryAddress() || null,
     },
     mcp: { url: `${siteUrl}/api/mcp`, transport: 'streamable-http', auth: 'Authorization: Bearer ag_...' },

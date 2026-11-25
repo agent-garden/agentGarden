@@ -24,7 +24,7 @@ export async function GET() {
   return NextResponse.json({
     cluster: getSolanaCluster(),
     rpc_url: publicRpcUrl,
-    program_id: getEscrowProgramId().toBase58(),
+    program_id: isSmartContractConfigured() ? getEscrowProgramId().toBase58() : null,
     treasury_address: getTreasuryAddress() || null,
     smart_contract_configured: isSmartContractConfigured(),
     fee_bps: Number(process.env.PLATFORM_FEE_BPS ?? DEFAULT_FEE_BPS),

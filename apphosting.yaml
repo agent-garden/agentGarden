@@ -18,19 +18,29 @@ env:
     availability:
       - BUILD
       - RUNTIME
-  # Solana Web3 escrow configuration
+  # Solana Web3 configuration ($0 Mainnet Wallet Mode; see Issue #9 for Anchor PDA contract deploy)
   - variable: NEXT_PUBLIC_SOLANA_CLUSTER
-    value: devnet
+    value: mainnet-beta
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_SOLANA_TREASURY
-    value: 2tv82Z7DaAtJE2HctmajcWA86Tno1LFMvxoiYfLgkVbx
+    value: 77deSoQX6xMriRU5wmP8hD2ucdVtEdFWyyTCZUNpaTNR
     availability:
       - BUILD
       - RUNTIME
-  - variable: NEXT_PUBLIC_SOLANA_PROGRAM_ID
-    value: EMfkXhVANcoRC2u9Ti2j6W7zkCd7PhtZCNa8eLkAYyXZ
+  # Uncomment once agent_garden_escrow is deployed to mainnet-beta (Issue #9):
+  # - variable: NEXT_PUBLIC_SOLANA_PROGRAM_ID
+  #   value: EMfkXhVANcoRC2u9Ti2j6W7zkCd7PhtZCNa8eLkAYyXZ
+  #   availability:
+  #     - BUILD
+  #     - RUNTIME
+  - variable: SOLANA_RPC_URL
+    secret: SOLANA_RPC_URL
+    availability:
+      - RUNTIME
+  - variable: NEXT_PUBLIC_SOLANA_WS_URL
+    secret: NEXT_PUBLIC_SOLANA_WS_URL
     availability:
       - BUILD
       - RUNTIME
