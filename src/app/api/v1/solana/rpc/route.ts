@@ -53,13 +53,29 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://agentgarden.org').replace(/\/$/, '');
+  const rpcHeaders = {
+    'Content-Type': 'application/json',
+    Origin: siteUrl,
+    Referer: `${siteUrl}/`,
+    'User-Agent': 'AgentGarden-RPC/2.1',
+  };
+
   try {
-    const upstream = await fetch(getServerSolanaRpcUrl(), {
+    let upstream = await fetch(getServerSolanaRpcUrl(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: rpcHeaders,
       body: JSON.stringify(payload),
       cache: 'no-store',
     });
+    if (upstream.status === 403 && process.env.SOLANA_RPC_URL) {
+      upstream = await fetch('https://api.mainnet-beta.solana.com', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'User-Agent': 'AgentGarden-RPC/2.1' },
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+      });
+    }
     const text = await upstream.text();
     return new NextResponse(text, {
       status: upstream.status,

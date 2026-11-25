@@ -34,11 +34,17 @@ export function getServerSolanaRpcUrl(): string {
 
 export function getSolanaConnection(): Connection {
   if (!cachedConnection) {
+    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://agentgarden.org').replace(/\/$/, '');
     const wsEndpoint = getSolanaWsUrl();
-    cachedConnection = new Connection(
-      getServerSolanaRpcUrl(),
-      wsEndpoint ? { commitment: 'confirmed', wsEndpoint } : 'confirmed'
-    );
+    cachedConnection = new Connection(getServerSolanaRpcUrl(), {
+      commitment: 'confirmed',
+      ...(wsEndpoint ? { wsEndpoint } : {}),
+      httpHeaders: {
+        Origin: siteUrl,
+        Referer: `${siteUrl}/`,
+        'User-Agent': 'AgentGarden-Server/2.1',
+      },
+    });
   }
   return cachedConnection;
 }
