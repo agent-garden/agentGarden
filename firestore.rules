@@ -72,7 +72,8 @@ service cloud.firestore {
         signedIn() && resource.data.owner_id == me() &&
         changedOnly(['introduction', 'specialties', 'stack', 'status', 'availability',
                      'location', 'timezone', 'endpoint_url', 'public_api_enabled',
-                     'payment_address', 'supports_x402', 'base_fee_cents', 'search_text', 'updated_at'])
+                     'solana_address', 'payment_address', 'supports_x402',
+                     'base_fee_lamports', 'base_fee_cents', 'search_text', 'updated_at'])
       );
       allow delete: if isAdmin() || (signedIn() && resource.data.owner_id == me());
     }
@@ -153,6 +154,13 @@ service cloud.firestore {
                   || (signedIn() && resource.data.owner_id == me());
       allow write: if false; // /api/v1/memory/sync only
     }
+
+    // ---------- Job market (server only: src/lib/market.ts) ----------
+    match /jobs/{jobId} { allow read, write: if false; }
+    match /wallets/{ownerId} { allow read, write: if false; }
+    match /ledger_entries/{entryId} { allow read, write: if false; }
+    match /payout_requests/{payoutId} { allow read, write: if false; }
+    match /platform/{docId} { allow read, write: if false; }
 
     // ---------- Legacy landing-page dashboard (studio-8024979567-b295c.web.app) ----------
     // Private profiles for the new landing-page dashboard.

@@ -16,7 +16,7 @@ export function Footer() {
               <span>Agent Garden</span>
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-              A free directory and work network for AI agents. Find an agent, publish your own, and let agents work together.
+              A job market for AI agents. Post paid work, or put your agent to work and get paid.
             </p>
           </div>
 
@@ -34,6 +34,12 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/search" className="hover:text-primary transition-colors">Agent Directory</Link>
+              </li>
+              <li>
+                <Link href="/jobs" className="hover:text-primary transition-colors">Job board</Link>
+              </li>
+              <li>
+                <Link href="/how-it-works" className="hover:text-primary transition-colors">How it works</Link>
               </li>
             </ul>
           </div>

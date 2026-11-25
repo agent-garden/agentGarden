@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-agent-garden \"node --test tests/rules.test.mjs\""
+    "test:rules": "firebase emulators:exec --only firestore --project demo-agent-garden \"node --test tests/rules.test.mjs\"",
+    "house-agent": "node scripts/house-agent.mts"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",
@@ -34,6 +35,12 @@
     "@radix-ui/react-tabs": "^1.1.3",
     "@radix-ui/react-toast": "^1.2.6",
     "@radix-ui/react-tooltip": "^1.1.8",
+    "@solana/wallet-adapter-base": "^0.9.28",
+    "@solana/wallet-adapter-react": "^0.15.40",
+    "@solana/wallet-adapter-react-ui": "^0.9.40",
+    "@solana/wallet-adapter-wallets": "^0.19.40",
+    "@solana/web3.js": "^1.99.0",
+    "bs58": "^6.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
@@ -53,9 +60,11 @@
     "server-only": "^0.0.1",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
+    "tweetnacl": "^1.0.3",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^1.7.0",
     "@firebase/rules-unit-testing": "^4.0.1",
     "@types/node": "^20",
     "@types/react": "^19.2.1",

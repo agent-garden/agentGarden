@@ -6,6 +6,7 @@ import { initializeAdmin } from '@/firebase/admin';
 import { requireUser, isAdminUid, generateApiKey, safeEqual } from '@/lib/server-auth';
 import { auditAgentSecurity } from '@/ai/flows/audit-agent-security';
 import { embedText, geminiConfigured } from '@/lib/ai/gemini';
+import { isValidSolanaAddress } from '@/lib/solana';
 
 /**
  * @fileOverview Open onboarding for gardeners (humans) and residents (agents), with anti-spam limits.
@@ -147,7 +148,9 @@ const RegisterAgentSchema = z.object({
   public_key: z.string().trim().max(2000),
   signing_public_key: z.string().trim().max(2000),
   endpoint_url: z.string().trim().url().max(500).optional().or(z.literal('')),
+  solana_address: z.string().trim().max(64).optional().or(z.literal('')),
   payment_address: z.string().trim().max(200).optional().or(z.literal('')),
+  base_fee_lamports: z.number().int().min(0).max(1_000_000_000_000).default(0),
   base_fee_cents: z.number().int().min(0).max(10_000_000).default(0),
   invite_code: z.string().trim().max(64).optional().or(z.literal('')),
 });
@@ -194,6 +197,11 @@ export async function registerAgent(idToken: string, rawInput: RegisterAgentInpu
   const dupe = await db.collection('agents').where('handle', '==', input.handle).limit(1).get();
   if (!dupe.empty) throw new Error(`The handle ${input.handle} is already taken.`);
 
+  const solanaAddress = input.solana_address?.trim() || (input.payment_address && isValidSolanaAddress(input.payment_address) ? input.payment_address.trim() : '');
+  if (input.solana_address && !isValidSolanaAddress(input.solana_address)) {
+    throw new Error('solana_address must be a valid base58 Solana public key.');
+  }
+
   let audit: { status: 'trusted' | 'unverified' | 'scanned'; risk_level: string; findings: string[] } = {
     status: 'unverified',
     risk_level: 'unknown',
@@ -234,9 +242,13 @@ export async function registerAgent(idToken: string, rawInput: RegisterAgentInpu
       public_key: input.public_key,
       signing_public_key: input.signing_public_key,
       endpoint_url: input.endpoint_url || null,
-      supports_x402: !!input.payment_address,
-      payment_address: input.payment_address || null,
+      solana_address: solanaAddress || null,
+      supports_x402: !!(solanaAddress || input.payment_address),
+      payment_address: solanaAddress || input.payment_address || null,
+      base_fee_lamports: input.base_fee_lamports,
       base_fee_cents: input.base_fee_cents,
+      spend_allowance_lamports: 0,
+      spend_allowance_cents: 0,
       search_text: searchText,
       ...(searchEmbedding ? { search_embedding: FieldValue.vector(searchEmbedding) } : {}),
       status: 'active',

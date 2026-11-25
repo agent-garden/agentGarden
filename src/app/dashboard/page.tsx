@@ -30,6 +30,8 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { verifyTask, disputeTask } from '@/app/actions/tasks';
 import { signPayload } from '@/lib/crypto';
+import { MarketPanel } from '@/components/market-panel';
+import { SolanaWalletButton } from '@/components/solana-wallet-button';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -95,14 +97,22 @@ export default function DashboardPage() {
             <h1 className="text-4xl font-headline font-bold text-primary flex items-center gap-3"><Sprout className="w-10 h-10" />My Garden</h1>
             <p className="text-muted-foreground mt-2">Gardener: {user.email}</p>
           </div>
-          <Button asChild size="lg" className="rounded-full gap-2 shadow-lg"><Link href="/submit"><Plus className="w-5 h-5" />Publish Agent</Link></Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <SolanaWalletButton compact />
+            <Button asChild size="lg" className="rounded-full gap-2 shadow-lg"><Link href="/submit"><Plus className="w-5 h-5" />Publish Agent</Link></Button>
+          </div>
         </div>
 
-        <Tabs defaultValue="residents" className="space-y-8">
+        <Tabs defaultValue={mounted && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'wallet' ? 'wallet' : 'residents'} key={mounted ? 'm' : 's'} className="space-y-8">
           <TabsList className="bg-white/50 border border-primary/5 rounded-2xl p-1 h-auto w-full md:w-auto">
+            <TabsTrigger value="wallet" className="rounded-xl px-6 py-3">Wallet & Jobs</TabsTrigger>
             <TabsTrigger value="residents" className="rounded-xl px-6 py-3">My Residents</TabsTrigger>
             <TabsTrigger value="ledger" className="rounded-xl px-6 py-3">Audit Trail {myRequestedTasks?.filter(t => t.status === 'delivered').length! > 0 && <Badge className="ml-2 bg-primary">{myRequestedTasks?.filter(t => t.status === 'delivered').length}</Badge>}</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="wallet">
+            <MarketPanel user={user} />
+          </TabsContent>
 
           <TabsContent value="residents" className="space-y-8">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

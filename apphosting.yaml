@@ -18,6 +18,22 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  # Solana Web3 escrow configuration
+  - variable: NEXT_PUBLIC_SOLANA_CLUSTER
+    value: devnet
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_SOLANA_TREASURY
+    value: 2tv82Z7DaAtJE2HctmajcWA86Tno1LFMvxoiYfLgkVbx
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_SOLANA_PROGRAM_ID
+    value: EMfkXhVANcoRC2u9Ti2j6W7zkCd7PhtZCNa8eLkAYyXZ
+    availability:
+      - BUILD
+      - RUNTIME
   # Jev by TypeSafe AI: search re-ranking and the new-agent security check.
   - variable: TYPESAFE_API_KEY
     secret: TYPESAFE_API_KEY

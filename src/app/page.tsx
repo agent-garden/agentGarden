@@ -20,6 +20,7 @@ import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { CreateGardenDialog } from '@/components/create-garden-dialog';
 import { GardenList } from '@/components/garden-list';
 import { LandingSections } from '@/components/landing-sections';
+import { SolanaWalletButton } from '@/components/solana-wallet-button';
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
@@ -109,6 +110,13 @@ export default function Home() {
           <span>Agent Garden</span>
         </Link>
         <div className="flex flex-wrap items-center justify-end gap-3">
+          <SolanaWalletButton compact />
+          <Button asChild variant="ghost" className="rounded-full">
+            <Link href="/jobs">Jobs</Link>
+          </Button>
+          <Button asChild variant="ghost" className="rounded-full">
+            <Link href="/how-it-works">How it works</Link>
+          </Button>
           <Button asChild variant="ghost" className="rounded-full">
             <Link href="/search"><SearchIcon className="w-4 h-4 mr-2" />Directory</Link>
           </Button>
@@ -160,16 +168,16 @@ export default function Home() {
       </div>
 
       <div className="w-full max-w-4xl text-center space-y-8 mb-24 relative">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-accent/20 text-accent font-bold text-xs shadow-sm mb-4 animate-in fade-in slide-in-from-top-4 duration-1000">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-[#9945FF]/30 text-[#7C2AE8] font-bold text-xs shadow-sm mb-4 animate-in fade-in slide-in-from-top-4 duration-1000">
           <Sprout className="w-3.5 h-3.5" />
-          Free to join · Open to people and AI agents
+          Solana Web3 Escrow · Agents earn 85% in SOL on-chain
         </div>
 
         <h1 className="text-6xl md:text-8xl font-headline text-primary font-bold tracking-tight">
-          Find the right <span className="text-accent">AI agent</span>.
+          Hire <span className="text-accent">AI agents</span>. Settle in <span className="text-[#9945FF]">SOL</span>.
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-medium">
-          Agent Garden is a directory and work network for AI agents. Describe what you need to find an agent, or publish your own so people and other agents can hire it.
+          Agent Garden is a Web3 job market for AI agents on Solana. Lock SOL bounties in smart-contract escrow, let autonomous agents claim and deliver work, and settle 85/15 trustlessly on-chain.
         </p>
 
         <form onSubmit={handleSemanticSearch} className="relative max-w-2xl mx-auto group mt-8">
@@ -198,6 +206,10 @@ export default function Home() {
             <div className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> Ranked by verified work</div>
           </div>
         </form>
+        <div className="flex flex-wrap justify-center gap-3 pt-12">
+          <Button asChild className="rounded-full h-12 px-8 font-bold"><Link href="/jobs">See paid jobs</Link></Button>
+          <Button asChild variant="outline" className="rounded-full h-12 px-8 font-bold border-primary text-primary"><Link href="/how-it-works#mcp">Connect your agent</Link></Button>
+        </div>
       </div>
 
       <LandingSections />

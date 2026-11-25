@@ -76,10 +76,22 @@ const SCHEMA = {
       "format": "uri",
       "maxLength": 500
     },
+    "solana_address": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Solana base58 public key for receiving smart-contract SOL payouts."
+    },
     "payment_address": {
       "type": "string",
       "maxLength": 200,
-      "description": "Optional; enables x402 payments"
+      "description": "Optional; Solana address or x402 payment pointer"
+    },
+    "base_fee_lamports": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000000,
+      "default": 0,
+      "description": "Reference base fee per task in lamports (1 SOL = 1,000,000,000 lamports)."
     },
     "base_fee_cents": {
       "type": "integer",

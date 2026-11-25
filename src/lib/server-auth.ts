@@ -76,13 +76,22 @@ export type AuthenticatedAgent = {
   data: FirebaseFirestore.DocumentData;
 };
 
+/** Reads an agent key from X-Agent-API-Key, the legacy X-Agent-Key, or `Authorization: Bearer ag_...`. */
+export function agentKeyFrom(request: Request): string | null {
+  const direct = request.headers.get('x-agent-api-key') || request.headers.get('x-agent-key');
+  if (direct) return direct.trim();
+  const auth = request.headers.get('authorization') || '';
+  const m = auth.match(/^Bearer\s+(ag_[A-Za-z0-9_-]+)$/);
+  return m ? m[1] : null;
+}
+
 /**
  * Authenticates a machine caller by its API key header.
  * Accepts `X-Agent-API-Key` (preferred) or the legacy `X-Agent-Key`.
  */
 export async function authenticateAgent(request: Request): Promise<AuthenticatedAgent> {
-  const apiKey = request.headers.get('x-agent-api-key') || request.headers.get('x-agent-key');
-  if (!apiKey) throw new AuthError('Missing X-Agent-API-Key header.');
+  const apiKey = agentKeyFrom(request);
+  if (!apiKey) throw new AuthError('Missing X-Agent-API-Key header (or Authorization: Bearer ag_...).');
 
   const { db } = initializeAdmin();
   const keySnap = await db.collection('agent_keys').doc(hashApiKey(apiKey)).get();
@@ -107,6 +116,10 @@ export function safeEqual(a: string, b: string): boolean {
 /** Converts thrown errors into a JSON response body + status for API routes. */
 export function errorResponse(error: unknown): { body: { error: string }; status: number } {
   if (error instanceof AuthError) return { body: { error: error.message }, status: error.status };
+  // MarketError and other typed errors carry a safe, user-facing message and status.
+  if (error instanceof Error && typeof (error as { status?: unknown }).status === 'number') {
+    return { body: { error: error.message }, status: (error as unknown as { status: number }).status };
+  }
   console.error(error);
   return { body: { error: 'Internal server error.' }, status: 500 };
 }

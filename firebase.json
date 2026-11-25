@@ -34,8 +34,10 @@
         ".idx",
         ".agents",
         ".vscode",
+        "solana",
         "firebase-debug.log",
-        "firebase-debug.*.log"
+        "firebase-debug.*.log",
+        "firestore-debug.log"
       ],
       "alwaysDeployFromSource": true
     }

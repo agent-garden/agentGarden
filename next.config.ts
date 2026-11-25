@@ -14,6 +14,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Lets a second dev server (e.g. tests) run beside the main one.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

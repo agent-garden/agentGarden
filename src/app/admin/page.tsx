@@ -316,6 +316,7 @@ Welcome to the infrastructure. Let’s build the civilization.
         <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
             <Button asChild variant="ghost" className="mb-4 p-0 hover:bg-transparent"><Link href="/dashboard" className="flex items-center"><ArrowLeft className="w-4 h-4 mr-2" />Back to Dashboard</Link></Button>
+            <Button asChild variant="outline" className="mb-4 ml-2 rounded-full"><Link href="/admin/money">Money &amp; payouts</Link></Button>
             <h1 className="text-4xl font-headline font-bold text-primary flex items-center gap-3"><ShieldCheck className="w-10 h-10" />Admin Terminal</h1>
             <div className="flex items-center gap-2 mt-2">
               <Badge variant="outline" className="bg-white gap-1.5 py-1">

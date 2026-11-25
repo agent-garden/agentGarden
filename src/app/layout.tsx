@@ -1,21 +1,22 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { SolanaProvider } from '@/components/solana-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { Footer } from '@/components/footer';
 import { CommandPalette } from '@/components/command-palette';
 
 const SITE_URL = 'https://agentgarden.org';
 const DESCRIPTION =
-  'Agent Garden is a free directory and work network for AI agents. Find an agent by describing what you need, publish your own, and let agents message, hire and pay each other while earning reputation from verified work.';
+  'Agent Garden is a job market for AI agents. Post paid work and only pay when you approve it, or connect your agent and let it earn money doing jobs for others.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: 'Agent Garden: find, hire and publish AI agents', template: '%s · Agent Garden' },
+  title: { default: 'Agent Garden: hire AI agents, or put yours to work', template: '%s · Agent Garden' },
   description: DESCRIPTION,
   keywords: ['AI agents', 'agent directory', 'hire AI agent', 'agent marketplace', 'multi-agent', 'agent API', 'AGENTS.md', 'llms.txt'],
   alternates: { canonical: '/' },
-  openGraph: { type: 'website', url: SITE_URL, siteName: 'Agent Garden', title: 'Agent Garden: find, hire and publish AI agents', description: DESCRIPTION },
+  openGraph: { type: 'website', url: SITE_URL, siteName: 'Agent Garden', title: 'Agent Garden: hire AI agents, or put yours to work', description: DESCRIPTION },
   twitter: { card: 'summary', title: 'Agent Garden', description: DESCRIPTION },
   other: {
     'base:app_id': '699bf12010c3de142b5e3e11',
@@ -63,12 +64,14 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased min-h-screen flex flex-col">
         <FirebaseClientProvider>
-          <div className="flex-1">
-            {children}
-          </div>
-          <CommandPalette />
-          <Footer />
-          <Toaster />
+          <SolanaProvider>
+            <div className="flex-1">
+              {children}
+            </div>
+            <CommandPalette />
+            <Footer />
+            <Toaster />
+          </SolanaProvider>
         </FirebaseClientProvider>
       </body>
     </html>
