@@ -14,7 +14,8 @@ import {
   Star, 
   FileSearch, 
   CheckCircle2, 
-  AlertTriangle 
+  AlertTriangle,
+  Trash2
 } from 'lucide-react';
 import { collection, query, where, doc } from 'firebase/firestore';
 import Link from 'next/link';
@@ -28,7 +29,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AgentInbox } from '@/components/agent-inbox';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { verifyTask, disputeTask } from '@/app/actions/tasks';
+import { deleteAgent } from '@/app/actions/onboarding';
 import { signPayload } from '@/lib/crypto';
 import { MarketPanel } from '@/components/market-panel';
 import { SolanaWalletButton } from '@/components/solana-wallet-button';
@@ -40,6 +52,8 @@ export default function DashboardPage() {
   const { user, isUserLoading } = useUser();
   
   const [selectedAgentForInbox, setSelectedAgentForInbox] = useState<Agent | null>(null);
+  const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
+  const [isDeletingAgent, setIsDeletingAgent] = useState(false);
   const [isProcessingTask, setIsProcessingTask] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -86,6 +100,23 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDeleteAgent = async () => {
+    if (!agentToDelete || !user) return;
+    setIsDeletingAgent(true);
+    try {
+      await deleteAgent(await user.getIdToken(), agentToDelete.id);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`ag_keys_agent_${agentToDelete.id}`);
+      }
+      toast({ title: 'Agent deleted', description: `${agentToDelete.name} and its API keys have been removed.` });
+      setAgentToDelete(null);
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Delete failed', description: e.message || 'Could not delete agent.' });
+    } finally {
+      setIsDeletingAgent(false);
+    }
+  };
+
   if (isUserLoading || !user) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
   return (
@@ -106,7 +137,7 @@ export default function DashboardPage() {
         <Tabs defaultValue={mounted && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'wallet' ? 'wallet' : 'residents'} key={mounted ? 'm' : 's'} className="space-y-8">
           <TabsList className="bg-white/50 border border-primary/5 rounded-2xl p-1 h-auto w-full md:w-auto">
             <TabsTrigger value="wallet" className="rounded-xl px-6 py-3">Wallet & Jobs</TabsTrigger>
-            <TabsTrigger value="residents" className="rounded-xl px-6 py-3">My Residents</TabsTrigger>
+            <TabsTrigger value="residents" className="rounded-xl px-6 py-3">My Agents</TabsTrigger>
             <TabsTrigger value="ledger" className="rounded-xl px-6 py-3">Audit Trail {myRequestedTasks?.filter(t => t.status === 'delivered').length! > 0 && <Badge className="ml-2 bg-primary">{myRequestedTasks?.filter(t => t.status === 'delivered').length}</Badge>}</TabsTrigger>
           </TabsList>
 
@@ -132,9 +163,18 @@ export default function DashboardPage() {
                     {myAgents?.map(agent => (
                       <div key={agent.id} className="relative group">
                         <AgentCard agent={agent} />
-                        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button size="sm" variant="secondary" className="rounded-full shadow-lg bg-white/90 gap-2" onClick={() => setSelectedAgentForInbox(agent)}>
+                        <div className="absolute top-4 right-4 flex gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                          <Button size="sm" variant="secondary" className="rounded-full shadow-lg bg-white/95 gap-1.5" onClick={() => setSelectedAgentForInbox(agent)}>
                             <Inbox className="w-4 h-4" /> Inbox
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            aria-label={`Delete ${agent.name}`}
+                            className="rounded-full shadow-lg bg-white/95 text-destructive hover:bg-destructive hover:text-white px-2.5"
+                            onClick={() => setAgentToDelete(agent)}
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
@@ -213,6 +253,28 @@ export default function DashboardPage() {
           {selectedAgentForInbox && <AgentInbox agentId={selectedAgentForInbox.id} agentName={selectedAgentForInbox.name} />}
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={!!agentToDelete} onOpenChange={(open) => !open && !isDeletingAgent && setAgentToDelete(null)}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {agentToDelete?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the agent from the directory and revokes its API keys. Agents with active claimed or submitted jobs cannot be deleted until those jobs finish.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingAgent} className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteAgent(); }}
+              disabled={isDeletingAgent}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingAgent ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Delete Agent
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

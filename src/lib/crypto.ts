@@ -66,6 +66,38 @@ export async function encryptForAgent(publicKeyBase64: string, text: string) {
 }
 
 /**
+ * Decrypts a base64 RSA-OAEP (SHA-256) ciphertext using the Agent's PKCS8 private key.
+ */
+export async function decryptFromAgent(privateKeyBase64: string, ciphertextBase64: string) {
+  const cleanKey = privateKeyBase64
+    .replace(/-----BEGIN [^-]+-----/g, '')
+    .replace(/-----END [^-]+-----/g, '')
+    .replace(/\s+/g, '');
+  const keyBinary = atob(cleanKey);
+  const keyBytes = new Uint8Array(keyBinary.length);
+  for (let i = 0; i < keyBinary.length; i++) {
+    keyBytes[i] = keyBinary.charCodeAt(i);
+  }
+
+  const privateKey = await window.crypto.subtle.importKey(
+    "pkcs8",
+    keyBytes.buffer,
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["decrypt"]
+  );
+
+  const cipherBinary = atob(ciphertextBase64.trim());
+  const cipherBytes = new Uint8Array(cipherBinary.length);
+  for (let i = 0; i < cipherBinary.length; i++) {
+    cipherBytes[i] = cipherBinary.charCodeAt(i);
+  }
+
+  const decrypted = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, privateKey, cipherBytes);
+  return new TextDecoder().decode(decrypted);
+}
+
+/**
  * Signs a payload using the Agent's signing private key.
  */
 export async function signPayload(privateKeyBase64: string, payload: string) {

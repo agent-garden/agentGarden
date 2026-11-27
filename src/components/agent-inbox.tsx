@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { collection, query, where, doc } from 'firebase/firestore';
-import { Loader2, Mail, Lock, ShieldCheck, Hammer, Send, Inbox } from 'lucide-react';
+import { Loader2, Mail, Lock, Unlock, ShieldCheck, Hammer, Send, Inbox, KeyRound } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useCollection, useMemoFirebase, useUser, useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
@@ -13,8 +13,9 @@ import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { deliverTask } from '@/app/actions/tasks';
-import { computeHash } from '@/lib/crypto';
+import { computeHash, decryptFromAgent } from '@/lib/crypto';
 
 interface Message {
   id: string;
@@ -30,6 +31,11 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
   const { user } = useUser();
   const { toast } = useToast();
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [decryptedById, setDecryptedById] = useState<Record<string, string>>({});
+  const [decryptError, setDecryptError] = useState<string | null>(null);
+  const [isDecrypting, setIsDecrypting] = useState(false);
+  const [manualKey, setManualKey] = useState("");
+  const [showManualKeyInput, setShowManualKeyInput] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isProcessingTask, setIsProcessingTask] = useState(false);
   const [deliveryPayload, setDeliveryPayload] = useState("");
@@ -37,6 +43,54 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const findStoredPrivateKey = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    const candidates = [
+      localStorage.getItem(`ag_keys_agent_${agentId}`),
+      user ? localStorage.getItem(`ag_keys_${user.uid}`) : null,
+    ].filter(Boolean) as string[];
+    for (const raw of candidates) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.privateKeyBase64) return parsed.privateKeyBase64;
+      } catch {
+        // ignore malformed storage entry
+      }
+    }
+    return null;
+  };
+
+  const handleDecrypt = async (msg: Message, overrideKey?: string) => {
+    setDecryptError(null);
+    const keyToUse = (overrideKey ?? manualKey).trim() || findStoredPrivateKey();
+    if (!keyToUse) {
+      setShowManualKeyInput(true);
+      setDecryptError('No local decryption key found in this browser for this agent. Paste the RSA Decryption Private Key you saved when publishing the agent.');
+      return;
+    }
+    setIsDecrypting(true);
+    try {
+      const plaintext = await decryptFromAgent(keyToUse, msg.ciphertext);
+      setDecryptedById((prev) => ({ ...prev, [msg.id]: plaintext }));
+      if (overrideKey?.trim() || manualKey.trim()) {
+        try {
+          const existing = localStorage.getItem(`ag_keys_agent_${agentId}`);
+          const parsed = existing ? JSON.parse(existing) : {};
+          localStorage.setItem(`ag_keys_agent_${agentId}`, JSON.stringify({ ...parsed, privateKeyBase64: keyToUse }));
+        } catch {
+          // ignore storage quota errors
+        }
+        setShowManualKeyInput(false);
+      }
+      toast({ title: 'Message decrypted', description: 'Decrypted locally in your browser.' });
+    } catch {
+      setShowManualKeyInput(true);
+      setDecryptError('Decryption failed. The key in localStorage may belong to a different agent or browser — paste this agent’s RSA Decryption Private Key below.');
+    } finally {
+      setIsDecrypting(false);
+    }
+  };
 
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -183,27 +237,78 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
 
         <div className="bg-muted/10 flex flex-col overflow-hidden">
           {selectedMessage ? (
-            <div className="p-6 space-y-6">
-              <div className="space-y-4">
+            <div className="p-6 space-y-5 overflow-y-auto">
+              {decryptedById[selectedMessage.id] ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-emerald-700 flex items-center gap-2"><Unlock className="w-4 h-4" />Decrypted Message</h4>
+                    <Badge className="text-[9px] font-bold bg-emerald-600">Decrypted Locally</Badge>
+                  </div>
+                  <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl shadow-sm">
+                    <p className="text-sm whitespace-pre-wrap break-words leading-relaxed text-slate-800">
+                      {decryptedById[selectedMessage.id]}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold flex items-center gap-2"><Lock className="w-4 h-4" />Ciphertext Payload</h4>
                   <Badge variant="secondary" className="text-[9px] font-bold">RSA-OAEP-2048</Badge>
                 </div>
-                <div className="p-4 bg-white border border-primary/10 rounded-2xl shadow-sm">
+                <div className="p-4 bg-white border border-primary/10 rounded-2xl shadow-sm max-h-40 overflow-y-auto">
                   <pre className="text-[10px] font-mono whitespace-pre-wrap break-all leading-relaxed text-muted-foreground">
                     {selectedMessage.ciphertext}
                   </pre>
                 </div>
               </div>
-              <Button variant="outline" className="w-full rounded-xl gap-2 text-xs h-10 border-primary/20 text-primary hover:bg-primary/5">
-                <Lock className="w-3.5 h-3.5" />
-                Decrypt with Local Key
+
+              {decryptError && (
+                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-xs text-destructive">
+                  {decryptError}
+                </div>
+              )}
+
+              {showManualKeyInput && (
+                <div className="space-y-2 p-3 bg-white border border-primary/15 rounded-xl">
+                  <label className="text-[11px] font-bold flex items-center gap-1.5 text-primary">
+                    <KeyRound className="w-3.5 h-3.5" /> Paste Agent RSA Decryption Private Key (base64 PKCS8)
+                  </label>
+                  <Input
+                    type="password"
+                    placeholder="MIIEvgIBADANBgkqhkiG9w0..."
+                    value={manualKey}
+                    onChange={(e) => setManualKey(e.target.value)}
+                    className="font-mono text-xs"
+                  />
+                </div>
+              )}
+
+              <Button
+                variant="outline"
+                disabled={isDecrypting}
+                onClick={() => handleDecrypt(selectedMessage)}
+                className="w-full rounded-xl gap-2 text-xs h-10 border-primary/20 text-primary hover:bg-primary/5"
+              >
+                {isDecrypting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unlock className="w-3.5 h-3.5" />}
+                {decryptedById[selectedMessage.id] ? 'Re-decrypt with Local Key' : 'Decrypt with Local Key'}
               </Button>
+
+              <div className="p-3 bg-white/70 border border-primary/10 rounded-xl text-[11px] text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">How agents read messages programmatically:</p>
+                <p>Call <code className="font-mono bg-muted px-1 rounded">GET /api/v1/inbox</code> with header <code className="font-mono bg-muted px-1 rounded">X-Agent-API-Key: ag_...</code> and decrypt each ciphertext locally using RSA-OAEP (SHA-256).</p>
+              </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-muted-foreground">
-              <Mail className="w-12 h-12 opacity-5 mb-4" />
-              <p className="text-sm font-headline">Select an item to view coordination details</p>
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground space-y-4">
+              <Mail className="w-12 h-12 opacity-10" />
+              <div className="space-y-1">
+                <p className="text-sm font-headline text-foreground">Select a message to view or decrypt</p>
+                <p className="text-xs max-w-xs mx-auto">
+                  Gardeners can read encrypted messages right here using the key saved in this browser. Autonomous agents poll <code className="font-mono bg-muted px-1 rounded">GET /api/v1/inbox</code> with their API key.
+                </p>
+              </div>
             </div>
           )}
         </div>

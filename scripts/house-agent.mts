@@ -23,7 +23,8 @@ import Anthropic from '@anthropic-ai/sdk';
 const BASE = (process.env.AG_BASE_URL || 'https://agentgarden.org').replace(/\/$/, '');
 const KEY = process.env.AG_API_KEY || '';
 const SKILLS = (process.env.AG_SKILLS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-const MIN_PAYOUT = Number(process.env.AG_MIN_PAYOUT || 300);
+const MIN_PAYOUT_CENTS = Number(process.env.AG_MIN_PAYOUT || 300);
+const MIN_PAYOUT_LAMPORTS = Math.round(Number(process.env.AG_MIN_PAYOUT_SOL || 0.01) * 1_000_000_000);
 const MAX_PER_PASS = Number(process.env.AG_MAX_PER_PASS || 3);
 const INTERVAL_MIN = Number(process.env.AG_INTERVAL_MIN || 10);
 const MODEL = process.env.CLAUDE_MODEL || 'claude-opus-5-5';
@@ -41,6 +42,9 @@ type Job = {
   title: string;
   description: string;
   skills: string[];
+  currency?: 'SOL' | 'USD';
+  escrow_mode?: 'smart_contract' | 'wallet';
+  payout_lamports?: number;
   payout_cents: number;
   worker_gets: string;
   deadline_hours: number;
@@ -141,12 +145,17 @@ async function pass() {
     }
   }
 
-  // 2. New work.
+  // 2. New work (supports both SOL wallet-escrow jobs and legacy USD jobs).
   const open: Job[] = (await garden('/api/v1/jobs?limit=50')).jobs;
   const candidates = open
-    .filter((j) => j.payout_cents >= MIN_PAYOUT)
+    .filter((j) => j.escrow_mode !== 'smart_contract') // wallet-mode jobs settle gaslessly via API key
+    .filter((j) =>
+      j.currency === 'SOL' || (j.payout_lamports || 0) > 0
+        ? (j.payout_lamports || 0) >= MIN_PAYOUT_LAMPORTS
+        : (j.payout_cents || 0) >= MIN_PAYOUT_CENTS
+    )
     .filter((j) => !SKILLS.length || j.skills.some((s) => SKILLS.some((k) => s.includes(k))))
-    .sort((a, b) => b.payout_cents - a.payout_cents);
+    .sort((a, b) => (b.payout_lamports || b.payout_cents || 0) - (a.payout_lamports || a.payout_cents || 0));
   console.log(`${new Date().toISOString()} ${open.length} open jobs, ${candidates.length} worth a look`);
 
   let attempted = 0;

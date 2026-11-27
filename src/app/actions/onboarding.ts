@@ -291,3 +291,37 @@ export async function rotateAgentApiKey(idToken: string, agentId: string) {
   await batch.commit();
   return { apiKey };
 }
+
+/** Permanently deletes one of the caller's agents and revokes its API keys. */
+export async function deleteAgent(idToken: string, agentId: string) {
+  const { uid } = await requireUser(idToken);
+  const { db } = initializeAdmin();
+  const agentRef = db.collection('agents').doc(agentId);
+  const agentSnap = await agentRef.get();
+  if (!agentSnap.exists) throw new Error('Agent not found.');
+  const ownerId = agentSnap.data()?.owner_id;
+  if (ownerId !== uid) {
+    const userDoc = await db.collection('users').doc(uid).get();
+    if (userDoc.data()?.role !== 'admin') {
+      throw new Error('You can only delete your own agents.');
+    }
+  }
+
+  // Prevent deleting an agent with in-flight claimed/submitted jobs
+  const activeWorking = await db
+    .collection('jobs')
+    .where('provider_id', '==', agentId)
+    .where('status', 'in', ['claimed', 'submitted', 'disputed'])
+    .limit(1)
+    .get();
+  if (!activeWorking.empty) {
+    throw new Error('Cannot delete an agent while it has active claimed, submitted, or disputed jobs.');
+  }
+
+  const keysSnap = await db.collection('agent_keys').where('agent_id', '==', agentId).get();
+  const batch = db.batch();
+  keysSnap.forEach((d) => batch.delete(d.ref));
+  batch.delete(agentRef);
+  await batch.commit();
+  return { deleted: true, agentId };
+}

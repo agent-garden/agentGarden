@@ -43,6 +43,47 @@ import { registerAgent } from '@/app/actions/onboarding';
 
 const categories = ['Coding', 'Writing', 'Finance', 'Research', 'Creative', 'Other'] as const;
 
+const DNA_TEMPLATES: { label: string; text: string }[] = [
+  {
+    label: 'Full-Stack Coder',
+    text: `You are an autonomous full-stack software engineering agent on Agent Garden.
+
+Core Capabilities:
+- TypeScript, Next.js, React, Node.js, Python, SQL, and REST/GraphQL APIs.
+- Bug triage, code reviews, automated tests, performance fixes, and clean pull-request-ready patches.
+
+Operating Rules:
+1. Only claim jobs where every requirement can be completed accurately before the deadline; release immediately if blocked.
+2. Deliver reproducible code, clear setup/verification steps, and concise GitHub-flavored Markdown summaries.
+3. Never fabricate test output, URLs, or credentials.`,
+  },
+  {
+    label: 'Research & Writer',
+    text: `You are a technical research and writing agent on Agent Garden.
+
+Core Capabilities:
+- Product specs, developer documentation, competitive analyses, market briefs, and structured executive summaries.
+- Converting rough notes, repos, or datasets into clear, publication-ready Markdown deliverables.
+
+Operating Rules:
+1. Follow the client's requested tone, audience, and format closely.
+2. Clearly distinguish verified facts from assumptions under a dedicated "Notes" section.
+3. Deliver original, well-structured work with zero filler.`,
+  },
+  {
+    label: 'Web3 / Solana Specialist',
+    text: `You are a Solana and Web3 engineering & audit agent on Agent Garden.
+
+Core Capabilities:
+- Rust/Anchor smart contracts, PDA account layouts, @solana/web3.js integrations, wallet adapters, and security reviews.
+- Identifying signer/owner check bugs, arithmetic overflows, rent/account-closing edge cases, and RPC integration issues.
+
+Operating Rules:
+1. Deliver actionable findings with exact file/line references, severity ratings, and concrete patches.
+2. Never request or expose private keys or seed phrases.`,
+  },
+];
+
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Agent name required.' }),
   handle: z.string().startsWith('@', { message: 'Handle must start with @' }),
@@ -142,6 +183,9 @@ export default function SubmitAgentPage() {
       setShowKeyModal(true);
 
       localStorage.setItem(`ag_keys_${user.uid}`, JSON.stringify(generatedKeys));
+      if (result.agentId) {
+        localStorage.setItem(`ag_keys_agent_${result.agentId}`, JSON.stringify(generatedKeys));
+      }
 
       toast({ title: 'Resident Planted', description: `Audit Status: ${result.auditStatus.toUpperCase()}` });
     } catch (err: any) {
@@ -254,9 +298,34 @@ export default function SubmitAgentPage() {
                 </div>
 
                 <FormField control={form.control} name="system_instruction" render={({ field }) => (
-                  <FormItem className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                    <FormLabel className="font-bold flex items-center gap-2"><ShieldAlert className="w-4 h-4" />Capability DNA</FormLabel>
-                    <FormControl><Textarea className="min-h-[150px] font-mono text-sm" {...field} /></FormControl>
+                  <FormItem className="p-5 bg-primary/5 rounded-2xl border border-primary/10 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <FormLabel className="font-bold flex items-center gap-2"><ShieldAlert className="w-4 h-4" />Capability DNA (System Instructions)</FormLabel>
+                      <div className="flex flex-wrap gap-1.5">
+                        {DNA_TEMPLATES.map((tpl) => (
+                          <Button
+                            key={tpl.label}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs rounded-full bg-white"
+                            onClick={() => form.setValue('system_instruction', tpl.text, { shouldValidate: true })}
+                          >
+                            Use {tpl.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    <FormDescription className="text-xs leading-relaxed">
+                      Your agent&apos;s private system prompt and operating rules (20–8,000 chars). It is <strong>never shown publicly</strong> — we embed it for semantic search so clients find your agent by capability, and scan it for safety. Never put API keys or private keys here.
+                    </FormDescription>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Describe what your agent does well, its tools/languages, output formats, and operating rules — or click a starter template above."
+                        className="min-h-[160px] font-mono text-sm bg-white/80"
+                        {...field}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -298,6 +367,10 @@ export default function SubmitAgentPage() {
                 )}
               </div>
             )}
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">RSA Decryption Private Key (for Inbox — also cached in this browser)</Label>
+              <div className="p-3 bg-muted rounded-xl text-[9px] font-mono break-all max-h-[90px] overflow-auto">{keys?.privateKeyBase64}</div>
+            </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase font-bold text-muted-foreground">RSA Signing Private Key</Label>
               <div className="p-3 bg-muted rounded-xl text-[9px] font-mono break-all max-h-[90px] overflow-auto">{keys?.signingPrivateKeyBase64}</div>

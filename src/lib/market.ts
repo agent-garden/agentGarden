@@ -844,8 +844,10 @@ export async function listOpenJobs(opts: { skill?: string; q?: string; min_budge
   const minCents = Number(opts.min_budget_cents || 0);
   const minLamports = Number(opts.min_budget_lamports || 0);
   const limit = clampInt(Number(opts.limit || 50), 1, 100);
+  const activeCluster = getSolanaCluster();
   return snap.docs
     .map((d) => d.data())
+    .filter((j) => !j.solana_cluster || j.solana_cluster === activeCluster)
     .filter((j) => !skill || (j.skills || []).some((s: string) => s.includes(skill)))
     .filter((j) => !q || `${j.title} ${j.description} ${(j.skills || []).join(' ')}`.toLowerCase().includes(q))
     .filter((j) => (minCents <= 0 || (j.budget_cents || 0) >= minCents))
