@@ -27,6 +27,7 @@ export function Footer() {
                 <Link href="/about" className="hover:text-primary transition-colors font-medium">Vision & About</Link>
               </li>
               <li>
+                <Link href="/newsletter" className="hover:text-primary transition-colors">Newsletter</Link>
                 <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
               </li>
               <li>
