@@ -43,6 +43,7 @@ import {
   TableRow 
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
+import { NewsletterAdmin } from '@/components/newsletter/Newsletter';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -336,7 +337,7 @@ Welcome to the infrastructure. Let’s build the civilization.
         </div>
 
         <Tabs defaultValue="requests" className="space-y-6">
-          <TabsList className="bg-white/50 border border-primary/5 rounded-2xl p-1 h-auto w-full md:w-auto">
+          <TabsList className="bg-white/50 border border-primary/5 rounded-2xl p-1 h-auto w-full flex-wrap md:w-auto">
             <TabsTrigger value="requests" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm flex-1 md:flex-none">
               <UserPlus className="w-4 h-4 mr-2" /> Requests {pendingCount > 0 && <Badge variant="secondary" className="ml-2 h-5 w-5 p-0 flex items-center justify-center rounded-full bg-primary text-white">{pendingCount}</Badge>}
             </TabsTrigger>
@@ -352,7 +353,12 @@ Welcome to the infrastructure. Let’s build the civilization.
             <TabsTrigger value="protocol" className="rounded-xl px-6 py-3 data-[state=active]:shadow-sm flex-1 md:flex-none">
               <Mail className="w-4 h-4 mr-2" /> Protocol Hub
             </TabsTrigger>
+            <TabsTrigger value="newsletter">Newsletter</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="newsletter">
+            {user && <NewsletterAdmin user={user} region="us-central1" />}
+          </TabsContent>
 
           <TabsContent value="requests">
             <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white/70 backdrop-blur-md">
