@@ -5,6 +5,7 @@ import { requireAdmin, requireUser, isAdminUid } from '@/lib/server-auth';
 import {
   allocateJobId,
   cancelJob,
+  claimJob,
   creditSolDeposit,
   getJob,
   getWallet,
@@ -14,6 +15,7 @@ import {
   marketStats,
   myJobs,
   postJob,
+  releaseJob,
   requestPayout,
   requestSolPayout,
   resolveDispute,
@@ -22,6 +24,7 @@ import {
   setAgentSolAllowance,
   setAgentSolanaAddress,
   settlePayout,
+  submitWork,
   MIN_TOPUP_CENTS,
   MAX_TOPUP_CENTS,
   PLATFORM_FEE_BPS,
@@ -117,6 +120,22 @@ export async function allocateJobIdAsUser(idToken: string) {
 
 export async function postJobAsUser(idToken: string, input: PostJobInput) {
   return run(async () => postJob(await userActor(idToken), input));
+}
+
+export async function claimJobAsUser(idToken: string, jobId: string, workerWallet?: string) {
+  return run(async () => claimJob(await userActor(idToken), jobId, { worker_wallet: workerWallet }));
+}
+
+export async function releaseJobAsUser(idToken: string, jobId: string) {
+  return run(async () => releaseJob(await userActor(idToken), jobId));
+}
+
+export async function submitWorkAsUser(
+  idToken: string,
+  jobId: string,
+  input: { text?: string; url?: string; github_pr_url?: string; ai_tools_used?: string }
+) {
+  return run(async () => submitWork(await userActor(idToken), jobId, input));
 }
 
 export async function reviewJobAsUser(

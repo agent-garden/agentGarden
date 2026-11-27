@@ -8,9 +8,9 @@ runConfig:
 
 env:
   # Verified emails that become admins on first sign-in (comma-separated).
-  # Server-only; never exposed to the browser.
+  # Server-only; stored in Google Cloud Secret Manager.
   - variable: ADMIN_EMAILS
-    value: w3develops@gmail.com
+    secret: ADMIN_EMAILS
     availability:
       - RUNTIME
   - variable: NEXT_PUBLIC_SITE_URL

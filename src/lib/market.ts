@@ -83,6 +83,7 @@ export type Actor =
 
 export type JobCurrency = 'SOL' | 'USD';
 export type EscrowMode = 'smart_contract' | 'wallet';
+export type FulfillmentMode = 'any' | 'autonomous_agent' | 'human_operator';
 export type JobStatus = 'open' | 'claimed' | 'submitted' | 'completed' | 'cancelled' | 'disputed' | 'refunded';
 
 function clampInt(n: number, min: number, max: number) {
@@ -153,12 +154,20 @@ export function publicJob(job: DocumentData) {
   const payoutLamports = Number(job.payout_lamports || (budgetLamports ? splitLamports(budgetLamports, PLATFORM_FEE_BPS).payout_lamports : 0));
   const budgetCents = Number(job.budget_cents || 0);
   const payoutCents = Number(job.payout_cents ?? splitBudget(budgetCents).payout_cents);
+  const isVolunteer = Boolean(job.is_volunteer) || (currency === 'SOL' && budgetLamports === 0 && budgetCents === 0);
 
   return {
     id: job.id,
     title: job.title,
     description: job.description,
     skills: job.skills || [],
+    fulfillment_mode: (job.fulfillment_mode || 'any') as FulfillmentMode,
+    is_volunteer: isVolunteer,
+    github_issue_url: job.github_issue_url || null,
+    github_repo: job.github_repo || null,
+    acceptance_criteria: job.acceptance_criteria || null,
+    preferred_model: job.preferred_model || null,
+    preferred_effort: job.preferred_effort || null,
     currency,
     escrow_mode: (job.escrow_mode || 'wallet') as EscrowMode,
     budget_lamports: budgetLamports,
@@ -167,13 +176,14 @@ export function publicJob(job: DocumentData) {
     worker_gets_sol: lamportsToSol(payoutLamports),
     budget_cents: budgetCents,
     payout_cents: payoutCents,
-    budget: currency === 'SOL' ? formatSol(budgetLamports) : dollars(budgetCents),
-    worker_gets: currency === 'SOL' ? formatSol(payoutLamports) : dollars(payoutCents),
+    budget: isVolunteer ? 'Free / OSS' : currency === 'SOL' ? formatSol(budgetLamports) : dollars(budgetCents),
+    worker_gets: isVolunteer ? 'Reputation / OSS' : currency === 'SOL' ? formatSol(payoutLamports) : dollars(payoutCents),
     status: job.status as JobStatus,
     poster_type: job.poster_type,
     poster_name: job.poster_name,
     poster_wallet: job.poster_wallet || null,
     direct_hire_agent_id: job.direct_provider_id || null,
+    provider_type: (job.provider_type || 'agent') as 'agent' | 'user',
     provider_id: job.provider_id || null,
     provider_name: job.provider_name || null,
     worker_wallet: job.worker_wallet || null,
@@ -244,68 +254,82 @@ function settle(
     const budgetLamports = Number(job.budget_lamports || 0);
     const { fee_lamports, payout_lamports } = splitLamports(budgetLamports, PLATFORM_FEE_BPS);
 
-    if (!isSmartContract) {
-      // Wallet-mode SOL: debit poster's held_lamports, credit worker's balance_lamports.
-      tx.set(
-        walletRef(job.poster_owner_id),
-        { owner_id: job.poster_owner_id, held_lamports: inc(-budgetLamports), spent_lamports: inc(budgetLamports), updated_at: now },
-        { merge: true }
-      );
-      tx.set(
-        walletRef(job.provider_owner_id),
-        { owner_id: job.provider_owner_id, balance_lamports: inc(payout_lamports), earned_lamports: inc(payout_lamports), updated_at: now },
-        { merge: true }
-      );
-      tx.set(treasuryRef(), { fees_lamports: inc(fee_lamports), gross_volume_lamports: inc(budgetLamports), jobs_completed: inc(1), updated_at: now }, { merge: true });
+    if (budgetLamports > 0) {
+      if (!isSmartContract) {
+        // Wallet-mode SOL: debit poster's held_lamports, credit worker's balance_lamports.
+        tx.set(
+          walletRef(job.poster_owner_id),
+          { owner_id: job.poster_owner_id, held_lamports: inc(-budgetLamports), spent_lamports: inc(budgetLamports), updated_at: now },
+          { merge: true }
+        );
+        tx.set(
+          walletRef(job.provider_owner_id),
+          { owner_id: job.provider_owner_id, balance_lamports: inc(payout_lamports), earned_lamports: inc(payout_lamports), updated_at: now },
+          { merge: true }
+        );
+        tx.set(treasuryRef(), { fees_lamports: inc(fee_lamports), gross_volume_lamports: inc(budgetLamports), jobs_completed: inc(1), updated_at: now }, { merge: true });
+      } else {
+        // Smart-contract mode: funds already moved directly on Solana! Record analytics only.
+        tx.set(
+          walletRef(job.poster_owner_id),
+          { owner_id: job.poster_owner_id, spent_lamports: inc(budgetLamports), updated_at: now },
+          { merge: true }
+        );
+        tx.set(
+          walletRef(job.provider_owner_id),
+          { owner_id: job.provider_owner_id, earned_lamports: inc(payout_lamports), updated_at: now },
+          { merge: true }
+        );
+        tx.set(treasuryRef(), { fees_lamports: inc(fee_lamports), gross_volume_lamports: inc(budgetLamports), jobs_completed: inc(1), updated_at: now }, { merge: true });
+      }
     } else {
-      // Smart-contract mode: funds already moved directly on Solana! Record analytics only.
-      tx.set(
-        walletRef(job.poster_owner_id),
-        { owner_id: job.poster_owner_id, spent_lamports: inc(budgetLamports), updated_at: now },
-        { merge: true }
-      );
-      tx.set(
-        walletRef(job.provider_owner_id),
-        { owner_id: job.provider_owner_id, earned_lamports: inc(payout_lamports), updated_at: now },
-        { merge: true }
-      );
-      tx.set(treasuryRef(), { fees_lamports: inc(fee_lamports), gross_volume_lamports: inc(budgetLamports), jobs_completed: inc(1), updated_at: now }, { merge: true });
+      tx.set(treasuryRef(), { jobs_completed: inc(1), updated_at: now }, { merge: true });
     }
 
-    tx.set(
-      db().collection('agents').doc(job.provider_id),
-      { verified_task_count: inc(1), review_count: inc(1), reputation: inc(10), jobs_completed: inc(1), earned_lamports: inc(payout_lamports) },
-      { merge: true }
-    );
+    if (job.provider_type === 'user') {
+      tx.set(
+        db().collection('users').doc(job.provider_owner_id),
+        { karma: inc(10), jobs_completed: inc(1), earned_lamports: inc(payout_lamports) },
+        { merge: true }
+      );
+    } else if (job.provider_id) {
+      tx.set(
+        db().collection('agents').doc(job.provider_id),
+        { verified_task_count: inc(1), review_count: inc(1), reputation: inc(10), jobs_completed: inc(1), earned_lamports: inc(payout_lamports) },
+        { merge: true }
+      );
+    }
 
-    const modeLabel = isSmartContract ? 'on-chain smart contract' : 'escrow';
-    ledger(tx, {
-      owner_id: job.poster_owner_id,
-      type: 'job_paid',
-      currency: 'SOL',
-      amount_lamports: 0,
-      job_id: job.id,
-      ref: settlementTx || null,
-      note: `Paid ${formatSol(budgetLamports)} via ${modeLabel} for "${job.title}"`,
-    });
-    ledger(tx, {
-      owner_id: job.provider_owner_id,
-      type: 'job_earned',
-      currency: 'SOL',
-      amount_lamports: payout_lamports,
-      job_id: job.id,
-      ref: settlementTx || null,
-      note: `${job.provider_name} earned ${formatSol(payout_lamports)} for "${job.title}"`,
-    });
-    ledger(tx, {
-      owner_id: 'platform',
-      type: 'platform_fee',
-      currency: 'SOL',
-      amount_lamports: fee_lamports,
-      job_id: job.id,
-      ref: settlementTx || null,
-      note: `${PLATFORM_FEE_BPS / 100}% of ${formatSol(budgetLamports)}`,
-    });
+    if (budgetLamports > 0) {
+      const modeLabel = isSmartContract ? 'on-chain smart contract' : 'escrow';
+      ledger(tx, {
+        owner_id: job.poster_owner_id,
+        type: 'job_paid',
+        currency: 'SOL',
+        amount_lamports: 0,
+        job_id: job.id,
+        ref: settlementTx || null,
+        note: `Paid ${formatSol(budgetLamports)} via ${modeLabel} for "${job.title}"`,
+      });
+      ledger(tx, {
+        owner_id: job.provider_owner_id,
+        type: 'job_earned',
+        currency: 'SOL',
+        amount_lamports: payout_lamports,
+        job_id: job.id,
+        ref: settlementTx || null,
+        note: `${job.provider_name} earned ${formatSol(payout_lamports)} for "${job.title}"`,
+      });
+      ledger(tx, {
+        owner_id: 'platform',
+        type: 'platform_fee',
+        currency: 'SOL',
+        amount_lamports: fee_lamports,
+        job_id: job.id,
+        ref: settlementTx || null,
+        note: `${PLATFORM_FEE_BPS / 100}% of ${formatSol(budgetLamports)}`,
+      });
+    }
 
     const patch = {
       status: 'completed',
@@ -346,13 +370,15 @@ function refund(tx: Transaction, ref: DocumentReference, job: DocumentData, stat
 
   if (currency === 'SOL') {
     const budgetLamports = Number(job.budget_lamports || 0);
-    if (!isSmartContract) {
+    if (!isSmartContract && budgetLamports > 0) {
       tx.set(walletRef(job.poster_owner_id), { owner_id: job.poster_owner_id, held_lamports: inc(-budgetLamports), balance_lamports: inc(budgetLamports), updated_at: now }, { merge: true });
       if (job.poster_type === 'agent') {
         tx.set(db().collection('agents').doc(job.poster_id), { spend_allowance_lamports: inc(budgetLamports) }, { merge: true });
       }
     }
-    ledger(tx, { owner_id: job.poster_owner_id, type: 'escrow_refund', currency: 'SOL', amount_lamports: isSmartContract ? 0 : budgetLamports, job_id: job.id, ref: refundTx || null, note });
+    if (budgetLamports > 0) {
+      ledger(tx, { owner_id: job.poster_owner_id, type: 'escrow_refund', currency: 'SOL', amount_lamports: isSmartContract ? 0 : budgetLamports, job_id: job.id, ref: refundTx || null, note });
+    }
     tx.update(ref, { status, refund_tx: refundTx || null, updated_at: now });
     return { ...job, status, refund_tx: refundTx || null };
   }
@@ -442,6 +468,13 @@ export type PostJobInput = {
   /** For on-chain smart contract escrow: tx signature + poster wallet pubkey. */
   escrow_tx?: string;
   poster_wallet?: string;
+  /** Human-Operated AI Dev Marketplace & GitHub Bounties fields (Issue #1). */
+  fulfillment_mode?: FulfillmentMode;
+  is_volunteer?: boolean;
+  github_issue_url?: string | null;
+  acceptance_criteria?: string | null;
+  preferred_model?: string | null;
+  preferred_effort?: string | null;
 };
 
 function cleanSkills(skills: unknown): string[] {
@@ -469,12 +502,31 @@ export async function postJob(actor: Actor, input: PostJobInput) {
   if (description.length < 20 || description.length > 8000) throw new MarketError('description must be 20–8000 characters. Say exactly what "done" looks like.');
   if (!Number.isInteger(deadline) || deadline < 1 || deadline > 720) throw new MarketError('deadline_hours must be 1–720.');
 
+  const fulfillmentMode: FulfillmentMode =
+    input.fulfillment_mode === 'human_operator' || input.fulfillment_mode === 'autonomous_agent'
+      ? input.fulfillment_mode
+      : 'any';
+  const isVolunteer = Boolean(input.is_volunteer);
+  const githubIssueUrl = String(input.github_issue_url || '').trim() || null;
+  let githubRepo: string | null = null;
+  if (githubIssueUrl) {
+    const ghMatch = githubIssueUrl.match(/^https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/issues\/\d+/i);
+    if (!ghMatch) throw new MarketError('github_issue_url must be a valid https://github.com/owner/repo/issues/N URL.');
+    githubRepo = ghMatch[1];
+  }
+  const acceptanceCriteria = String(input.acceptance_criteria || '').trim().slice(0, 4000) || null;
+  const preferredModel = String(input.preferred_model || '').trim().slice(0, 80) || null;
+  const preferredEffort = String(input.preferred_effort || '').trim().slice(0, 20) || null;
+
   const hasSolBudget = input.budget_lamports != null || input.budget_sol != null;
-  const currency: JobCurrency = input.currency === 'USD' && !hasSolBudget ? 'USD' : 'SOL';
+  const currency: JobCurrency = input.currency === 'USD' && !hasSolBudget && !isVolunteer ? 'USD' : 'SOL';
 
   let budgetLamports = 0;
   let budgetCents = 0;
-  if (currency === 'SOL') {
+  if (isVolunteer) {
+    budgetLamports = 0;
+    budgetCents = 0;
+  } else if (currency === 'SOL') {
     budgetLamports = input.budget_lamports != null ? Math.round(Number(input.budget_lamports)) : solToLamports(Number(input.budget_sol || 0));
     if (!Number.isInteger(budgetLamports) || budgetLamports < MIN_BUDGET_LAMPORTS || budgetLamports > MAX_BUDGET_LAMPORTS) {
       throw new MarketError(`budget must be between ${formatSol(MIN_BUDGET_LAMPORTS)} and ${formatSol(MAX_BUDGET_LAMPORTS)}.`);
@@ -560,7 +612,7 @@ export async function postJob(actor: Actor, input: PostJobInput) {
     const existing = await tx.get(ref);
     if (existing.exists) throw new MarketError('A job with this ID already exists.', 409);
 
-    if (escrowMode === 'wallet') {
+    if (escrowMode === 'wallet' && !isVolunteer) {
       const wSnap = await tx.get(walletRef(owner));
       let agentSnap = null;
       if (actor.kind === 'agent') agentSnap = await tx.get(db().collection('agents').doc(actor.agentId));
@@ -619,6 +671,13 @@ export async function postJob(actor: Actor, input: PostJobInput) {
       title,
       description,
       skills,
+      fulfillment_mode: fulfillmentMode,
+      is_volunteer: isVolunteer,
+      github_issue_url: githubIssueUrl,
+      github_repo: githubRepo,
+      acceptance_criteria: acceptanceCriteria,
+      preferred_model: preferredModel,
+      preferred_effort: preferredEffort,
       currency,
       escrow_mode: escrowMode,
       budget_lamports: budgetLamports,
@@ -635,6 +694,7 @@ export async function postJob(actor: Actor, input: PostJobInput) {
       direct_provider_id: directId,
       direct_provider_name: directName,
       direct_provider_wallet: directWallet,
+      provider_type: 'agent',
       provider_id: directId,
       provider_owner_id: null,
       provider_name: null,
@@ -665,28 +725,48 @@ async function withJob<T>(jobId: string, fn: (tx: Transaction, ref: DocumentRefe
 }
 
 export async function claimJob(actor: Actor, jobId: string, opts: { worker_wallet?: string; claim_tx?: string } = {}) {
-  if (actor.kind !== 'agent') throw new MarketError('Only agents claim jobs. Use one of your agents’ API keys.', 403);
-  const active = await db().collection('jobs').where('provider_id', '==', actor.agentId).where('status', '==', 'claimed').count().get();
+  const workerId = actor.kind === 'agent' ? actor.agentId : actor.uid;
+  const workerOwnerId = ownerOf(actor);
+  const active = await db().collection('jobs').where('provider_id', '==', workerId).where('status', '==', 'claimed').count().get();
   if (active.data().count >= MAX_ACTIVE_CLAIMS) throw new MarketError(`You already have ${MAX_ACTIVE_CLAIMS} claimed jobs. Submit or release one first.`, 429);
 
-  // Resolve agent's Solana payout wallet.
-  const agentSnap = await db().collection('agents').doc(actor.agentId).get();
-  const agentData = agentSnap.data() || {};
-  let workerWallet = opts.worker_wallet?.trim() || agentData.solana_address || agentData.payment_address || null;
-  if (!workerWallet) {
-    const ownerWalletSnap = await walletRef(actor.ownerId).get();
-    workerWallet = ownerWalletSnap.data()?.solana_address || null;
-  }
   if (opts.worker_wallet && !isValidSolanaAddress(opts.worker_wallet)) {
     throw new MarketError('worker_wallet must be a valid Solana public key.');
   }
 
+  let workerName = 'A developer';
+  let workerWallet = opts.worker_wallet?.trim() || null;
+
+  if (actor.kind === 'agent') {
+    workerName = actor.name;
+    const agentSnap = await db().collection('agents').doc(actor.agentId).get();
+    const agentData = agentSnap.data() || {};
+    workerWallet = workerWallet || agentData.solana_address || agentData.payment_address || null;
+  } else {
+    const userSnap = await db().collection('users').doc(actor.uid).get();
+    const userData = userSnap.data() || {};
+    workerName = userData.displayName || userData.email || 'A developer';
+    workerWallet = workerWallet || userData.solana_address || null;
+  }
+
+  if (!workerWallet) {
+    const ownerWalletSnap = await walletRef(workerOwnerId).get();
+    workerWallet = ownerWalletSnap.data()?.solana_address || null;
+  }
+
   return withJob(jobId, async (tx, ref, job) => {
     if (job.status !== 'open') throw new MarketError(`Job is ${job.status}, not open.`, 409);
-    if (job.direct_provider_id && job.direct_provider_id !== actor.agentId) throw new MarketError('This job is a direct hire for another agent.', 403);
-    if (job.poster_owner_id === actor.ownerId) throw new MarketError('Agents cannot take jobs posted by their own gardener.', 403);
+    const mode: FulfillmentMode = job.fulfillment_mode || 'any';
+    if (mode === 'human_operator' && actor.kind === 'agent') {
+      throw new MarketError('This task is for a human developer using AI coding tools.', 403);
+    }
+    if (mode === 'autonomous_agent' && actor.kind === 'user') {
+      throw new MarketError('This task is reserved for autonomous AI agents. Use an agent API key to claim it.', 403);
+    }
+    if (job.direct_provider_id && job.direct_provider_id !== workerId) throw new MarketError('This job is a direct hire for another agent.', 403);
+    if (job.poster_owner_id === workerOwnerId) throw new MarketError('You cannot claim your own job.', 403);
     if (job.escrow_mode === 'smart_contract' && !workerWallet) {
-      throw new MarketError('This job uses Solana smart contract escrow. Register a Solana wallet address on your agent profile or pass worker_wallet to claim.');
+      throw new MarketError('This job uses Solana smart contract escrow. Link a Solana wallet address or pass worker_wallet to claim.');
     }
 
     if (opts.claim_tx && job.escrow_mode === 'smart_contract' && job.escrow_pda) {
@@ -696,9 +776,10 @@ export async function claimJob(actor: Actor, jobId: string, opts: { worker_walle
     const now = Date.now();
     const patch = {
       status: 'claimed',
-      provider_id: actor.agentId,
-      provider_owner_id: actor.ownerId,
-      provider_name: actor.name,
+      provider_type: actor.kind,
+      provider_id: workerId,
+      provider_owner_id: workerOwnerId,
+      provider_name: workerName,
       worker_wallet: workerWallet,
       claim_tx: opts.claim_tx || null,
       claimed_at: now,
@@ -717,16 +798,26 @@ export async function releaseJob(actor: Actor, jobId: string) {
   });
 }
 
-export async function submitWork(actor: Actor, jobId: string, input: { text?: string; url?: string; submit_tx?: string }) {
-  if (actor.kind !== 'agent') throw new MarketError('Only the agent that claimed the job can submit work.', 403);
+export async function submitWork(
+  actor: Actor,
+  jobId: string,
+  input: { text?: string; url?: string; github_pr_url?: string; ai_tools_used?: string; submit_tx?: string }
+) {
   const text = String(input.text || '').trim();
-  const url = String(input.url || '').trim();
-  if (!text && !url) throw new MarketError('Send the finished work as text, a url, or both.');
+  const prUrl = String(input.github_pr_url || '').trim();
+  const url = String(input.url || prUrl || '').trim();
+  const aiToolsUsed = String(input.ai_tools_used || '').trim().slice(0, 160) || null;
+  if (!text && !url) throw new MarketError('Send the finished work as text, a PR/deliverable url, or both.');
   if (text.length > 50_000) throw new MarketError('text is limited to 50,000 characters. Put larger work behind a url.', 413);
   if (url && !/^https:\/\/[^\s]{3,2000}$/i.test(url)) throw new MarketError('url must be an https:// link.');
+  if (prUrl && !/^https:\/\/github\.com\/[^\s]{3,2000}$/i.test(prUrl)) throw new MarketError('github_pr_url must be a valid https://github.com/... link.');
+
+  const workerId = actor.kind === 'agent' ? actor.agentId : actor.uid;
 
   return withJob(jobId, async (tx, ref, job) => {
-    if (job.provider_id !== actor.agentId) throw new MarketError('Only the agent that claimed this job can submit work.', 403);
+    if (job.provider_id !== workerId && !(actor.kind === 'user' && job.provider_owner_id === actor.uid && job.provider_type === 'user')) {
+      throw new MarketError('Only the worker that claimed this job can submit work.', 403);
+    }
     if (job.status !== 'claimed') throw new MarketError(job.status === 'open' ? 'Your claim expired; claim the job again.' : `Job is ${job.status}.`, 409);
 
     if (input.submit_tx && job.escrow_mode === 'smart_contract' && job.escrow_pda) {
@@ -737,7 +828,13 @@ export async function submitWork(actor: Actor, jobId: string, input: { text?: st
     const payload_hash = createHash('sha256').update(`${text}\n${url}`).digest('hex');
     const patch = {
       status: 'submitted',
-      deliverable: { text: text || null, url: url || null, submitted_at: now },
+      deliverable: {
+        text: text || null,
+        url: url || null,
+        github_pr_url: prUrl || null,
+        ai_tools_used: aiToolsUsed,
+        submitted_at: now,
+      },
       payload_hash,
       submit_tx: input.submit_tx || null,
       submitted_at: now,

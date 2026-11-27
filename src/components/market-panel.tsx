@@ -33,6 +33,8 @@ import {
   reviewJobAsUser,
   setSolAllowance,
   startTopup,
+  submitWorkAsUser,
+  releaseJobAsUser,
   updateAgentSolanaWallet,
   withdrawSol,
 } from '@/app/actions/market';
@@ -71,8 +73,18 @@ function Deliverable({ job }: { job: Job }) {
   if (!job.deliverable) return null;
   return (
     <div className="p-3 bg-muted/40 rounded-xl space-y-2 text-sm">
+      {job.deliverable.ai_tools_used && (
+        <p className="text-xs text-muted-foreground">
+          <strong>AI Tools Used:</strong> {job.deliverable.ai_tools_used}
+        </p>
+      )}
+      {job.deliverable.github_pr_url && (
+        <a href={job.deliverable.github_pr_url} target="_blank" rel="noopener noreferrer nofollow" className="text-primary font-medium underline inline-flex items-center gap-1 break-all">
+          GitHub PR: {job.deliverable.github_pr_url} <ExternalLink className="w-3 h-3 shrink-0" />
+        </a>
+      )}
       {job.deliverable.text && <pre className="whitespace-pre-wrap break-words font-body max-h-80 overflow-y-auto">{job.deliverable.text}</pre>}
-      {job.deliverable.url && (
+      {job.deliverable.url && job.deliverable.url !== job.deliverable.github_pr_url && (
         <a href={job.deliverable.url} target="_blank" rel="noopener noreferrer nofollow" className="text-primary underline inline-flex items-center gap-1 break-all">
           {job.deliverable.url} <ExternalLink className="w-3 h-3 shrink-0" />
         </a>
@@ -88,6 +100,9 @@ export function MarketPanel({ user }: { user: User }) {
 
   const [m, setM] = useState<Market | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [prUrls, setPrUrls] = useState<Record<string, string>>({});
+  const [aiTools, setAiTools] = useState<Record<string, string>>({});
+  const [workNotes, setWorkNotes] = useState<Record<string, string>>({});
   const [depositSol, setDepositSol] = useState('0.5');
   const [manualTxSig, setManualTxSig] = useState('');
   const [withdrawAmountSol, setWithdrawAmountSol] = useState('');
@@ -435,12 +450,75 @@ export function MarketPanel({ user }: { user: User }) {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-2xl font-headline font-bold flex items-center gap-2"><Bot className="w-6 h-6" />Your agents at work</h2>
-        {m.working.length === 0 && <p className="text-sm text-muted-foreground">Your agents haven’t taken any jobs yet. Connect one to the <Link href="/how-it-works#mcp" className="underline">MCP server</Link> and it can start earning SOL.</p>}
+        <h2 className="text-2xl font-headline font-bold flex items-center gap-2"><Bot className="w-6 h-6" />Your agents &amp; tasks at work</h2>
+        {m.working.length === 0 && <p className="text-sm text-muted-foreground">No active tasks yet. Claim a GitHub bounty on the <Link href="/jobs" className="underline">Job Board</Link> or connect an agent to the <Link href="/how-it-works#mcp" className="underline">MCP server</Link>.</p>}
         {m.working.map((job) => (
-          <div key={job.id} className="flex flex-wrap justify-between gap-2 p-4 bg-white/70 rounded-2xl items-center">
-            <div className="min-w-0"><p className="font-medium break-words">{job.title}</p><p className="text-xs text-muted-foreground">{job.provider_name} · earns {job.worker_gets}</p></div>
-            <StatusBadge status={job.status} />
+          <div key={job.id} className="p-4 bg-white/80 rounded-2xl space-y-3 border border-primary/5">
+            <div className="flex flex-wrap justify-between gap-2 items-center">
+              <div className="min-w-0">
+                <p className="font-bold break-words">{job.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {job.provider_name} · {job.is_volunteer ? 'Free / Open-Source' : `earns ${job.worker_gets}`}
+                  {job.github_issue_url && (
+                    <> · <a href={job.github_issue_url} target="_blank" rel="noopener noreferrer" className="underline">GitHub issue</a></>
+                  )}
+                </p>
+              </div>
+              <StatusBadge status={job.status} />
+            </div>
+            {job.provider_type === 'user' && job.status === 'claimed' && (
+              <div className="space-y-2 pt-2 border-t border-primary/5">
+                <Input
+                  placeholder="GitHub PR URL (https://github.com/owner/repo/pull/123) or deliverable URL"
+                  value={prUrls[job.id] || ''}
+                  onChange={(e) => setPrUrls({ ...prUrls, [job.id]: e.target.value })}
+                  className="rounded-xl text-xs font-mono"
+                />
+                <Input
+                  placeholder="AI tools used (e.g. Claude Code, Gemini CLI, Codex)"
+                  value={aiTools[job.id] || ''}
+                  onChange={(e) => setAiTools({ ...aiTools, [job.id]: e.target.value })}
+                  className="rounded-xl text-xs"
+                />
+                <Textarea
+                  placeholder="Summary of changes, test results, and notes for the reviewer..."
+                  value={workNotes[job.id] || ''}
+                  onChange={(e) => setWorkNotes({ ...workNotes, [job.id]: e.target.value })}
+                  className="rounded-xl text-xs min-h-[80px]"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    className="rounded-xl gap-1.5"
+                    disabled={!!busy || (!prUrls[job.id]?.trim() && !workNotes[job.id]?.trim())}
+                    onClick={() =>
+                      act(
+                        `submit_${job.id}`,
+                        (t) =>
+                          submitWorkAsUser(t, job.id, {
+                            text: workNotes[job.id],
+                            github_pr_url: prUrls[job.id]?.includes('github.com/') ? prUrls[job.id] : undefined,
+                            url: prUrls[job.id] || undefined,
+                            ai_tools_used: aiTools[job.id],
+                          }),
+                        'Deliverable submitted for review!'
+                      )
+                    }
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Submit PR / Work
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-xl"
+                    disabled={!!busy}
+                    onClick={() => act(`rel_${job.id}`, (t) => releaseJobAsUser(t, job.id), 'Task released back to job board')}
+                  >
+                    Release Task
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         {m.agents.length > 0 && (
