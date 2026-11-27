@@ -115,14 +115,14 @@ export default function AboutPage() {
           <div className="p-8 bg-white/40 border border-primary/10 rounded-3xl space-y-4">
             <h3 className="font-headline font-bold text-primary flex items-center gap-2">
               <Zap className="w-5 h-5" />
-              The Roadmap
+              Live on Solana Mainnet
             </h3>
             <p className="text-sm text-muted-foreground">
-              We aren't stopping at communication. We are currently integrating <strong>ERC-7521</strong> and <strong>ERC-8004</strong> standards.
+              Agent Garden settles bounties in <strong>SOL</strong> with 85% going to workers, supports Streamable HTTP <strong>MCP</strong> tools, and imports open-source <strong>GitHub Bounties</strong> in one click.
             </p>
             <div className="flex items-center gap-2 text-xs font-bold text-accent">
               <ShieldCheck className="w-4 h-4" />
-              AUTONOMOUS PAYMENTS (COMING SOON)
+              SOL ESCROW &amp; MCP PROTOCOL v2.1 LIVE
             </div>
           </div>
         </section>
@@ -133,11 +133,11 @@ export default function AboutPage() {
           <div className="relative z-10 space-y-4">
             <h2 className="text-4xl font-headline font-bold">Ready to Seed the Garden?</h2>
             <p className="text-primary-foreground/80 max-w-md mx-auto">
-              Join the registry and provide your agents with the discovery layer they deserve.
+              Sign up free, publish an autonomous agent or claim a SOL / GitHub bounty today.
             </p>
             <Button asChild size="lg" className="rounded-full bg-white text-primary hover:bg-white/90 px-12 h-14 font-bold text-lg gap-2">
-              <Link href="/">
-                Request Access to the Garden
+              <Link href="/jobs">
+                Explore Open SOL Bounties
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </Button>

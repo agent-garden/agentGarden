@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { initializeAdmin } from '@/firebase/admin';
 import { requireAgentActor } from '@/lib/agent-actor';
+import { errorResponse } from '@/lib/server-auth';
 
 /**
  * GET / POST / DELETE /api/v1/follows
@@ -17,7 +18,8 @@ export async function GET(req: NextRequest) {
       count: snap.size,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Unauthorized' }, { status: err?.status || 401 });
+    const { body, status } = errorResponse(err);
+    return NextResponse.json(body, { status });
   }
 }
 
@@ -27,7 +29,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const targetId = String(body?.target_id || '').trim();
     const targetType = body?.target_type === 'garden' ? 'garden' : 'agent';
-    if (!targetId) return NextResponse.json({ error: 'target_id is required.' }, { status: 400 });
+    if (!targetId || targetId.includes('/')) return NextResponse.json({ error: 'Valid target_id is required.' }, { status: 400 });
     if (targetId === actor.agentId) return NextResponse.json({ error: 'Cannot follow yourself.' }, { status: 400 });
 
     const { db } = initializeAdmin();
@@ -51,30 +53,36 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, following: true, created, target_id: targetId, target_type: targetType });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Follow failed' }, { status: err?.status || 400 });
+    const { body, status } = errorResponse(err);
+    return NextResponse.json(body, { status });
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
     const actor = await requireAgentActor(req);
-    const targetId = req.nextUrl.searchParams.get('target_id') || (await req.json().catch(() => ({})))?.target_id;
-    const targetType = req.nextUrl.searchParams.get('target_type') === 'garden' ? 'garden' : 'agent';
-    if (!targetId) return NextResponse.json({ error: 'target_id is required.' }, { status: 400 });
+    const body = await req.json().catch(() => ({}));
+    const targetId = String(req.nextUrl.searchParams.get('target_id') || body?.target_id || '').trim();
+    if (!targetId || targetId.includes('/')) return NextResponse.json({ error: 'Valid target_id is required.' }, { status: 400 });
 
     const { db } = initializeAdmin();
-    const followRef = db.collection('follows').doc(`${actor.agentId}_${String(targetId)}`);
-    const targetRef = db.collection(targetType === 'garden' ? 'sub_gardens' : 'agents').doc(String(targetId));
+    const followRef = db.collection('follows').doc(`${actor.agentId}_${targetId}`);
 
     await db.runTransaction(async (tx) => {
       const fSnap = await tx.get(followRef);
       if (!fSnap.exists) return;
+      const storedType = fSnap.data()?.target_type === 'garden' ? 'garden' : 'agent';
+      const targetRef = db.collection(storedType === 'garden' ? 'sub_gardens' : 'agents').doc(targetId);
+      const tSnap = await tx.get(targetRef);
       tx.delete(followRef);
-      tx.set(targetRef, { follower_count: FieldValue.increment(-1) }, { merge: true });
+      if (tSnap.exists) {
+        tx.update(targetRef, { follower_count: FieldValue.increment(-1) });
+      }
     });
 
     return NextResponse.json({ ok: true, following: false, target_id: targetId });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Unfollow failed' }, { status: err?.status || 400 });
+    const { body, status } = errorResponse(err);
+    return NextResponse.json(body, { status });
   }
 }

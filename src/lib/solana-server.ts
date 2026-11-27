@@ -1,6 +1,7 @@
 import 'server-only';
 import { Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import {
+  anchorDiscriminator,
   buildAcceptAndReleaseInstruction,
   buildCancelJobInstruction,
   buildClaimJobInstruction,
@@ -19,6 +20,9 @@ import {
   isSmartContractConfigured,
   isValidSolanaAddress,
   jobIdToSeed,
+  MAX_BUDGET_LAMPORTS,
+  MAX_TOPUP_LAMPORTS,
+  MIN_BUDGET_LAMPORTS,
 } from '@/lib/solana';
 
 /**
@@ -100,8 +104,34 @@ export async function verifySolDepositTransaction(opts: {
   if (tx.meta?.err) {
     throw new Error(`Solana transaction failed on-chain: ${JSON.stringify(tx.meta.err)}`);
   }
+  if (tx.blockTime && Date.now() - tx.blockTime * 1000 > 24 * 3600_000) {
+    throw new Error('Deposit transaction is older than 24 hours. Please contact support if a recent deposit was missed.');
+  }
 
-  const keys = tx.transaction.message.getAccountKeys().staticAccountKeys.map((k) => k.toBase58());
+  const accountKeys = tx.transaction.message.getAccountKeys({
+    accountKeysFromLookups: tx.meta?.loadedAddresses,
+  });
+  const keys: string[] = [];
+  for (let i = 0; i < accountKeys.length; i++) {
+    const k = accountKeys.get(i);
+    if (k) keys.push(k.toBase58());
+  }
+
+  // Reject smart-contract settlement transactions so 15% platform fees cannot be double-claimed as user deposits.
+  const escrowProgram = getEscrowProgramId().toBase58();
+  if (isSmartContractConfigured() && keys.includes(escrowProgram)) {
+    throw new Error('Smart-contract escrow transactions cannot be claimed as wallet deposits.');
+  }
+
+  // Verify at least one native SystemProgram instruction was executed.
+  const sysProg = SystemProgram.programId.toBase58();
+  const hasSystemIx = tx.transaction.message.compiledInstructions.some(
+    (ix) => keys[ix.programIdIndex] === sysProg
+  );
+  if (!hasSystemIx) {
+    throw new Error('Deposit must be a native SOL SystemProgram transfer.');
+  }
+
   const recipientIdx = keys.indexOf(opts.expectedRecipient);
   if (recipientIdx === -1) {
     throw new Error(`Transaction did not involve treasury address ${opts.expectedRecipient}.`);
@@ -113,6 +143,9 @@ export async function verifySolDepositTransaction(opts: {
 
   if (receivedLamports <= 0) {
     throw new Error('No net SOL transfer to the treasury was detected in this transaction.');
+  }
+  if (receivedLamports > MAX_TOPUP_LAMPORTS) {
+    throw new Error(`Deposit exceeds maximum single top-up limit.`);
   }
   if (opts.minLamports && receivedLamports < opts.minLamports) {
     throw new Error(`Received ${receivedLamports} lamports, expected at least ${opts.minLamports}.`);
@@ -133,6 +166,7 @@ export async function verifySolDepositTransaction(opts: {
 export async function verifyEscrowTxOnChain(opts: {
   signature: string;
   expectedAccount?: string;
+  expectedInstruction?: string;
 }) {
   const sig = opts.signature.trim();
   if (!sig || sig.length < 32) {
@@ -150,12 +184,40 @@ export async function verifyEscrowTxOnChain(opts: {
     throw new Error(`Smart contract transaction failed: ${JSON.stringify(tx.meta.err)}`);
   }
 
-  const keys = tx.transaction.message.getAccountKeys().staticAccountKeys.map((k) => k.toBase58());
-  const programId = getEscrowProgramId().toBase58();
-  if (!keys.includes(programId)) {
-    throw new Error(`Transaction did not invoke Agent Garden escrow program (${programId}).`);
+  const accountKeys = tx.transaction.message.getAccountKeys({
+    accountKeysFromLookups: tx.meta?.loadedAddresses,
+  });
+  const keys: string[] = [];
+  for (let i = 0; i < accountKeys.length; i++) {
+    const k = accountKeys.get(i);
+    if (k) keys.push(k.toBase58());
   }
-  if (opts.expectedAccount && !keys.includes(opts.expectedAccount)) {
+
+  const programId = getEscrowProgramId().toBase58();
+  const programIxs = tx.transaction.message.compiledInstructions.filter(
+    (ix) => keys[ix.programIdIndex] === programId
+  );
+  if (programIxs.length === 0) {
+    throw new Error(`Transaction did not execute Agent Garden escrow program (${programId}).`);
+  }
+
+  if (opts.expectedInstruction) {
+    const expectedDisc = await anchorDiscriminator(opts.expectedInstruction);
+    const matched = programIxs.some((ix) => {
+      if (!ix.data || ix.data.length < 8) return false;
+      for (let i = 0; i < 8; i++) {
+        if (ix.data[i] !== expectedDisc[i]) return false;
+      }
+      if (opts.expectedAccount) {
+        const involved = ix.accountKeyIndexes.map((idx) => keys[idx]);
+        if (!involved.includes(opts.expectedAccount)) return false;
+      }
+      return true;
+    });
+    if (!matched) {
+      throw new Error(`Transaction did not execute expected '${opts.expectedInstruction}' instruction on ${opts.expectedAccount || 'escrow'}.`);
+    }
+  } else if (opts.expectedAccount && !keys.includes(opts.expectedAccount)) {
     throw new Error(`Transaction did not target expected escrow PDA (${opts.expectedAccount}).`);
   }
 
@@ -206,7 +268,9 @@ export async function buildSerializedSolanaTx(params: {
       throw new Error('Platform treasury Solana address is not configured.');
     }
     const lamports = Math.round(Number(params.amountLamports || 0));
-    if (lamports <= 0) throw new Error('amountLamports must be > 0.');
+    if (!Number.isSafeInteger(lamports) || lamports <= 0 || lamports > MAX_TOPUP_LAMPORTS) {
+      throw new Error('amountLamports must be a valid positive integer.');
+    }
     tx.add(
       SystemProgram.transfer({
         fromPubkey: feePayerPk,
@@ -226,6 +290,12 @@ export async function buildSerializedSolanaTx(params: {
       case 'initialize_job': {
         const lamports = Math.round(Number(params.amountLamports || 0));
         const deadlineSecs = Math.round(Number(params.deadlineSecs || 24 * 3600));
+        if (!Number.isSafeInteger(lamports) || lamports < MIN_BUDGET_LAMPORTS || lamports > MAX_BUDGET_LAMPORTS) {
+          throw new Error(`amountLamports must be between ${MIN_BUDGET_LAMPORTS} and ${MAX_BUDGET_LAMPORTS}.`);
+        }
+        if (!Number.isSafeInteger(deadlineSecs) || deadlineSecs < 3600 || deadlineSecs > 30 * 86400) {
+          throw new Error('deadlineSecs must be between 3600 (1h) and 2592000 (30d).');
+        }
         const directPk = params.directWorker && isValidSolanaAddress(params.directWorker) ? new PublicKey(params.directWorker) : null;
         const { instruction, jobEscrow } = await buildInitializeJobInstruction({
           poster: posterPk,
@@ -325,6 +395,8 @@ export async function buildSerializedSolanaTx(params: {
         note = `Flag escrow ${escrowPda} as disputed`;
         break;
       }
+      default:
+        throw new Error(`Unsupported Solana transaction action: ${String(params.action)}`);
     }
   }
 

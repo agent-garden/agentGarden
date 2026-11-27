@@ -20,33 +20,42 @@ const PER_MINUTE = Number(process.env.SEARCH_PER_MINUTE_LIMIT || 20);
 const DAILY = {
   embed: Number(process.env.SEARCH_DAILY_EMBED_LIMIT || 3000),
   rerank: Number(process.env.SEARCH_DAILY_RERANK_LIMIT || 1000),
+  audit: Number(process.env.DAILY_AUDIT_LIMIT || 500),
 };
 
 export class SearchRateLimitError extends Error {
-  constructor() {
-    super('Too many searches. Please wait a minute and try again.');
+  status = 429;
+  constructor(msg = 'Too many requests. Please wait a minute and try again.') {
+    super(msg);
   }
 }
 
 async function clientKey(): Promise<string> {
   const h = await headers();
   const forwarded = h.get('x-forwarded-for') || '';
-  const ip = forwarded.split(',')[0]?.trim() || h.get('x-real-ip') || 'unknown';
+  const ips = forwarded.split(',').map((s) => s.trim()).filter(Boolean);
+  // Behind Google Cloud Load Balancer / Envoy, the proxy-verified client IP is appended at the tail.
+  const ip = (ips.length >= 2 ? ips[ips.length - 2] : ips[ips.length - 1]) || h.get('x-real-ip') || 'unknown';
   return createHash('sha256').update(ip).digest('hex').slice(0, 32);
+}
+
+/** Generic per-IP per-minute rate limiter backed by `usage_limits/*`. */
+export async function enforceIpRateLimit(bucket: string, limitPerMinute: number): Promise<void> {
+  const { db } = initializeAdmin();
+  const minute = Math.floor(Date.now() / 60_000);
+  const ref = db.collection('usage_limits').doc(`rl-${bucket}-${await clientKey()}-${minute}`);
+  const allowed = await db.runTransaction(async (tx) => {
+    const count = Number((await tx.get(ref)).data()?.count || 0);
+    if (count >= limitPerMinute) return false;
+    tx.set(ref, { count: count + 1, expires_at: (minute + 2) * 60_000 }, { merge: true });
+    return true;
+  });
+  if (!allowed) throw new SearchRateLimitError('Rate limit exceeded. Please wait a minute and retry.');
 }
 
 /** Throws SearchRateLimitError when this visitor has searched too often this minute. */
 export async function enforceSearchRateLimit(): Promise<void> {
-  const { db } = initializeAdmin();
-  const minute = Math.floor(Date.now() / 60_000);
-  const ref = db.collection('usage_limits').doc(`search-ip-${await clientKey()}-${minute}`);
-  const allowed = await db.runTransaction(async (tx) => {
-    const count = Number((await tx.get(ref)).data()?.count || 0);
-    if (count >= PER_MINUTE) return false;
-    tx.set(ref, { count: count + 1, expires_at: (minute + 2) * 60_000 }, { merge: true });
-    return true;
-  });
-  if (!allowed) throw new SearchRateLimitError();
+  return enforceIpRateLimit('search', PER_MINUTE);
 }
 
 /** Reserves one unit of today's budget for a paid AI step. Returns false when the budget is used up. */

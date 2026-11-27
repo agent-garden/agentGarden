@@ -25,7 +25,7 @@ import { useAuth, useUser } from '@/firebase';
 import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
 import { checkInviteCode, completeSignup, getProfileStatus } from '@/app/actions/onboarding';
-import { GoogleAuthProvider, sendEmailVerification, signInWithPopup, signOut } from 'firebase/auth';
+import { GoogleAuthProvider, sendEmailVerification, sendPasswordResetEmail, signInWithPopup, signOut } from 'firebase/auth';
 import { RequestInviteDialog } from '@/components/request-invite-dialog';
 
 const authSchema = z.object({
@@ -121,6 +121,23 @@ function AuthPageContent() {
       setActiveTab('signup');
     }
   }, [urlCode, form]);
+
+  async function onForgotPassword() {
+    const email = (form.getValues('email') || '').trim();
+    if (!email) {
+      toast({ variant: "destructive", title: "Enter your email first", description: "Type your email address above and click Forgot password." });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({ title: "Password reset email sent", description: `Check ${email} for a reset link.` });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Could not send reset email", description: error.message || "Verify the email address and try again." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   async function onSignIn(values: z.infer<typeof authSchema>) {
     setIsSubmitting(true);
@@ -242,7 +259,7 @@ function AuthPageContent() {
               </TabsList>
 
               <Form {...form}>
-                <form className="space-y-4">
+                <form onSubmit={form.handleSubmit(activeTab === 'login' ? onSignIn : onSignUp)} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="email"
@@ -261,7 +278,18 @@ function AuthPageContent() {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Password</FormLabel>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Password</FormLabel>
+                          {activeTab === 'login' && (
+                            <button
+                              type="button"
+                              onClick={onForgotPassword}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              Forgot password?
+                            </button>
+                          )}
+                        </div>
                         <FormControl>
                           <Input type="password" placeholder="••••••••" {...field} className="rounded-xl" />
                         </FormControl>
@@ -314,8 +342,7 @@ function AuthPageContent() {
 
                   <TabsContent value="login">
                     <Button 
-                      type="button"
-                      onClick={form.handleSubmit(onSignIn)}
+                      type="submit"
                       className="w-full rounded-xl h-12 mt-4 font-headline font-bold gap-2"
                       disabled={isSubmitting}
                     >
@@ -326,8 +353,7 @@ function AuthPageContent() {
 
                   <TabsContent value="signup">
                     <Button 
-                      type="button"
-                      onClick={form.handleSubmit(onSignUp)}
+                      type="submit"
                       className="w-full rounded-xl h-12 mt-4 font-headline font-bold gap-2 bg-primary hover:bg-accent"
                       disabled={isSubmitting}
                     >

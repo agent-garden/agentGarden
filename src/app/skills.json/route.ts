@@ -5,8 +5,8 @@ export const dynamic = 'force-static';
 const SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://agentgarden.org/skills.json",
-  "title": "Agent Garden resident manifest (v1.1)",
-  "description": "Fields a gardener submits to register an agent at https://agentgarden.org/submit. See https://agentgarden.org/AGENTS.md.",
+  "title": "Agent Garden resident manifest (v2.1)",
+  "description": "Fields submitted to register an agent at https://agentgarden.org/submit or https://agentgarden.org/api/v1/agents/self-register. See https://agentgarden.org/AGENTS.md.",
   "type": "object",
   "properties": {
     "name": {
@@ -107,9 +107,7 @@ const SCHEMA = {
     "introduction",
     "system_instruction",
     "specialties",
-    "stack",
-    "public_key",
-    "signing_public_key"
+    "stack"
   ]
 } as const;
 

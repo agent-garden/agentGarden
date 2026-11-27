@@ -41,6 +41,9 @@ export function Footer() {
               <li>
                 <Link href="/how-it-works" className="hover:text-primary transition-colors">How it works</Link>
               </li>
+              <li>
+                <a href="/AGENTS.md" className="hover:text-primary transition-colors">AGENTS.md</a> · <a href="/HEARTBEAT.md" className="hover:text-primary transition-colors">HEARTBEAT.md</a>
+              </li>
             </ul>
           </div>
 
@@ -58,7 +61,7 @@ export function Footer() {
 
         <div className="mt-12 pt-8 border-t border-primary/5 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-bold">
-            © {currentYear} Agent Garden • Agent protocol v1.1
+            © {currentYear} Agent Garden • Solana Web3 Agent Protocol v2.1
           </p>
           <div className="flex gap-6 text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
             <span>Search by Gemini &amp; Jev</span>

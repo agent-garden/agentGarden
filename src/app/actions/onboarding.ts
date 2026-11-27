@@ -234,7 +234,6 @@ export async function registerAgent(idToken: string, rawInput: RegisterAgentInpu
       handle: input.handle,
       category: input.category,
       introduction: input.introduction,
-      system_instruction: input.system_instruction,
       specialties: input.specialties,
       stack: input.stack,
       location: input.location,
@@ -249,7 +248,6 @@ export async function registerAgent(idToken: string, rawInput: RegisterAgentInpu
       base_fee_cents: input.base_fee_cents,
       spend_allowance_lamports: 0,
       spend_allowance_cents: 0,
-      search_text: searchText,
       ...(searchEmbedding ? { search_embedding: FieldValue.vector(searchEmbedding) } : {}),
       status: 'active',
       availability: 'Active',
@@ -259,10 +257,18 @@ export async function registerAgent(idToken: string, rawInput: RegisterAgentInpu
       review_count: 0,
       reputation: 0,
       verified_task_count: 0,
+      follower_count: 0,
       security_status: audit.status,
       security_risk_level: audit.risk_level,
-      security_findings: audit.findings,
       last_heartbeat: null,
+      created_at: Date.now(),
+    });
+    tx.set(db.collection('agent_private').doc(agentRef.id), {
+      agent_id: agentRef.id,
+      owner_id: decoded.uid,
+      system_instruction: input.system_instruction,
+      search_text: searchText,
+      security_findings: audit.findings,
       created_at: Date.now(),
     });
     tx.set(db.collection('agent_keys').doc(hash), {
@@ -294,33 +300,30 @@ export async function rotateAgentApiKey(idToken: string, agentId: string) {
 
 /** Permanently deletes one of the caller's agents and revokes its API keys. */
 export async function deleteAgent(idToken: string, agentId: string) {
-  const { uid } = await requireUser(idToken);
+  const decoded = await requireUser(idToken);
+  const { uid } = decoded;
   const { db } = initializeAdmin();
   const agentRef = db.collection('agents').doc(agentId);
   const agentSnap = await agentRef.get();
   if (!agentSnap.exists) throw new Error('Agent not found.');
   const ownerId = agentSnap.data()?.owner_id;
-  if (ownerId !== uid) {
-    const userDoc = await db.collection('users').doc(uid).get();
-    if (userDoc.data()?.role !== 'admin') {
-      throw new Error('You can only delete your own agents.');
-    }
+  if (ownerId !== uid && !(await isAdminUid(uid, decoded))) {
+    throw new Error('You can only delete your own agents.');
   }
 
-  // Prevent deleting an agent with in-flight claimed/submitted jobs
-  const activeWorking = await db
-    .collection('jobs')
-    .where('provider_id', '==', agentId)
-    .where('status', 'in', ['claimed', 'submitted', 'disputed'])
-    .limit(1)
-    .get();
-  if (!activeWorking.empty) {
-    throw new Error('Cannot delete an agent while it has active claimed, submitted, or disputed jobs.');
+  // Prevent deleting an agent while it has active working or posted jobs
+  const [activeWorking, activePosted] = await Promise.all([
+    db.collection('jobs').where('provider_id', '==', agentId).where('status', 'in', ['claimed', 'submitted', 'disputed']).limit(1).get(),
+    db.collection('jobs').where('poster_id', '==', agentId).where('status', 'in', ['open', 'claimed', 'submitted', 'disputed']).limit(1).get(),
+  ]);
+  if (!activeWorking.empty || !activePosted.empty) {
+    throw new Error('Cannot delete an agent while it has open, claimed, submitted, or disputed jobs.');
   }
 
   const keysSnap = await db.collection('agent_keys').where('agent_id', '==', agentId).get();
   const batch = db.batch();
   keysSnap.forEach((d) => batch.delete(d.ref));
+  batch.delete(db.collection('agent_private').doc(agentId));
   batch.delete(agentRef);
   await batch.commit();
   return { deleted: true, agentId };
@@ -329,12 +332,31 @@ export async function deleteAgent(idToken: string, agentId: string) {
 /** Redeems a self-registered agent claim code (AG-XXXX-XXXX) and activates the agent (#11). */
 export async function claimPendingAgent(idToken: string, rawCode: string) {
   const decoded = await requireUser(idToken);
+  const admin = await isAdminUid(decoded.uid, decoded);
   const code = String(rawCode || '').trim().toUpperCase();
   if (!/^AG-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) {
     throw new Error('Enter a valid claim code like AG-XXXX-XXXX.');
   }
 
   const { db } = initializeAdmin();
+  const profileRef = db.collection('users').doc(decoded.uid);
+  let profile = await profileRef.get();
+  if (!profile.exists) {
+    await profileRef.set(newProfile(decoded, null));
+    profile = await profileRef.get();
+  }
+
+  if (!admin) {
+    if (decoded.email_verified !== true) {
+      throw new Error('Verify your email address before claiming an agent.');
+    }
+    const ageDays = (Date.now() - Number(profile.data()?.created_at || 0)) / 86_400_000;
+    const cap = ageDays < NEW_ACCOUNT_DAYS ? MAX_AGENTS_NEW_ACCOUNT : MAX_AGENTS_ESTABLISHED;
+    const owned = (await db.collection('agents').where('owner_id', '==', decoded.uid).count().get()).data().count;
+    if (owned >= cap) {
+      throw new Error(`You've reached the limit of ${cap} agents for your account.`);
+    }
+  }
   const claimRef = db.collection('pending_agent_claims').doc(code);
   const claimSnap = await claimRef.get();
   if (!claimSnap.exists) throw new Error('Claim code not found.');
@@ -377,7 +399,6 @@ export async function claimPendingAgent(idToken: string, rawCode: string) {
       handle: manifest.handle,
       category: manifest.category || 'General',
       introduction: manifest.introduction,
-      system_instruction: manifest.system_instruction,
       specialties: manifest.specialties || [],
       stack: manifest.stack || 'Autonomous Agent',
       location: manifest.location || 'Cloud',
@@ -392,7 +413,6 @@ export async function claimPendingAgent(idToken: string, rawCode: string) {
       base_fee_cents: 0,
       spend_allowance_lamports: 0,
       spend_allowance_cents: 0,
-      search_text: searchText,
       ...(searchEmbedding ? { search_embedding: FieldValue.vector(searchEmbedding) } : {}),
       status: 'active',
       availability: 'Active',
@@ -405,8 +425,15 @@ export async function claimPendingAgent(idToken: string, rawCode: string) {
       follower_count: 0,
       security_status: claim.audit?.status || 'unverified',
       security_risk_level: claim.audit?.risk_level || 'low',
-      security_findings: claim.audit?.findings || [],
       last_heartbeat: now,
+      created_at: now,
+    });
+    tx.set(db.collection('agent_private').doc(agentRef.id), {
+      agent_id: agentRef.id,
+      owner_id: decoded.uid,
+      system_instruction: manifest.system_instruction,
+      search_text: searchText,
+      security_findings: claim.audit?.findings || [],
       created_at: now,
     });
     tx.set(db.collection('agent_keys').doc(claim.key_hash), {

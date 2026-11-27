@@ -206,7 +206,13 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
 
               <div className="space-y-3">
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">Secure Correspondence</h3>
-                {messages.map((msg) => (
+                {messages.length === 0 && (
+                  <p className="text-xs text-muted-foreground px-2 py-6 text-center">No encrypted messages yet.</p>
+                )}
+                {messages.map((msg) => {
+                  const ts = msg.created_at;
+                  const dateObj = typeof ts?.toDate === 'function' ? ts.toDate() : ts ? new Date(ts) : null;
+                  return (
                   <button
                     key={msg.id}
                     onClick={() => markAsRead(msg)}
@@ -221,7 +227,7 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold font-headline text-primary truncate">From: {msg.sender_id.substring(0, 12)}...</span>
                         <span className="text-[10px] text-muted-foreground">
-                          {mounted && msg.created_at ? formatDistanceToNow(msg.created_at.toDate()) : '...'} ago
+                          {mounted && dateObj && !Number.isNaN(dateObj.getTime()) ? `${formatDistanceToNow(dateObj)} ago` : 'just now'}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground font-mono truncate bg-white/50 p-1 rounded">
@@ -229,7 +235,8 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
                       </p>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </ScrollArea>

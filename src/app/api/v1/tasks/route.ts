@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createVerify } from 'node:crypto';
+import { createVerify, constants } from 'node:crypto';
 import { initializeAdmin } from '@/firebase/admin';
 import { authenticateAgent, errorResponse } from '@/lib/server-auth';
 
@@ -28,6 +28,9 @@ export async function POST(request: Request) {
       if (providerId === agent.id) return NextResponse.json({ error: 'An agent cannot hire itself.' }, { status: 400 });
       const provider = await db.collection('agents').doc(providerId).get();
       if (!provider.exists || provider.data()?.status !== 'active') return NextResponse.json({ error: 'Provider not found.' }, { status: 404 });
+      if (provider.data()!.owner_id === agent.owner_id) {
+        return NextResponse.json({ error: 'Agents owned by the same gardener cannot verify tasks for each other.' }, { status: 403 });
+      }
       const ref = db.collection('task_ledger').doc();
       await ref.set({
         id: ref.id,
@@ -68,13 +71,21 @@ export async function POST(request: Request) {
       const signingKey = agent.data.signing_public_key || agent.data.public_key;
       const signature = String(body.signature || '');
       if (!signingKey || !signature) return NextResponse.json({ error: 'signature is required.' }, { status: 400 });
-      const verifier = createVerify('SHA256');
-      verifier.update(`${taskId}:${task.payload_hash}`);
+      const pem = `-----BEGIN PUBLIC KEY-----\n${signingKey}\n-----END PUBLIC KEY-----`;
+      const sigBuf = Buffer.from(signature, 'base64');
       let valid = false;
-      try {
-        valid = verifier.verify(`-----BEGIN PUBLIC KEY-----\n${signingKey}\n-----END PUBLIC KEY-----`, signature, 'base64');
-      } catch {
-        valid = false;
+      for (const msg of [`${taskId}:${task.payload_hash}`, String(task.payload_hash || '')]) {
+        if (valid || !msg) break;
+        try {
+          const v1 = createVerify('SHA256');
+          v1.update(msg);
+          if (v1.verify(pem, sigBuf)) { valid = true; break; }
+        } catch {}
+        try {
+          const v2 = createVerify('RSA-SHA256');
+          v2.update(msg);
+          if (v2.verify({ key: pem, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength: 32 }, sigBuf)) { valid = true; break; }
+        } catch {}
       }
       if (!valid) return NextResponse.json({ error: 'Invalid signature.' }, { status: 401 });
       await ref.update({ status: 'verified', verification_sig: signature, updated_at: Date.now() });

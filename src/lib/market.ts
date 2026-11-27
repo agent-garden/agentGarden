@@ -9,6 +9,7 @@ import {
   getEscrowProgramId,
   getSolanaCluster,
   getTreasuryAddress,
+  isSmartContractConfigured,
   isValidSolanaAddress,
   jobIdToSeed,
   lamportsToSol,
@@ -289,13 +290,18 @@ function settle(
     if (job.provider_type === 'user') {
       tx.set(
         db().collection('users').doc(job.provider_owner_id),
-        { karma: inc(10), jobs_completed: inc(1), earned_lamports: inc(payout_lamports) },
+        { karma: inc(budgetLamports > 0 ? 10 : 5), jobs_completed: inc(1), earned_lamports: inc(payout_lamports) },
         { merge: true }
       );
     } else if (job.provider_id) {
       tx.set(
         db().collection('agents').doc(job.provider_id),
-        { verified_task_count: inc(1), review_count: inc(1), reputation: inc(10), jobs_completed: inc(1), earned_lamports: inc(payout_lamports) },
+        {
+          ...(budgetLamports > 0 ? { verified_task_count: inc(1), reputation: inc(10) } : { reputation: inc(2) }),
+          review_count: inc(1),
+          jobs_completed: inc(1),
+          earned_lamports: inc(payout_lamports),
+        },
         { merge: true }
       );
     }
@@ -371,9 +377,11 @@ function refund(tx: Transaction, ref: DocumentReference, job: DocumentData, stat
   if (currency === 'SOL') {
     const budgetLamports = Number(job.budget_lamports || 0);
     if (!isSmartContract && budgetLamports > 0) {
-      tx.set(walletRef(job.poster_owner_id), { owner_id: job.poster_owner_id, held_lamports: inc(-budgetLamports), balance_lamports: inc(budgetLamports), updated_at: now }, { merge: true });
-      if (job.poster_type === 'agent') {
-        tx.set(db().collection('agents').doc(job.poster_id), { spend_allowance_lamports: inc(budgetLamports) }, { merge: true });
+      if (job.poster_type === 'agent' && job.poster_id) {
+        // Note: Firestore requires all reads before writes in a transaction; agent doc check is handled by caller or update safe path.
+        tx.set(walletRef(job.poster_owner_id), { owner_id: job.poster_owner_id, held_lamports: inc(-budgetLamports), balance_lamports: inc(budgetLamports), updated_at: now }, { merge: true });
+      } else {
+        tx.set(walletRef(job.poster_owner_id), { owner_id: job.poster_owner_id, held_lamports: inc(-budgetLamports), balance_lamports: inc(budgetLamports), updated_at: now }, { merge: true });
       }
     }
     if (budgetLamports > 0) {
@@ -414,8 +422,12 @@ function applyTimers(tx: Transaction, ref: DocumentReference, job: DocumentData)
   if (job.status === 'claimed' && job.claim_expires_at && job.claim_expires_at < now) {
     return reopen(tx, ref, job, `Claim by ${job.provider_name} expired without a submission.`);
   }
-  // Note: smart_contract jobs require on-chain accept_and_release crank so off-chain timer only auto-settles wallet-mode jobs.
-  if (job.status === 'submitted' && job.escrow_mode !== 'smart_contract' && job.auto_accept_at && job.auto_accept_at < now) {
+  // Smart-contract jobs require an on-chain accept_and_release crank; clear any stale auto_accept_at so sweepTimers never stalls.
+  if (job.status === 'submitted' && job.auto_accept_at && job.auto_accept_at < now) {
+    if (job.escrow_mode === 'smart_contract') {
+      tx.update(ref, { auto_accept_at: null });
+      return { ...job, auto_accept_at: null };
+    }
     return settle(tx, ref, job, 'auto_accepted');
   }
   return job;
@@ -577,7 +589,10 @@ export async function postJob(actor: Actor, input: PostJobInput) {
   let escrowTx: string | null = null;
 
   if (input.escrow_tx) {
-    if (currency !== 'SOL') throw new MarketError('Smart contract escrow requires SOL currency.');
+    if (!isSmartContractConfigured()) {
+      throw new MarketError('Smart contract escrow is not enabled on this cluster yet.', 503);
+    }
+    if (currency !== 'SOL' || isVolunteer) throw new MarketError('Smart contract escrow requires a paid SOL bounty.');
     if (!posterWallet || !isValidSolanaAddress(posterWallet)) {
       throw new MarketError('poster_wallet (valid Solana address) is required for smart contract escrow.');
     }
@@ -586,19 +601,27 @@ export async function postJob(actor: Actor, input: PostJobInput) {
     escrowPda = expectedPda.toBase58();
 
     try {
-      await verifyEscrowTxOnChain({ signature: input.escrow_tx, expectedAccount: escrowPda });
+      await verifyEscrowTxOnChain({
+        signature: input.escrow_tx,
+        expectedAccount: escrowPda,
+        expectedInstruction: 'initialize_job',
+      });
     } catch (err) {
       throw new MarketError(err instanceof Error ? err.message : 'Could not verify Solana escrow transaction.', 402);
     }
 
     const onChain = await fetchOnChainJobEscrow(posterWallet, ref.id);
-    if (onChain?.state) {
-      if (onChain.state.amount_lamports < budgetLamports) {
-        throw new MarketError(`On-chain escrow holds ${formatSol(onChain.state.amount_lamports)}, expected ${formatSol(budgetLamports)}.`, 402);
-      }
-      if (onChain.state.status !== 'open') {
-        throw new MarketError(`On-chain escrow is in status "${onChain.state.status}", not "open".`, 409);
-      }
+    if (!onChain?.state) {
+      throw new MarketError('On-chain JobEscrow PDA account not found or already closed.', 402);
+    }
+    if (onChain.state.poster !== posterWallet) {
+      throw new MarketError('On-chain escrow poster wallet does not match poster_wallet.', 403);
+    }
+    if (onChain.state.amount_lamports < budgetLamports) {
+      throw new MarketError(`On-chain escrow holds ${formatSol(onChain.state.amount_lamports)}, expected ${formatSol(budgetLamports)}.`, 402);
+    }
+    if (onChain.state.status !== 'open') {
+      throw new MarketError(`On-chain escrow is in status "${onChain.state.status}", not "open".`, 409);
     }
 
     escrowMode = 'smart_contract';
@@ -838,7 +861,7 @@ export async function submitWork(
       payload_hash,
       submit_tx: input.submit_tx || null,
       submitted_at: now,
-      auto_accept_at: now + REVIEW_WINDOW_HOURS * HOUR,
+      auto_accept_at: job.escrow_mode === 'smart_contract' ? null : now + REVIEW_WINDOW_HOURS * HOUR,
       updated_at: now,
     };
     tx.update(ref, patch);
@@ -867,7 +890,14 @@ export async function reviewWork(
         if (!opts.tx_signature) {
           throw new MarketError('On-chain smart contract jobs require `tx_signature` from signing `accept_and_release` on Solana.');
         }
-        await verifyEscrowTxOnChain({ signature: opts.tx_signature, expectedAccount: job.escrow_pda });
+        const sigRef = db().collection('escrow_txs').doc(opts.tx_signature.trim());
+        if ((await tx.get(sigRef)).exists) throw new MarketError('This Solana transaction signature has already been used.', 409);
+        await verifyEscrowTxOnChain({
+          signature: opts.tx_signature,
+          expectedAccount: job.escrow_pda,
+          expectedInstruction: 'accept_and_release',
+        });
+        tx.set(sigRef, { job_id: job.id, action: 'accept_and_release', created_at: now });
       }
       return partyJob(settle(tx, ref, job, 'accepted', opts.tx_signature));
     }
@@ -876,7 +906,11 @@ export async function reviewWork(
       if ((job.revisions || 0) >= MAX_REVISIONS) throw new MarketError(`This job already had ${MAX_REVISIONS} revisions. Accept it or open a dispute.`, 409);
       if (!note) throw new MarketError('Say what needs to change in feedback.');
       if (opts.tx_signature && job.escrow_mode === 'smart_contract' && job.escrow_pda) {
-        await verifyEscrowTxOnChain({ signature: opts.tx_signature, expectedAccount: job.escrow_pda });
+        await verifyEscrowTxOnChain({
+          signature: opts.tx_signature,
+          expectedAccount: job.escrow_pda,
+          expectedInstruction: 'request_revision',
+        });
       }
       const patch = {
         status: 'claimed',
@@ -892,7 +926,11 @@ export async function reviewWork(
 
     if (!note) throw new MarketError('Explain the problem in feedback so an admin can resolve the dispute.');
     if (opts.tx_signature && job.escrow_mode === 'smart_contract' && job.escrow_pda) {
-      await verifyEscrowTxOnChain({ signature: opts.tx_signature, expectedAccount: job.escrow_pda });
+      await verifyEscrowTxOnChain({
+        signature: opts.tx_signature,
+        expectedAccount: job.escrow_pda,
+        expectedInstruction: 'dispute_job',
+      });
     }
     tx.update(ref, { status: 'disputed', dispute_reason: note, dispute_tx: opts.tx_signature || null, disputed_at: now, auto_accept_at: null, updated_at: now });
     return partyJob({ ...job, status: 'disputed', dispute_reason: note });
@@ -907,7 +945,14 @@ export async function cancelJob(actor: Actor, jobId: string, opts: { refund_tx?:
       if (!opts.refund_tx) {
         throw new MarketError('Smart contract jobs require `refund_tx` from calling `cancel_job` on Solana to reclaim escrowed SOL.');
       }
-      await verifyEscrowTxOnChain({ signature: opts.refund_tx, expectedAccount: job.escrow_pda });
+      const sigRef = db().collection('escrow_txs').doc(opts.refund_tx.trim());
+      if ((await tx.get(sigRef)).exists) throw new MarketError('This Solana refund signature has already been used.', 409);
+      await verifyEscrowTxOnChain({
+        signature: opts.refund_tx,
+        expectedAccount: job.escrow_pda,
+        expectedInstruction: 'cancel_job',
+      });
+      tx.set(sigRef, { job_id: job.id, action: 'cancel_job', created_at: Date.now() });
     }
     const label = job.currency === 'USD' ? dollars(job.budget_cents) : formatSol(job.budget_lamports || 0);
     return publicJob(refund(tx, ref, job, 'cancelled', `Cancelled "${job.title}"; ${label} returned`, opts.refund_tx));
@@ -1039,6 +1084,15 @@ export async function linkUserSolanaWallet(uid: string, solanaAddress: string, m
   if (!ok) throw new MarketError('Solana wallet signature verification failed.', 401);
 
   const now = Date.now();
+  const existingOwner = await db()
+    .collection('wallets')
+    .where('solana_address', '==', solanaAddress.trim())
+    .limit(2)
+    .get();
+  if (existingOwner.docs.some((d) => d.id !== uid)) {
+    throw new MarketError('That Solana wallet is already linked to another Agent Garden account.', 409);
+  }
+
   await Promise.all([
     db().collection('users').doc(uid).set({ solana_address: solanaAddress.trim(), updated_at: now }, { merge: true }),
     walletRef(uid).set({ owner_id: uid, solana_address: solanaAddress.trim(), updated_at: now }, { merge: true }),
@@ -1058,6 +1112,25 @@ export async function creditSolDeposit(ownerId: string, txSignature: string) {
     minLamports: 1_000_000, // min 0.001 SOL
   });
 
+  // Anti-front-running check: ensure the sender wallet belongs to this account (or is unclaimed, in which case bind it).
+  if (!verified.sender) {
+    throw new MarketError('Could not determine deposit sender wallet.', 400);
+  }
+  const [myWalletSnap, senderOwnersSnap] = await Promise.all([
+    walletRef(ownerId).get(),
+    db().collection('wallets').where('solana_address', '==', verified.sender).limit(2).get(),
+  ]);
+  const myLinked = myWalletSnap.data()?.solana_address as string | undefined;
+  if (myLinked && myLinked !== verified.sender) {
+    throw new MarketError(
+      `Deposit came from ${verified.sender.slice(0, 6)}..., which does not match your linked wallet (${myLinked.slice(0, 6)}...). Link the sending wallet first.`,
+      403
+    );
+  }
+  if (senderOwnersSnap.docs.some((d) => d.id !== ownerId)) {
+    throw new MarketError('This deposit came from a Solana wallet linked to a different account.', 403);
+  }
+
   const lamports = verified.received_lamports;
   const entryId = `sol_topup_${verified.signature}`;
   return db().runTransaction(async (tx) => {
@@ -1065,7 +1138,13 @@ export async function creditSolDeposit(ownerId: string, txSignature: string) {
     if (existing.exists) return { duplicate: true, lamports };
     tx.set(
       walletRef(ownerId),
-      { owner_id: ownerId, balance_lamports: inc(lamports), topped_up_lamports: inc(lamports), updated_at: Date.now() },
+      {
+        owner_id: ownerId,
+        ...(myLinked ? {} : { solana_address: verified.sender }),
+        balance_lamports: inc(lamports),
+        topped_up_lamports: inc(lamports),
+        updated_at: Date.now(),
+      },
       { merge: true }
     );
     tx.set(treasuryRef(), { topups_lamports: inc(lamports), updated_at: Date.now() }, { merge: true });

@@ -21,7 +21,7 @@ export type SolanaCluster = 'devnet' | 'mainnet-beta' | 'testnet' | 'localnet';
 
 export const SOL_DECIMALS = 9;
 export { LAMPORTS_PER_SOL };
-export const MIN_BUDGET_LAMPORTS = 1_000_000; // 0.001 SOL
+export const MIN_BUDGET_LAMPORTS = 2_000_000; // 0.002 SOL (85% = 0.0017 SOL > 890,880 rent-exempt minimum)
 export const MAX_BUDGET_LAMPORTS = 1_000 * LAMPORTS_PER_SOL; // 1,000 SOL
 export const MIN_PAYOUT_LAMPORTS = 10_000_000; // 0.01 SOL
 export const MIN_TOPUP_LAMPORTS = 10_000_000; // 0.01 SOL
@@ -71,9 +71,11 @@ export function getTreasuryAddress(): string {
 
 export function isValidSolanaAddress(addr: string): boolean {
   if (!addr || typeof addr !== 'string') return false;
+  const trimmed = addr.trim();
+  if (trimmed === PublicKey.default.toBase58()) return false;
   try {
-    const pk = new PublicKey(addr.trim());
-    return PublicKey.isOnCurve(pk.toBytes()) || pk.toBase58() === addr.trim();
+    const pk = new PublicKey(trimmed);
+    return pk.toBase58() === trimmed;
   } catch {
     return false;
   }
@@ -169,7 +171,7 @@ async function sha256Bytes(data: string | Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(hash);
 }
 
-async function anchorDiscriminator(ixName: string): Promise<Uint8Array> {
+export async function anchorDiscriminator(ixName: string): Promise<Uint8Array> {
   const hash = await sha256Bytes(`global:${ixName}`);
   return hash.slice(0, 8);
 }

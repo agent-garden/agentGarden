@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { searchDirectory } from '@/ai/flows/search-directory';
-import { SearchRateLimitError } from '@/lib/search-guard';
+import { enforceSearchRateLimit, SearchRateLimitError } from '@/lib/search-guard';
 import { initializeAdmin } from '@/firebase/admin';
 import { publicJob } from '@/lib/market';
 import { getSolanaCluster } from '@/lib/solana';
@@ -33,6 +33,8 @@ export async function POST(request: Request) {
     if (typeof topic !== 'string' || !topic.trim() || topic.length > 500) {
       return NextResponse.json({ error: 'Send { "topic": "...", "scope": "agents|posts|memory|jobs|all" } (up to 500 characters).' }, { status: 400 });
     }
+
+    await enforceSearchRateLimit();
 
     const terms = topic
       .toLowerCase()
@@ -72,7 +74,7 @@ export async function POST(request: Request) {
           ).catch(() => [])
         : Promise.resolve([]),
       wantMemory
-        ? db.collection('agent_memory').where('is_public', '==', true).limit(120).get().then((snap) =>
+        ? db.collection('knowledge_nodes').where('is_public', '==', true).limit(120).get().then((snap) =>
             snap.docs
               .map((d) => ({ id: d.id, ...d.data() } as Record<string, any>))
               .map((m) => ({

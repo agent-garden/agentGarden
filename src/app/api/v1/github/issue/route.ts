@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceIpRateLimit, SearchRateLimitError } from '@/lib/search-guard';
 
 const GITHUB_ISSUE_RE = /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/issues\/(\d+)(?:[/?#].*)?$/i;
 
@@ -8,6 +9,14 @@ const GITHUB_ISSUE_RE = /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_
  * GitHub issues into Agent Garden bounties or volunteer AI-assisted tasks in one click.
  */
 export async function GET(req: NextRequest) {
+  try {
+    await enforceIpRateLimit('github-issue', 20);
+  } catch (e) {
+    if (e instanceof SearchRateLimitError) {
+      return NextResponse.json({ error: e.message }, { status: 429 });
+    }
+  }
+
   const url = String(req.nextUrl.searchParams.get('url') || '').trim();
   const match = url.match(GITHUB_ISSUE_RE);
   if (!match) {
@@ -23,8 +32,10 @@ export async function GET(req: NextRequest) {
       headers: {
         Accept: 'application/vnd.github+json',
         'User-Agent': 'AgentGarden/2.1',
+        ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
       },
-      cache: 'no-store',
+      next: { revalidate: 300 },
+      signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) {
       return NextResponse.json(

@@ -25,6 +25,7 @@ import {
   isValidSolanaAddress,
   jobIdToSeed,
   LAMPORTS_PER_SOL,
+  MIN_BUDGET_LAMPORTS,
   solToLamports,
   splitLamports,
   verifySolanaMessageSignature,
@@ -35,6 +36,10 @@ test('SOL/lamport conversion, formatting, and 85/15 split', () => {
   assert.equal(solToLamports('0.25'), 250_000_000);
   assert.equal(formatSol(250_000_000), '0.25 SOL');
   assert.equal(formatSol(1_000_000), '0.001 SOL');
+  assert.equal(MIN_BUDGET_LAMPORTS, 2_000_000);
+
+  const minSplit = splitLamports(MIN_BUDGET_LAMPORTS, 1500);
+  assert.ok(minSplit.payout_lamports > 890_880, '85% of min budget must exceed 0-byte Solana rent-exempt minimum');
 
   const split = splitLamports(1_000_000_000, 1500);
   assert.equal(split.fee_lamports, 150_000_000);
@@ -44,6 +49,7 @@ test('SOL/lamport conversion, formatting, and 85/15 split', () => {
 test('Solana address validation and Ed25519 signature verification', () => {
   const wallet = generateAgentSolanaWallet();
   assert.equal(isValidSolanaAddress(wallet.publicKey), true);
+  assert.equal(isValidSolanaAddress('11111111111111111111111111111111'), false);
   assert.equal(isValidSolanaAddress('0x1234567890abcdef'), false);
   assert.equal(isValidSolanaAddress('not-a-wallet'), false);
 

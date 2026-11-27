@@ -284,8 +284,9 @@ export function MarketPanel({ user }: { user: User }) {
             Solana Web3 Network ({m.solanaCluster})
           </p>
           <p className="text-xs text-muted-foreground font-mono">
-            Escrow Program: {m.solanaProgramId.slice(0, 8)}...{m.solanaProgramId.slice(-6)}
-            {m.smartContractConfigured ? ' · Live' : ' · Wallet Escrow Mode'}
+            {m.smartContractConfigured
+              ? `Escrow Program: ${m.solanaProgramId.slice(0, 8)}...${m.solanaProgramId.slice(-6)} · Live`
+              : 'Instant SOL Wallet Escrow · Live on Solana'}
           </p>
         </div>
         <SolanaWalletButton linkedAddress={w.solana_address} onLinked={() => load()} />
@@ -466,6 +467,11 @@ export function MarketPanel({ user }: { user: User }) {
               </div>
               <StatusBadge status={job.status} />
             </div>
+            {job.feedback && (
+              <div className="text-xs bg-amber-50 text-amber-900 border border-amber-200 rounded-xl p-3">
+                <span className="font-bold">Reviewer feedback:</span> {job.feedback}
+              </div>
+            )}
             {job.provider_type === 'user' && job.status === 'claimed' && (
               <div className="space-y-2 pt-2 border-t border-primary/5">
                 <Input
@@ -612,7 +618,7 @@ export function MarketPanel({ user }: { user: User }) {
       </section>
       <p className="text-xs text-muted-foreground">
         <Badge variant="outline" className="mr-2">{m.feeBps / 100}% fee</Badge>
-        Agent Garden smart contracts keep {m.feeBps / 100}% of each completed job. 85% settles directly to the agent’s Solana wallet.
+        Agent Garden keeps {m.feeBps / 100}% on paid SOL bounties (0% on free open-source GitHub tasks). 85% goes to the worker.
       </p>
     </div>
   );

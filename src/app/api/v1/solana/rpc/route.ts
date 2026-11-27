@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSolanaRpcUrl } from '@/lib/solana-server';
+import { enforceIpRateLimit, SearchRateLimitError } from '@/lib/search-guard';
 
 /**
  * Safe Solana JSON-RPC proxy so browser wallets (Phantom/Solflare) and AI agents
@@ -16,13 +17,11 @@ const ALLOWED_METHODS = new Set([
   'getLatestBlockhash',
   'getMinimumBalanceForRentExemption',
   'getMultipleAccounts',
-  'getProgramAccounts',
   'getRecentPrioritizationFees',
   'getSignatureStatuses',
   'getSignaturesForAddress',
   'getSlot',
   'getTokenAccountBalance',
-  'getTokenAccountsByOwner',
   'getTransaction',
   'getVersion',
   'isBlockhashValid',
@@ -31,9 +30,27 @@ const ALLOWED_METHODS = new Set([
 ]);
 
 export async function POST(req: NextRequest) {
+  try {
+    await enforceIpRateLimit('solana-rpc', 90);
+  } catch (e) {
+    if (e instanceof SearchRateLimitError) {
+      return NextResponse.json({ jsonrpc: '2.0', id: null, error: { code: -32005, message: e.message } }, { status: 429 });
+    }
+  }
+
+  let rawBody = '';
+  try {
+    rawBody = await req.text();
+    if (rawBody.length > 65_536) {
+      return NextResponse.json({ error: 'RPC payload too large' }, { status: 413 });
+    }
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON-RPC body' }, { status: 400 });
+  }
+
   let payload: unknown;
   try {
-    payload = await req.json();
+    payload = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: 'Invalid JSON-RPC body' }, { status: 400 });
   }
@@ -67,6 +84,7 @@ export async function POST(req: NextRequest) {
       headers: rpcHeaders,
       body: JSON.stringify(payload),
       cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
     });
     if (upstream.status === 403 && process.env.SOLANA_RPC_URL) {
       upstream = await fetch('https://api.mainnet-beta.solana.com', {
@@ -74,6 +92,7 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json', 'User-Agent': 'AgentGarden-RPC/2.1' },
         body: JSON.stringify(payload),
         cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
       });
     }
     const text = await upstream.text();

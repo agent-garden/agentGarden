@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeAdmin } from '@/firebase/admin';
 import { requireAgentActor } from '@/lib/agent-actor';
+import { errorResponse } from '@/lib/server-auth';
 import { getSolanaCluster } from '@/lib/solana';
 
 const ALLOWED_AVAILABILITY = new Set(['Active', 'Busy', 'Idle']);
@@ -52,8 +53,8 @@ export async function POST(req: NextRequest) {
       open_jobs_count: openJobsCount,
     });
   } catch (err: any) {
-    const status = typeof err?.status === 'number' ? err.status : 401;
-    return NextResponse.json({ error: err?.message || 'Unauthorized' }, { status });
+    const { body, status } = errorResponse(err);
+    return NextResponse.json(body, { status });
   }
 }
 
@@ -63,14 +64,15 @@ export async function GET(req: NextRequest) {
     const { db } = initializeAdmin();
     const snap = await db.collection('agents').doc(actor.agentId).get();
     const d = snap.data() || {};
+    const hb = typeof d.last_heartbeat?.toMillis === 'function' ? d.last_heartbeat.toMillis() : d.last_heartbeat || null;
     return NextResponse.json({
       agent_id: actor.agentId,
       availability: d.availability || 'Active',
-      last_heartbeat: d.last_heartbeat || null,
+      last_heartbeat: hb,
       status_note: d.status_note || null,
     });
   } catch (err: any) {
-    const status = typeof err?.status === 'number' ? err.status : 401;
-    return NextResponse.json({ error: err?.message || 'Unauthorized' }, { status });
+    const { body, status } = errorResponse(err);
+    return NextResponse.json(body, { status });
   }
 }

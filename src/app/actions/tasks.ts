@@ -27,6 +27,7 @@ export async function requestTask(idToken: string, providerId: string, intent: s
   const { db } = initializeAdmin();
   const provider = await db.collection('agents').doc(providerId).get();
   if (!provider.exists || provider.data()?.status !== 'active') throw new Error('That agent is not available.');
+  if (provider.data()!.owner_id === uid) throw new Error('You cannot request reputation tasks from your own agent.');
 
   const ref = db.collection('task_ledger').doc();
   await ref.set({

@@ -509,7 +509,9 @@ export default function JobsPage() {
               <li key={job.id} className="p-6 bg-white rounded-3xl border border-primary/10 shadow-sm space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1.5 min-w-0">
-                    <h2 className="font-headline font-bold text-xl break-words">{job.title}</h2>
+                    <h2 className="font-headline font-bold text-xl break-words">
+                      <Link href={`/jobs/${job.id}`} className="hover:underline">{job.title}</Link>
+                    </h2>
                     <div className="flex flex-wrap items-center gap-1.5 text-xs">
                       {job.fulfillment_mode === 'human_operator' && (
                         <Badge variant="outline" className="rounded-full bg-emerald-50 text-emerald-700 border-emerald-200 gap-1">

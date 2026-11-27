@@ -172,15 +172,15 @@ export function AgentCard({ agent }: { agent: Agent }) {
     setIsEndorsing(true);
 
     try {
-      // Fetch user karma for weighting
+      // Fetch user karma for weighting (clamped to 1..100 per Firestore security rules)
       const userDoc = await getDoc(doc(firestore, 'users', user.uid));
       const userKarma = userDoc.data()?.karma || 0;
-      const weight = Math.max(1, Math.floor(userKarma / 10));
+      const weight = Math.min(100, Math.max(1, Math.floor(userKarma / 10)));
 
       const endorsementData = {
         endorser_id: user.uid,
         endorsed_id: agent.id,
-        skill_tag: endorseSkill.trim().toLowerCase(),
+        skill_tag: endorseSkill.trim().toLowerCase().slice(0, 40),
         weight: weight,
         created_at: Date.now()
       };
@@ -281,7 +281,11 @@ export function AgentCard({ agent }: { agent: Agent }) {
               if (!open) setRiskAcknowledged(false);
             }}>
               <DialogTrigger asChild>
-                <Button className="flex-1 rounded-xl gap-2 h-10 bg-primary hover:bg-accent shadow-sm" disabled={!user}>
+                <Button
+                  className="flex-1 rounded-xl gap-2 h-10 bg-primary hover:bg-accent shadow-sm"
+                  disabled={!user || !agent.public_key}
+                  title={!user ? "Sign in to message this agent" : !agent.public_key ? "Agent has no RSA encryption key configured" : "Send encrypted message"}
+                >
                   <Send className="w-4 h-4" />
                   Connect
                 </Button>
@@ -293,7 +297,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
                     Enter Tunnel
                   </DialogTitle>
                   <DialogDescription>
-                    Your message will be encrypted using {agent.name}'s RSA-2048 Public Key.
+                    Your message will be encrypted using {agent.name}'s RSA-2048 Public Key (up to 180 chars).
                   </DialogDescription>
                 </DialogHeader>
                 
@@ -315,13 +319,15 @@ export function AgentCard({ agent }: { agent: Agent }) {
                     </Button>
                   </div>
                 ) : (
-                  <div className="py-4">
+                  <div className="py-4 space-y-1.5">
                     <Textarea 
-                      placeholder="Describe your request..." 
+                      placeholder="Describe your request (max 180 chars for RSA-OAEP packet)..." 
                       className="min-h-[120px] rounded-2xl bg-muted/20"
+                      maxLength={180}
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                     />
+                    <p className="text-[10px] text-right text-muted-foreground font-mono">{message.length}/180</p>
                   </div>
                 )}
 
@@ -344,6 +350,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
               disabled={isTogglingFollow}
               onClick={handleToggleFollow}
               title={following ? "Unfollow agent" : "Follow agent"}
+              aria-label={following ? `Unfollow ${agent.name}` : `Follow ${agent.name}`}
             >
               {isTogglingFollow ? <Loader2 className="w-4 h-4 animate-spin" /> : following ? <UserCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
               <span className="text-xs font-bold">{followerCount}</span>
@@ -351,7 +358,14 @@ export function AgentCard({ agent }: { agent: Agent }) {
 
             <Dialog open={isEndorseOpen} onOpenChange={setIsEndorseOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-primary/20 text-primary" disabled={!user}>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-xl h-10 w-10 border-primary/20 text-primary"
+                  disabled={!user}
+                  title={!user ? "Sign in to endorse expertise" : "Endorse expertise"}
+                  aria-label={`Endorse ${agent.name}`}
+                >
                   <Award className="w-5 h-5" />
                 </Button>
               </DialogTrigger>
@@ -372,6 +386,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
                       id="skill" 
                       placeholder="e.g. k8s-security, zero-knowledge" 
                       className="rounded-xl"
+                      maxLength={40}
                       value={endorseSkill}
                       onChange={(e) => setEndorseSkill(e.target.value)}
                     />

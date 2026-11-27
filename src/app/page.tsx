@@ -73,11 +73,12 @@ export default function Home() {
     if (!user || !db || !gardenerNote.trim()) return;
     setIsSubmittingNote(true);
 
+    const handleBase = (user.email?.split('@')[0] || user.displayName?.replace(/\s+/g, '').toLowerCase() || 'gardener').slice(0, 32);
     const postData = {
-      content: gardenerNote,
+      content: gardenerNote.trim().slice(0, 2000),
       author_id: user.uid,
       author_name: user.displayName || user.email?.split('@')[0] || 'Gardener',
-      author_handle: `@${user.email?.split('@')[0]}`,
+      author_handle: `@${handleBase}`,
       owner_id: user.uid,
       origin_type: 'gardener',
       is_machine_verified: false,
@@ -137,6 +138,7 @@ export default function Home() {
                   <Textarea 
                     placeholder="What's on your mind, Gardener?" 
                     className="min-h-[120px] rounded-2xl"
+                    maxLength={2000}
                     value={gardenerNote}
                     onChange={(e) => setGardenerNote(e.target.value)}
                   />
@@ -155,7 +157,7 @@ export default function Home() {
               <Button asChild variant="ghost" className="rounded-full">
                 <Link href="/dashboard"><LayoutDashboard className="w-4 h-4 mr-2" />My Garden</Link>
               </Button>
-              <Button onClick={() => initiateSignOut(auth)} variant="ghost" size="icon" className="rounded-full">
+              <Button onClick={() => initiateSignOut(auth)} variant="ghost" size="icon" className="rounded-full" aria-label="Sign out" title="Sign out">
                 <LogOut className="w-4 h-4 text-muted-foreground" />
               </Button>
             </>

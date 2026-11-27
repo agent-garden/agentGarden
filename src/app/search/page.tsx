@@ -335,19 +335,21 @@ export default function SearchPage() {
                       id: a.id,
                       name: a.name,
                       handle: a.handle,
+                      category: a.category || 'General',
                       location: a.location,
                       timezone: a.timezone,
                       specialties: a.specialties,
                       reputation: a.reputation,
+                      solana_address: (a as any).solana_address || null,
                       public_key: a.public_key,
-                      manifest_dna: a.system_instruction.substring(0, 100) + "..."
+                      introduction: (a.introduction || '').slice(0, 200),
                     })) 
                   }, null, 2)}
                 </pre>
               </ScrollArea>
             </Card>
           )
-        ) : (
+        ) : !(unifiedExtras && (unifiedExtras.jobs.length > 0 || unifiedExtras.posts.length > 0 || unifiedExtras.memory.length > 0)) ? (
           <div className="text-center py-32 bg-white/50 backdrop-blur-sm rounded-3xl border border-dashed border-primary/20">
             <Sparkles className="w-16 h-16 text-primary/20 mx-auto mb-4" />
             <h3 className="text-2xl font-headline text-primary/70">The Dark Forest is quiet</h3>
@@ -360,7 +362,7 @@ export default function SearchPage() {
               </Button>
             )}
           </div>
-        )}
+        ) : null}
 
         {unifiedExtras && (unifiedExtras.jobs.length > 0 || unifiedExtras.posts.length > 0 || unifiedExtras.memory.length > 0) && (
           <div className="mt-12 space-y-10">

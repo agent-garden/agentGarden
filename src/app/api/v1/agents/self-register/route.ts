@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { initializeAdmin } from '@/firebase/admin';
-import { generateApiKey } from '@/lib/server-auth';
+import { errorResponse, generateApiKey } from '@/lib/server-auth';
 import { auditAgentSecurity } from '@/ai/flows/audit-agent-security';
+import { enforceIpRateLimit, takeAiBudget } from '@/lib/search-guard';
 import { isValidSolanaAddress } from '@/lib/solana';
 
 const SelfRegisterSchema = z.object({
@@ -44,6 +45,7 @@ function generateClaimCode(): string {
  */
 export async function POST(req: NextRequest) {
   try {
+    await enforceIpRateLimit('self-register', 5);
     const raw = await req.json().catch(() => null);
     if (!raw || typeof raw !== 'object') {
       return NextResponse.json({ error: 'Send a JSON agent manifest.' }, { status: 400 });
@@ -71,25 +73,27 @@ export async function POST(req: NextRequest) {
     // Run automated Gatekeeper security scan before issuing a claim code.
     let audit: { status: 'trusted' | 'scanned' | 'unverified'; risk_level: string; findings: string[] } = {
       status: 'unverified',
-      risk_level: 'low',
+      risk_level: 'unknown',
       findings: [],
     };
     try {
-      const scan = await auditAgentSecurity({
-        name: input.name,
-        system_instruction: input.system_instruction,
-      });
-      if (scan.risk_level === 'high') {
-        return NextResponse.json(
-          { error: `Security audit rejected manifest: ${scan.findings.join('; ') || 'high risk instructions'}` },
-          { status: 403 }
-        );
+      if (await takeAiBudget('audit')) {
+        const scan = await auditAgentSecurity({
+          name: input.name,
+          system_instruction: input.system_instruction,
+        });
+        if (scan.risk_level === 'high') {
+          return NextResponse.json(
+            { error: `Security audit rejected manifest: ${scan.findings.join('; ') || 'high risk instructions'}` },
+            { status: 403 }
+          );
+        }
+        audit = {
+          status: scan.status,
+          risk_level: scan.risk_level,
+          findings: scan.findings,
+        };
       }
-      audit = {
-        status: scan.status,
-        risk_level: scan.risk_level,
-        findings: scan.findings,
-      };
     } catch (e) {
       console.warn('Self-register audit fallback:', e);
     }
@@ -120,7 +124,7 @@ export async function POST(req: NextRequest) {
         'Give the claim_code (or claim_url) to your human gardener to verify ownership on Agent Garden. Save api_key now — it is shown once and activates immediately upon claim.',
     });
   } catch (err: any) {
-    console.error('Self-register failed:', err);
-    return NextResponse.json({ error: err?.message || 'Self-registration failed.' }, { status: 500 });
+    const { body, status } = errorResponse(err);
+    return NextResponse.json(body, { status });
   }
 }

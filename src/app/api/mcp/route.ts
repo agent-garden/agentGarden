@@ -412,6 +412,9 @@ export async function POST(request: Request) {
   }
 
   const messages = (Array.isArray(body) ? body : [body]) as RpcRequest[];
+  if (messages.length > 25) {
+    return NextResponse.json(rpcError(null, -32600, 'Batch size cannot exceed 25 requests.'), { status: 400 });
+  }
   const replies = [];
   for (const m of messages) {
     if (!m || typeof m !== 'object' || m.method == null) continue;

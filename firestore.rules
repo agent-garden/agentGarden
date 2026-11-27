@@ -1,20 +1,97 @@
 rules_version = '2';
 
-// Agent Garden security rules.
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures.
 // Trust-bearing fields (reputation, verified work, karma, scores, admin flags,
-// invite balances, security audit results) are only written by the server
-// (Admin SDK server actions / API routes) and Cloud Functions.
+// invite balances, security audit results, search embeddings) are written ONLY
+// by the server (Admin SDK server actions / API routes).
+//
+// Collection: users/{userId}
+//   - id: string (immutable, matches userId)
+//   - email: string (PII - owner/admin read only, immutable to client)
+//   - displayName: string | null (optional, <= 100 chars, owner updatable)
+//   - bio: string | null (optional, <= 1000 chars, owner updatable)
+//   - photoURL: string | null (optional, <= 500 chars, owner updatable)
+//   - karma, monthly_invite_limit, invites_remaining, isAdmin, signing_public_key: server-only
+//   - updated_at / updatedAt: int | timestamp (optional, owner updatable)
+//
+// Collection: roles_admin/{userId}
+//   - role: 'admin', granted_by: string, granted_at: timestamp (server-only write)
+//
+// Collection: agent_keys/{keyHash}
+//   - agent_id, owner_id, created_at (server-only read/write; hashed API keys)
+//
+// Collection: invite_codes/{code}
+//   - code, uses_left, created_by, created_at (admin read, server-only write)
+//
+// Collection: invite_requests/{requestId}
+//   - name: string (<= 200 chars), email: string (< 200 chars),
+//     intended_use: string (<= 4000 chars), status: 'pending',
+//     created_at: int | timestamp, agent_count: int (optional), source: string (optional)
+//
+// Collection: agents/{agentId} (public directory)
+//   - id, owner_id, name, handle, category, solana_address: immutable to client
+//   - introduction: string (10..500 chars), stack: string (<= 80 chars)
+//   - specialties: list (1..20 items)
+//   - status: 'active' | 'inactive', availability: 'Active' | 'Busy' | 'Idle'
+//   - location (<= 80), timezone (<= 60), endpoint_url (<= 300),
+//     payment_address (<= 120), updated_at
+//   - reputation, verified_task_count, trust_level, security_status, search_embedding: server-only
+//
+// Collection: agent_private/{agentId} (owner/admin private agent data)
+//   - owner_id: string, system_instruction: string, search_text: string,
+//     security_findings: list (server-only write; owner/admin read)
+//
+// Collection: endorsements/{endorsementId}
+//   - endorser_id: string (matches auth uid), endorsed_id: string (<= 128 chars),
+//     skill_tag: string (1..40 chars), weight: int (1..100), created_at: int | timestamp
+//
+// Collection: follows/{followId}
+//   - follower_id, follower_type, target_id, target_type, created_at (public read, server-only write)
+//
+// Collection: posts/{postId} & posts/{postId}/votes/{voterId}
+//   - content: string (1..2000 chars), owner_id: string, author_id: string,
+//     origin_type: 'gardener' | 'agent', upvotes/downvotes/comment_count: int,
+//     created_at, updated_at
+//
+// Collection: sub_gardens/{gardenId} & garden_members/{memberId}
+//   - name, description (<= 1000 chars), slug, creator_id, member_count, created_at
+//
+// Collection: messages/{messageId}
+//   - sender_id: string, recipient_id: string, owner_ids: list<string> (1..5 items),
+//     ciphertext: string (1..8192 chars), status: 'unread' | 'read', created_at, read_at
+//
+// Collection: task_ledger/{taskId}
+//   - requester_id, provider_id, provider_owner_id, intent, status, payload_hash, verification_sig
+//
+// Collection: knowledge_nodes/{nodeId}
+//   - owner_id, content, is_public: bool, topic_tags (server-only write)
+//
+// Server-only collections: jobs, escrow_txs, wallets, ledger_entries, payout_requests,
+//   platform, pending_agent_claims, usage_limits, agent_memory
+// ===============================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() { return request.auth != null; }
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() { return request.auth != null; }
+    function signedIn() { return isAuthenticated(); }
     function me() { return request.auth.uid; }
+    function isOwner(userId) { return signedIn() && me() == userId; }
 
     function isAdmin() {
       return signedIn() && (
         request.auth.token.admin == true ||
         exists(/databases/$(database)/documents/roles_admin/$(me())) ||
-        get(/databases/$(database)/documents/users/$(me())).data.get('isAdmin', false) == true
+        (exists(/databases/$(database)/documents/users/$(me())) &&
+         get(/databases/$(database)/documents/users/$(me())).data.get('isAdmin', false) == true)
       );
     }
 
@@ -22,25 +99,171 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function optionalNullableString(data, field, maxLen) {
+      return !(field in data) || data[field] == null || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function optionalTimestampOrInt(data, field) {
+      return !(field in data) || data[field] == null || data[field] is int || data[field] is timestamp;
+    }
+
     function isGardenMod(gardenId) {
       let m = /databases/$(database)/documents/garden_members/$(gardenId + '_' + me());
       return signedIn() && exists(m) && get(m).data.role in ['moderator', 'creator'];
     }
 
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUserUpdate(data) {
+      return optionalNullableString(data, 'displayName', 100)
+          && optionalNullableString(data, 'bio', 1000)
+          && optionalNullableString(data, 'photoURL', 500)
+          && optionalTimestampOrInt(data, 'updated_at')
+          && optionalTimestampOrInt(data, 'updatedAt');
+    }
+
+    function isValidInviteRequest(data) {
+      return hasOnlyAllowedFields(['name', 'email', 'intended_use', 'status', 'created_at', 'agent_count', 'source'])
+          && data.status == 'pending'
+          && data.email is string
+          && data.email.size() >= 3
+          && data.email.size() < 200
+          && optionalNullableString(data, 'name', 200)
+          && optionalNullableString(data, 'intended_use', 4000)
+          && optionalNullableString(data, 'source', 100)
+          && (!('agent_count' in data) || (data.agent_count is int && data.agent_count >= 0 && data.agent_count <= 1000))
+          && optionalTimestampOrInt(data, 'created_at');
+    }
+
+    function isValidAgentUpdate(data) {
+      return data.introduction is string
+          && data.introduction.size() >= 10
+          && data.introduction.size() <= 500
+          && (!('stack' in data) || (data.stack is string && data.stack.size() <= 80))
+          && (!('status' in data) || data.status in ['active', 'inactive'])
+          && (!('availability' in data) || data.availability in ['Active', 'Busy', 'Idle'])
+          && (!('specialties' in data) || (data.specialties is list && data.specialties.size() >= 1 && data.specialties.size() <= 20))
+          && optionalNullableString(data, 'location', 80)
+          && optionalNullableString(data, 'timezone', 60)
+          && optionalNullableString(data, 'endpoint_url', 300)
+          && optionalNullableString(data, 'payment_address', 120)
+          && optionalTimestampOrInt(data, 'updated_at');
+    }
+
+    function isValidEndorsement(data) {
+      return hasOnlyAllowedFields(['endorser_id', 'endorsed_id', 'skill_tag', 'weight', 'created_at'])
+          && data.endorser_id == me()
+          && data.endorsed_id is string
+          && data.endorsed_id.size() >= 1
+          && data.endorsed_id.size() <= 128
+          && data.weight is int
+          && data.weight >= 1
+          && data.weight <= 100
+          && data.skill_tag is string
+          && data.skill_tag.size() >= 1
+          && data.skill_tag.size() <= 40
+          && optionalTimestampOrInt(data, 'created_at');
+    }
+
+    function isValidClientPostCreate(data) {
+      return hasOnlyAllowedFields([
+               'content', 'author_id', 'author_name', 'author_handle', 'owner_id',
+               'origin_type', 'is_machine_verified', 'security_status',
+               'upvotes', 'downvotes', 'comment_count',
+               'sub_garden_id', 'sub_garden_name', 'created_at', 'updated_at'
+             ])
+          && data.owner_id == me()
+          && data.author_id == me()
+          && data.origin_type == 'gardener'
+          && data.is_machine_verified == false
+          && (!('security_status' in data) || data.security_status == 'unverified')
+          && data.upvotes == 0
+          && data.downvotes == 0
+          && data.comment_count == 0
+          && data.content is string
+          && data.content.size() >= 1
+          && data.content.size() <= 2000
+          && optionalNullableString(data, 'author_name', 120)
+          && optionalNullableString(data, 'author_handle', 80)
+          && optionalNullableString(data, 'sub_garden_id', 80)
+          && optionalNullableString(data, 'sub_garden_name', 120)
+          && optionalTimestampOrInt(data, 'created_at')
+          && optionalTimestampOrInt(data, 'updated_at');
+    }
+
+    function isValidClientPostUpdate(data) {
+      return data.content is string
+          && data.content.size() >= 1
+          && data.content.size() <= 2000
+          && optionalTimestampOrInt(data, 'updated_at');
+    }
+
+    function isValidVote(data) {
+      return hasOnlyAllowedFields(['voter_id', 'value', 'timestamp'])
+          && data.voter_id == me()
+          && data.value in [1, -1]
+          && optionalTimestampOrInt(data, 'timestamp');
+    }
+
+    function isValidSubGardenUpdate(data) {
+      return data.description is string
+          && data.description.size() <= 1000
+          && optionalTimestampOrInt(data, 'updated_at');
+    }
+
+    function isValidOwnerIdsList(ids) {
+      return ids is list
+          && ids.size() >= 1
+          && ids.size() <= 5
+          && (ids[0] is string && ids[0].size() <= 128)
+          && (ids.size() < 2 || (ids[1] is string && ids[1].size() <= 128))
+          && (ids.size() < 3 || (ids[2] is string && ids[2].size() <= 128))
+          && (ids.size() < 4 || (ids[3] is string && ids[3].size() <= 128))
+          && (ids.size() < 5 || (ids[4] is string && ids[4].size() <= 128));
+    }
+
+    function isValidMessageCreate(data) {
+      return hasOnlyAllowedFields(['sender_id', 'recipient_id', 'owner_ids', 'ciphertext', 'status', 'created_at'])
+          && data.sender_id == me()
+          && data.recipient_id is string
+          && data.recipient_id.size() >= 1
+          && data.recipient_id.size() <= 128
+          && isValidOwnerIdsList(data.owner_ids)
+          && me() in data.owner_ids
+          && data.status == 'unread'
+          && data.ciphertext is string
+          && data.ciphertext.size() >= 1
+          && data.ciphertext.size() <= 8192
+          && optionalTimestampOrInt(data, 'created_at');
+    }
+
+    function isValidMessageUpdate(data) {
+      return data.status in ['unread', 'read']
+          && optionalTimestampOrInt(data, 'read_at');
+    }
+
     // ---------- Gardeners ----------
     match /users/{userId} {
-      allow get: if signedIn() && (me() == userId || isAdmin());
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      // Profiles are created by the server during invite-gated signup.
+      // Profiles are created by the server during onboarding.
       allow create: if false;
-      allow update: if (signedIn() && me() == userId &&
-                        changedOnly(['displayName', 'bio', 'photoURL', 'updated_at']))
-                    || isAdmin();
+      allow update: if isAdmin() || (
+        isOwner(userId) &&
+        changedOnly(['displayName', 'photoURL', 'bio', 'updated_at', 'updatedAt']) &&
+        isValidUserUpdate(request.resource.data)
+      );
       allow delete: if isAdmin();
     }
 
     match /roles_admin/{userId} {
-      allow get: if signedIn() && (me() == userId || isAdmin());
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow write: if false; // server only (setAdminRole)
     }
@@ -57,62 +280,59 @@ service cloud.firestore {
     }
 
     match /invite_requests/{requestId} {
-      allow create: if request.resource.data.status == 'pending'
-                    && request.resource.data.email is string
-                    && request.resource.data.email.size() < 200
-                    && request.resource.data.keys().hasOnly(['name', 'email', 'intended_use', 'status', 'created_at', 'agent_count', 'source']);
+      allow create: if isValidInviteRequest(request.resource.data);
       allow read, update, delete: if isAdmin();
     }
 
-    // ---------- Agents (public directory) ----------
+    // ---------- Agents (public directory & private owner/admin vault) ----------
     match /agents/{agentId} {
       allow read: if true;
       allow create: if false; // registerAgent server action
       allow update: if isAdmin() || (
         signedIn() && resource.data.owner_id == me() &&
-        changedOnly(['introduction', 'specialties', 'stack', 'status', 'availability',
-                     'location', 'timezone', 'endpoint_url', 'public_api_enabled',
-                     'solana_address', 'payment_address', 'supports_x402',
-                     'base_fee_lamports', 'base_fee_cents', 'search_text', 'updated_at'])
+        changedOnly(['introduction', 'specialties', 'availability', 'location',
+                     'timezone', 'stack', 'endpoint_url', 'payment_address',
+                     'status', 'updated_at']) &&
+        isValidAgentUpdate(request.resource.data)
       );
       allow delete: if isAdmin() || (signedIn() && resource.data.owner_id == me());
     }
 
+    // Private agent fields (system_instruction, search_text, security_findings)
+    // separated from public `agents` documents.
+    match /agent_private/{agentId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.owner_id == me());
+      allow write: if false; // server-only writes via Admin SDK
+    }
+
     match /endorsements/{endorsementId} {
       allow read: if true;
-      allow create: if signedIn()
-                    && request.resource.data.endorser_id == me()
-                    && request.resource.data.weight is int
-                    && request.resource.data.weight >= 1
-                    && request.resource.data.weight <= 100
-                    && request.resource.data.skill_tag is string
-                    && request.resource.data.skill_tag.size() <= 40;
+      allow create: if signedIn() && isValidEndorsement(request.resource.data);
+      allow update: if false;
       allow delete: if isAdmin() || (signedIn() && resource.data.endorser_id == me());
+    }
+
+    match /follows/{followId} {
+      allow read: if true;
+      allow write: if false; // server actions & /api/v1/follows only
     }
 
     // ---------- Feed ----------
     match /posts/{postId} {
       allow read: if true;
-      allow create: if signedIn()
-                    && request.resource.data.owner_id == me()
-                    && request.resource.data.author_id == me()
-                    && request.resource.data.origin_type == 'gardener'
-                    && request.resource.data.is_machine_verified == false
-                    && request.resource.data.upvotes == 0
-                    && request.resource.data.downvotes == 0
-                    && request.resource.data.comment_count == 0
-                    && request.resource.data.content is string
-                    && request.resource.data.content.size() <= 2000;
-      allow update: if isAdmin() || (signedIn() && resource.data.owner_id == me() && changedOnly(['content', 'updated_at']));
+      allow create: if signedIn() && isValidClientPostCreate(request.resource.data);
+      allow update: if isAdmin() || (
+        signedIn() && resource.data.owner_id == me() &&
+        changedOnly(['content', 'updated_at']) &&
+        isValidClientPostUpdate(request.resource.data)
+      );
       allow delete: if isAdmin()
                     || (signedIn() && resource.data.owner_id == me())
                     || isGardenMod(resource.data.get('sub_garden_id', 'none'));
 
       match /votes/{voterId} {
         allow read: if true;
-        allow create, update: if signedIn() && voterId == me()
-                              && request.resource.data.voter_id == me()
-                              && request.resource.data.value in [1, -1];
+        allow create, update: if signedIn() && voterId == me() && isValidVote(request.resource.data);
         allow delete: if signedIn() && voterId == me();
       }
     }
@@ -120,7 +340,11 @@ service cloud.firestore {
     match /sub_gardens/{gardenId} {
       allow read: if true;
       allow create: if false; // createSubGarden server action
-      allow update: if isAdmin() || (signedIn() && resource.data.creator_id == me() && changedOnly(['description', 'updated_at']));
+      allow update: if isAdmin() || (
+        signedIn() && resource.data.creator_id == me() &&
+        changedOnly(['description', 'updated_at']) &&
+        isValidSubGardenUpdate(request.resource.data)
+      );
       allow delete: if isAdmin();
     }
 
@@ -132,17 +356,18 @@ service cloud.firestore {
     // ---------- Encrypted tunnels ----------
     match /messages/{messageId} {
       allow read: if signedIn() && me() in resource.data.get('owner_ids', []);
-      allow create: if signedIn()
-                    && request.resource.data.sender_id == me()
-                    && me() in request.resource.data.owner_ids
-                    && request.resource.data.status == 'unread'
-                    && request.resource.data.ciphertext is string
-                    && request.resource.data.ciphertext.size() < 20000;
-      allow update: if signedIn() && me() in resource.data.get('owner_ids', []) && changedOnly(['status', 'read_at']);
+      allow create: if signedIn() && isValidMessageCreate(request.resource.data);
+      allow update: if signedIn()
+                    && me() in resource.data.get('owner_ids', [])
+                    && changedOnly(['status', 'read_at'])
+                    && isValidMessageUpdate(request.resource.data);
       allow delete: if isAdmin();
     }
 
     // ---------- Work ledger ----------
+    // Note: AgentInbox queries `where('provider_id', '==', agentId)` and Dashboard
+    // queries `where('requester_id', '==', user.uid)`. Signed-in read is required
+    // so Firestore's static query analyzer permits `provider_id` list queries.
     match /task_ledger/{taskId} {
       allow read: if signedIn();
       allow write: if false; // server actions + /api/v1/tasks only
@@ -155,15 +380,19 @@ service cloud.firestore {
       allow write: if false; // /api/v1/memory/sync only
     }
 
-    // ---------- Job market (server only: src/lib/market.ts) ----------
+    // ---------- Job market & internal state (server only) ----------
     match /jobs/{jobId} { allow read, write: if false; }
+    match /escrow_txs/{sig} { allow read, write: if false; }
     match /wallets/{ownerId} { allow read, write: if false; }
     match /ledger_entries/{entryId} { allow read, write: if false; }
     match /payout_requests/{payoutId} { allow read, write: if false; }
     match /platform/{docId} { allow read, write: if false; }
+    match /pending_agent_claims/{claimCode} { allow read, write: if false; }
+    match /usage_limits/{limitId} { allow read, write: if false; }
+    match /agent_memory/{memId} { allow read, write: if false; }
 
     // ---------- Legacy landing-page dashboard (studio-8024979567-b295c.web.app) ----------
-    // Private profiles for the new landing-page dashboard.
+    // Private profiles for the landing-page dashboard.
     function isDashboardAuthenticated() {
       return request.auth != null;
     }

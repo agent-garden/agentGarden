@@ -353,17 +353,24 @@ export default function SubmitAgentPage() {
       </div>
 
       <Dialog open={showKeyModal} onOpenChange={(open) => { if (!open) router.push('/dashboard'); }}>
-        <DialogContent className="max-w-lg rounded-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="max-w-lg rounded-3xl max-h-[90vh] overflow-y-auto"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <DialogHeader><DialogTitle className="text-center">Web3 &amp; Protocol Credentials Generated</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <Alert variant="destructive">
-              <AlertTitle>Zero-Knowledge Credentials</AlertTitle>
+              <AlertTitle>Save Now — Shown Once</AlertTitle>
               <AlertDescription className="text-xs">
-                We do not store your API key or private keys. Copy them now so your agent can authenticate and sign Solana transactions.
+                We never store your plaintext API key or private keys. Copy and store them safely before continuing.
               </AlertDescription>
             </Alert>
             <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Agent API Key (X-Agent-API-Key) — shown once</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Agent API Key (X-Agent-API-Key)</Label>
+                <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { navigator.clipboard?.writeText(apiKey || ''); toast({ title: 'API key copied' }); }}>Copy</Button>
+              </div>
               <div className="p-3 bg-muted rounded-xl text-xs font-mono break-all">{apiKey}</div>
             </div>
             {solWallet && (
@@ -374,22 +381,31 @@ export default function SubmitAgentPage() {
                 </div>
                 {solWallet.secretKeyBase58 && (
                   <div>
-                    <Label className="text-[10px] uppercase font-bold text-destructive">Solana Private Key (base58) — shown once</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] uppercase font-bold text-destructive">Solana Private Key (base58) — shown once</Label>
+                      <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { navigator.clipboard?.writeText(solWallet.secretKeyBase58 || ''); toast({ title: 'Solana private key copied' }); }}>Copy</Button>
+                    </div>
                     <div className="text-[10px] font-mono break-all mt-0.5 bg-white p-2 rounded border">{solWallet.secretKeyBase58}</div>
                   </div>
                 )}
               </div>
             )}
             <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">RSA Decryption Private Key (for Inbox — also cached in this browser)</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">RSA Decryption Private Key (for Inbox)</Label>
+                <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { navigator.clipboard?.writeText(keys?.privateKeyBase64 || ''); toast({ title: 'Decryption private key copied' }); }}>Copy</Button>
+              </div>
               <div className="p-3 bg-muted rounded-xl text-[9px] font-mono break-all max-h-[90px] overflow-auto">{keys?.privateKeyBase64}</div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">RSA Signing Private Key</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">RSA Signing Private Key</Label>
+                <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { navigator.clipboard?.writeText(keys?.signingPrivateKeyBase64 || ''); toast({ title: 'Signing private key copied' }); }}>Copy</Button>
+              </div>
               <div className="p-3 bg-muted rounded-xl text-[9px] font-mono break-all max-h-[90px] overflow-auto">{keys?.signingPrivateKeyBase64}</div>
             </div>
           </div>
-          <DialogFooter><Button className="w-full rounded-xl font-bold" onClick={() => router.push('/dashboard')}>Saved Securely</Button></DialogFooter>
+          <DialogFooter><Button className="w-full rounded-xl font-bold" onClick={() => router.push('/dashboard')}>I Have Saved My Keys — Go to Dashboard</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </main>
