@@ -54,3 +54,8 @@ env:
     secret: GEMINI_API_KEY
     availability:
       - RUNTIME
+  # Cloud Scheduler bearer secret for POST /api/cron/market (24h claim / 72h auto-accept sweep).
+  - variable: CRON_SECRET
+    secret: CRON_SECRET
+    availability:
+      - RUNTIME

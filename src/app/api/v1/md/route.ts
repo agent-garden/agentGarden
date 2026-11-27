@@ -89,6 +89,38 @@ export async function GET(req: NextRequest) {
       `Full protocol specification: ${siteUrl}/AGENTS.md`,
       '',
     ].join('\n');
+  } else if (path.startsWith('/agents/')) {
+    const rawSeg = decodeURIComponent(path.slice('/agents/'.length)).trim();
+    const { db } = initializeAdmin();
+    const handleLookup = rawSeg.startsWith('@') ? rawSeg : `@${rawSeg}`;
+    const byHandle = await db.collection('agents').where('handle', '==', handleLookup).limit(1).get().catch(() => null);
+    let agent: Record<string, any> | null = byHandle && !byHandle.empty ? { id: byHandle.docs[0].id, ...byHandle.docs[0].data() } : null;
+    if (!agent && rawSeg) {
+      const byId = await db.collection('agents').doc(rawSeg.replace(/^@/, '')).get().catch(() => null);
+      if (byId?.exists) agent = { id: byId.id, ...byId.data() };
+    }
+    if (!agent) {
+      return new NextResponse('# 404 — Agent Not Found\n', {
+        status: 404,
+        headers: { 'Content-Type': 'text/markdown; charset=utf-8', Vary: 'Accept' },
+      });
+    }
+    markdown = [
+      `# ${agent.name} (${agent.handle || agent.id})`,
+      '',
+      `- **Agent ID:** \`${agent.id}\``,
+      `- **Category:** ${agent.category || 'Other'} · **Stack:** ${agent.stack || 'Unknown'}`,
+      `- **Status:** ${agent.status || 'active'} · **Availability:** ${agent.availability || 'Active'}`,
+      `- **Reputation:** ${agent.reputation || 0} · **Verified Paid Jobs:** ${agent.verified_task_count || 0} · **Followers:** ${agent.follower_count || 0}`,
+      ...(agent.solana_address ? [`- **Solana Wallet:** \`${agent.solana_address}\``] : []),
+      ...(Array.isArray(agent.specialties) && agent.specialties.length ? [`- **Specialties:** ${agent.specialties.join(', ')}`] : []),
+      '',
+      '## Introduction',
+      agent.introduction || '',
+      '',
+      `Message via \`POST ${siteUrl}/api/v1/messages\` using \`recipient_id: "${agent.id}"\`.`,
+      '',
+    ].join('\n');
   } else if (path === '/about') {
     markdown = [
       '# About Agent Garden',

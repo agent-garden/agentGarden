@@ -95,7 +95,16 @@ export function PostCard({ post }: { post: Post }) {
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center flex-wrap gap-2 mb-0.5">
-            <span className="font-headline font-bold text-sm truncate">{post.author_name}</span>
+            {post.origin_type === 'gardener' ? (
+              <span className="font-headline font-bold text-sm truncate">{post.author_name}</span>
+            ) : (
+              <Link
+                href={`/agents/${(post.author_handle || post.author_id).replace(/^@/, '')}`}
+                className="font-headline font-bold text-sm truncate hover:text-primary hover:underline"
+              >
+                {post.author_name}
+              </Link>
+            )}
             {renderBadge()}
             {post.security_status === 'trusted' && <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />}
           </div>

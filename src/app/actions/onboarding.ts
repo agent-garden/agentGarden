@@ -284,18 +284,138 @@ export async function registerAgent(idToken: string, rawInput: RegisterAgentInpu
 
 /** Issues a fresh API key for one of the caller's agents and revokes the old ones. */
 export async function rotateAgentApiKey(idToken: string, agentId: string) {
-  const { uid } = await requireUser(idToken);
+  const decoded = await requireUser(idToken);
+  const { uid } = decoded;
   const { db } = initializeAdmin();
   const agent = await db.collection('agents').doc(agentId).get();
-  if (!agent.exists || agent.data()?.owner_id !== uid) throw new Error('You can only rotate keys for your own agents.');
+  if (!agent.exists || (agent.data()?.owner_id !== uid && !(await isAdminUid(uid, decoded)))) {
+    throw new Error('You can only rotate keys for your own agents.');
+  }
 
   const old = await db.collection('agent_keys').where('agent_id', '==', agentId).get();
   const { apiKey, hash } = generateApiKey();
   const batch = db.batch();
   old.forEach((d) => batch.delete(d.ref));
-  batch.set(db.collection('agent_keys').doc(hash), { agent_id: agentId, owner_id: uid, created_at: Date.now() });
+  batch.set(db.collection('agent_keys').doc(hash), { agent_id: agentId, owner_id: agent.data()!.owner_id, created_at: Date.now() });
   await batch.commit();
   return { apiKey };
+}
+
+/** Loads private owner-only fields (`system_instruction`) for editing on the dashboard. */
+export async function getAgentPrivateProfile(idToken: string, agentId: string) {
+  const decoded = await requireUser(idToken);
+  const { uid } = decoded;
+  const { db } = initializeAdmin();
+  const [agentSnap, privSnap] = await Promise.all([
+    db.collection('agents').doc(agentId).get(),
+    db.collection('agent_private').doc(agentId).get(),
+  ]);
+  if (!agentSnap.exists) throw new Error('Agent not found.');
+  if (agentSnap.data()?.owner_id !== uid && !(await isAdminUid(uid, decoded))) {
+    throw new Error('Forbidden.');
+  }
+  return {
+    system_instruction: String(privSnap.data()?.system_instruction || agentSnap.data()?.system_instruction || ''),
+    security_findings: Array.isArray(privSnap.data()?.security_findings) ? privSnap.data()!.security_findings : [],
+  };
+}
+
+const UpdateAgentSchema = z.object({
+  agentId: z.string().trim().min(1).max(128),
+  category: z.string().trim().min(1).max(40),
+  introduction: z.string().trim().min(10).max(500),
+  specialties: z.array(z.string().trim().min(1).max(40)).min(1).max(20),
+  stack: z.string().trim().min(1).max(80),
+  location: z.string().trim().max(80).default('Cloud'),
+  timezone: z.string().trim().max(60).default('UTC'),
+  endpoint_url: z.string().trim().url().max(300).optional().or(z.literal('')),
+  status: z.enum(['active', 'inactive']),
+  availability: z.enum(['Active', 'Busy', 'Idle']),
+  system_instruction: z.string().trim().min(20).max(8000).optional(),
+});
+export type UpdateAgentInput = z.input<typeof UpdateAgentSchema>;
+
+/** Updates an owned agent's public profile, instructions (with security re-audit), and search embedding. */
+export async function updateAgentProfile(idToken: string, rawInput: UpdateAgentInput) {
+  const decoded = await requireUser(idToken);
+  const { uid } = decoded;
+  const parsed = UpdateAgentSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new Error(parsed.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; '));
+  }
+  const input = parsed.data;
+  const { db } = initializeAdmin();
+
+  const agentRef = db.collection('agents').doc(input.agentId);
+  const privRef = db.collection('agent_private').doc(input.agentId);
+  const [agentSnap, privSnap] = await Promise.all([agentRef.get(), privRef.get()]);
+  if (!agentSnap.exists) throw new Error('Agent not found.');
+  const agentData = agentSnap.data()!;
+  if (agentData.owner_id !== uid && !(await isAdminUid(uid, decoded))) {
+    throw new Error('You can only edit your own agents.');
+  }
+
+  const prevInstruction = String(privSnap.data()?.system_instruction || agentData.system_instruction || '');
+  const nextInstruction = input.system_instruction ?? prevInstruction;
+  const instructionChanged = Boolean(input.system_instruction && input.system_instruction !== prevInstruction);
+
+  let auditStatus = agentData.security_status || 'unverified';
+  let auditRisk = agentData.security_risk_level || 'unknown';
+  let auditFindings: string[] = Array.isArray(privSnap.data()?.security_findings) ? privSnap.data()!.security_findings : [];
+
+  if (instructionChanged && nextInstruction.length >= 20) {
+    try {
+      const res = await auditAgentSecurity({ name: agentData.name, system_instruction: nextInstruction });
+      auditStatus = res.status;
+      auditRisk = res.risk_level;
+      auditFindings = res.findings;
+    } catch (e) {
+      console.warn('Re-audit skipped during updateAgentProfile:', e);
+      auditStatus = 'unverified';
+      auditRisk = 'unknown';
+    }
+  }
+
+  const searchText = `${agentData.name} ${agentData.handle}. ${input.introduction} ${nextInstruction} Skills: ${input.specialties.join(', ')}.`;
+  let searchEmbedding: number[] | null = null;
+  try {
+    if (geminiConfigured()) searchEmbedding = await embedText(searchText);
+  } catch (e) {
+    console.warn('Re-embedding skipped during updateAgentProfile:', e);
+  }
+
+  const now = Date.now();
+  const batch = db.batch();
+  batch.update(agentRef, {
+    category: input.category,
+    introduction: input.introduction,
+    specialties: input.specialties,
+    stack: input.stack,
+    location: input.location || 'Cloud',
+    timezone: input.timezone || 'UTC',
+    endpoint_url: input.endpoint_url || null,
+    status: input.status,
+    availability: input.availability,
+    security_status: auditStatus,
+    security_risk_level: auditRisk,
+    ...(searchEmbedding ? { search_embedding: FieldValue.vector(searchEmbedding) } : {}),
+    updated_at: now,
+  });
+  batch.set(
+    privRef,
+    {
+      agent_id: input.agentId,
+      owner_id: agentData.owner_id,
+      system_instruction: nextInstruction,
+      search_text: searchText,
+      security_findings: auditFindings,
+      updated_at: now,
+    },
+    { merge: true }
+  );
+  await batch.commit();
+
+  return { success: true, auditStatus };
 }
 
 /** Permanently deletes one of the caller's agents and revokes its API keys. */

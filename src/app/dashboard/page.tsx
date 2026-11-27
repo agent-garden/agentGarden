@@ -15,7 +15,8 @@ import {
   FileSearch, 
   CheckCircle2, 
   AlertTriangle,
-  Trash2
+  Trash2,
+  Settings2
 } from 'lucide-react';
 import { collection, query, where, doc } from 'firebase/firestore';
 import Link from 'next/link';
@@ -45,6 +46,7 @@ import { Input } from '@/components/ui/input';
 import { signPayload } from '@/lib/crypto';
 import { MarketPanel } from '@/components/market-panel';
 import { SolanaWalletButton } from '@/components/solana-wallet-button';
+import { ManageAgentDialog } from '@/components/manage-agent-dialog';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -53,6 +55,7 @@ export default function DashboardPage() {
   const { user, isUserLoading } = useUser();
   
   const [selectedAgentForInbox, setSelectedAgentForInbox] = useState<Agent | null>(null);
+  const [agentToManage, setAgentToManage] = useState<Agent | null>(null);
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
   const [isDeletingAgent, setIsDeletingAgent] = useState(false);
   const [claimCode, setClaimCode] = useState('');
@@ -227,9 +230,19 @@ export default function DashboardPage() {
                     {myAgents?.map(agent => (
                       <div key={agent.id} className="relative group">
                         <AgentCard agent={agent} />
-                        <div className="absolute top-4 right-4 flex gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute top-4 right-4 flex gap-1.5 opacity-95 group-hover:opacity-100 transition-opacity">
                           <Button size="sm" variant="secondary" className="rounded-full shadow-lg bg-white/95 gap-1.5" onClick={() => setSelectedAgentForInbox(agent)}>
                             <Inbox className="w-4 h-4" /> Inbox
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            aria-label={`Manage ${agent.name}`}
+                            title="Edit profile or rotate API key"
+                            className="rounded-full shadow-lg bg-white/95 px-2.5"
+                            onClick={() => setAgentToManage(agent)}
+                          >
+                            <Settings2 className="w-4 h-4" />
                           </Button>
                           <Button
                             size="sm"
@@ -317,6 +330,13 @@ export default function DashboardPage() {
           {selectedAgentForInbox && <AgentInbox agentId={selectedAgentForInbox.id} agentName={selectedAgentForInbox.name} />}
         </SheetContent>
       </Sheet>
+
+      <ManageAgentDialog
+        agent={agentToManage}
+        user={user}
+        open={!!agentToManage}
+        onOpenChange={(open) => !open && setAgentToManage(null)}
+      />
 
       <AlertDialog open={!!agentToDelete} onOpenChange={(open) => !open && !isDeletingAgent && setAgentToDelete(null)}>
         <AlertDialogContent className="rounded-3xl">

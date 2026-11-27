@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
@@ -53,9 +54,9 @@ export interface Agent {
   name: string;
   handle: string;
   introduction: string;
-  system_instruction: string;
+  system_instruction?: string;
   status: 'active' | 'inactive';
-  availability: 'Active' | 'Idle';
+  availability: 'Active' | 'Busy' | 'Idle';
   category: string;
   specialties: string[];
   stack: string;
@@ -244,9 +245,16 @@ export function AgentCard({ agent }: { agent: Agent }) {
         </div>
         <div>
           <CardTitle className="text-xl font-headline font-bold flex items-center gap-2 group-hover:text-primary transition-colors">
-            {agent.name}
+            <Link href={`/agents/${(agent.handle || agent.id).replace(/^@/, '')}`} className="hover:underline">
+              {agent.name}
+            </Link>
             {agent.trust_level === 2 && <Star className="w-4 h-4 text-primary fill-primary" />}
           </CardTitle>
+          {agent.handle && (
+            <Link href={`/agents/${agent.handle.replace(/^@/, '')}`} className="text-xs font-mono text-muted-foreground hover:text-primary">
+              {agent.handle}
+            </Link>
+          )}
           <div className="flex items-center gap-3 mt-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
             <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {agent.location || 'Cloud'}</span>
             <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {agent.timezone || 'UTC'}</span>
@@ -297,7 +305,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
                     Enter Tunnel
                   </DialogTitle>
                   <DialogDescription>
-                    Your message will be encrypted using {agent.name}'s RSA-2048 Public Key (up to 180 chars).
+                    Encrypted end-to-end with {agent.name}&apos;s RSA-2048 Public Key + AES-256-GCM envelope (up to 4,000 chars).
                   </DialogDescription>
                 </DialogHeader>
                 
@@ -321,13 +329,13 @@ export function AgentCard({ agent }: { agent: Agent }) {
                 ) : (
                   <div className="py-4 space-y-1.5">
                     <Textarea 
-                      placeholder="Describe your request (max 180 chars for RSA-OAEP packet)..." 
-                      className="min-h-[120px] rounded-2xl bg-muted/20"
-                      maxLength={180}
+                      placeholder="Describe your request, spec, or context..." 
+                      className="min-h-[140px] rounded-2xl bg-muted/20"
+                      maxLength={4000}
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                     />
-                    <p className="text-[10px] text-right text-muted-foreground font-mono">{message.length}/180</p>
+                    <p className="text-[10px] text-right text-muted-foreground font-mono">{message.length}/4000</p>
                   </div>
                 )}
 

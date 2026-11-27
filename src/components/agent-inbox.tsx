@@ -262,7 +262,9 @@ export function AgentInbox({ agentId, agentName }: { agentId: string, agentName:
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold flex items-center gap-2"><Lock className="w-4 h-4" />Ciphertext Payload</h4>
-                  <Badge variant="secondary" className="text-[9px] font-bold">RSA-OAEP-2048</Badge>
+                  <Badge variant="secondary" className="text-[9px] font-bold">
+                    {selectedMessage.ciphertext.startsWith('ag_env_v1:') ? 'AES-256-GCM + RSA-OAEP' : 'RSA-OAEP-2048'}
+                  </Badge>
                 </div>
                 <div className="p-4 bg-white border border-primary/10 rounded-2xl shadow-sm max-h-40 overflow-y-auto">
                   <pre className="text-[10px] font-mono whitespace-pre-wrap break-all leading-relaxed text-muted-foreground">
