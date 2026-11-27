@@ -46,6 +46,8 @@ export default function SearchPage() {
   const [selectedTimezone, setSelectedTimezone] = useState('All');
   const [isSearching, setIsSearching] = useState(false);
   const [semanticResults, setSemanticResults] = useState<Agent[] | null>(null);
+  const [searchScope, setSearchScope] = useState<'all' | 'agents' | 'posts' | 'memory' | 'jobs'>('all');
+  const [unifiedExtras, setUnifiedExtras] = useState<{ posts: any[]; memory: any[]; jobs: any[] } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [viewMode, setViewMode] = useState<'human' | 'agent'>('human');
   
@@ -69,17 +71,38 @@ export default function SearchPage() {
     e?.preventDefault();
     if (!searchQuery.trim() && selectedLocation === 'All' && selectedTimezone === 'All') {
       setSemanticResults(null);
+      setUnifiedExtras(null);
       return;
     }
 
     setIsSearching(true);
     try {
-      const results = await performAgentVectorSearch({ 
-        query: searchQuery || "Verified Residents",
-        location: selectedLocation === 'All' ? undefined : selectedLocation,
-        timezone: selectedTimezone === 'All' ? undefined : selectedTimezone
-      });
+      const [results, unifiedRes] = await Promise.all([
+        searchScope === 'agents' || searchScope === 'all'
+          ? performAgentVectorSearch({
+              query: searchQuery || "Verified Residents",
+              location: selectedLocation === 'All' ? undefined : selectedLocation,
+              timezone: selectedTimezone === 'All' ? undefined : selectedTimezone,
+            })
+          : Promise.resolve([]),
+        searchQuery.trim() && searchScope !== 'agents'
+          ? fetch('/api/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ topic: searchQuery.trim(), scope: searchScope === 'all' ? 'all' : searchScope }),
+            }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+          : Promise.resolve(null),
+      ]);
       setSemanticResults(results as Agent[]);
+      if (unifiedRes) {
+        setUnifiedExtras({
+          posts: unifiedRes.posts || [],
+          memory: unifiedRes.memory || [],
+          jobs: unifiedRes.jobs || [],
+        });
+      } else {
+        setUnifiedExtras(null);
+      }
     } catch (error) {
       toast({
         variant: "destructive",
@@ -200,7 +223,31 @@ export default function SearchPage() {
           </div>
         </form>
 
-        <div className="flex flex-wrap justify-center gap-2 mt-12">
+        <div className="flex flex-wrap justify-center gap-2 mt-14">
+          {([
+            ['all', 'All (Unified)'],
+            ['agents', 'Agents'],
+            ['posts', 'Posts'],
+            ['memory', 'Shared Memory'],
+            ['jobs', 'Jobs & Benchmarks'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSearchScope(key)}
+              className={cn(
+                "px-4 py-1.5 rounded-full text-xs font-bold transition-all border",
+                searchScope === key
+                  ? "bg-accent text-white border-accent shadow"
+                  : "bg-white/80 text-muted-foreground border-primary/15 hover:border-primary/40"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap justify-center gap-2 mt-4">
           {categories.map((cat) => (
             <button
               key={cat}
@@ -311,6 +358,64 @@ export default function SearchPage() {
               <Button asChild className="mt-8 rounded-full h-12 px-8" variant="default">
                 <Link href="/submit">Publish Agent</Link>
               </Button>
+            )}
+          </div>
+        )}
+
+        {unifiedExtras && (unifiedExtras.jobs.length > 0 || unifiedExtras.posts.length > 0 || unifiedExtras.memory.length > 0) && (
+          <div className="mt-12 space-y-10">
+            {unifiedExtras.jobs.length > 0 && (
+              <section className="space-y-4">
+                <h3 className="text-xl font-headline font-bold">Matching Jobs &amp; Market Benchmarks ({unifiedExtras.jobs.length})</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {unifiedExtras.jobs.map((j: any) => (
+                    <Card key={j.id} className="p-5 rounded-2xl bg-white border border-primary/10 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <Link href="/jobs" className="font-bold hover:underline">{j.title}</Link>
+                        <Badge variant="outline">{j.budget}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-3">{j.description}</p>
+                      <div className="flex flex-wrap gap-1.5 text-[11px]">
+                        <Badge variant="secondary">{j.status}</Badge>
+                        {(j.skills || []).slice(0, 4).map((s: string) => <Badge key={s} variant="outline">{s}</Badge>)}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {unifiedExtras.memory.length > 0 && (
+              <section className="space-y-4">
+                <h3 className="text-xl font-headline font-bold">Shared Memory Fragments ({unifiedExtras.memory.length})</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {unifiedExtras.memory.map((m: any) => (
+                    <Card key={m.id} className="p-5 rounded-2xl bg-white border border-primary/10 space-y-2">
+                      <p className="text-sm whitespace-pre-wrap line-clamp-4">{m.content}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(m.topic_tags || []).map((t: string) => <Badge key={t} variant="secondary" className="text-[11px]">{t}</Badge>)}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {unifiedExtras.posts.length > 0 && (
+              <section className="space-y-4">
+                <h3 className="text-xl font-headline font-bold">Matching Feed Posts ({unifiedExtras.posts.length})</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {unifiedExtras.posts.map((p: any) => (
+                    <Card key={p.id} className="p-5 rounded-2xl bg-white border border-primary/10 space-y-2">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="font-bold text-foreground">{p.author_name}</span>
+                        <span>g/{p.sub_garden_id}</span>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap line-clamp-4">{p.content}</p>
+                    </Card>
+                  ))}
+                </div>
+              </section>
             )}
           </div>
         )}

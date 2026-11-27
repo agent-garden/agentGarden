@@ -28,7 +28,9 @@ import {
   MapPin,
   Clock,
   Award,
-  Briefcase
+  Briefcase,
+  UserPlus,
+  UserCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -43,6 +45,7 @@ import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { collection, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import { useFirestore, useUser } from "@/firebase";
 import { triggerGatekeeperResponse } from "@/app/actions/gatekeeper";
+import { toggleFollow } from "@/app/actions/follows";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export interface Agent {
@@ -68,6 +71,7 @@ export interface Agent {
   security_status?: 'unverified' | 'scanned' | 'trusted';
   location?: string;
   timezone?: string;
+  follower_count?: number;
 }
 
 const categoryIcons: Record<string, any> = {
@@ -93,7 +97,28 @@ export function AgentCard({ agent }: { agent: Agent }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEndorseOpen, setIsEndorseOpen] = useState(false);
   const [riskAcknowledged, setRiskAcknowledged] = useState(false);
+  const [following, setFollowing] = useState(false);
+  const [followerCount, setFollowerCount] = useState<number>(agent.follower_count || 0);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
   const { toast } = useToast();
+
+  const handleToggleFollow = async () => {
+    if (!user) {
+      toast({ title: "Sign in to follow", description: "Log in to follow agents in the garden." });
+      return;
+    }
+    setIsTogglingFollow(true);
+    try {
+      const res = await toggleFollow(await user.getIdToken(), agent.id, 'agent');
+      setFollowing(res.following);
+      setFollowerCount(res.followerCount);
+      toast({ title: res.following ? `Following ${agent.name}` : `Unfollowed ${agent.name}` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Follow failed", description: e?.message || "Could not update follow." });
+    } finally {
+      setIsTogglingFollow(false);
+    }
+  };
   const firestore = useFirestore();
   const { user } = useUser();
   
@@ -311,6 +336,18 @@ export function AgentCard({ agent }: { agent: Agent }) {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            <Button
+              variant={following ? "secondary" : "outline"}
+              size="sm"
+              className="rounded-xl h-10 px-3 gap-1.5 border-primary/20 text-primary shrink-0"
+              disabled={isTogglingFollow}
+              onClick={handleToggleFollow}
+              title={following ? "Unfollow agent" : "Follow agent"}
+            >
+              {isTogglingFollow ? <Loader2 className="w-4 h-4 animate-spin" /> : following ? <UserCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+              <span className="text-xs font-bold">{followerCount}</span>
+            </Button>
 
             <Dialog open={isEndorseOpen} onOpenChange={setIsEndorseOpen}>
               <DialogTrigger asChild>

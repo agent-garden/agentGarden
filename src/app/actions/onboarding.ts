@@ -325,3 +325,102 @@ export async function deleteAgent(idToken: string, agentId: string) {
   await batch.commit();
   return { deleted: true, agentId };
 }
+
+/** Redeems a self-registered agent claim code (AG-XXXX-XXXX) and activates the agent (#11). */
+export async function claimPendingAgent(idToken: string, rawCode: string) {
+  const decoded = await requireUser(idToken);
+  const code = String(rawCode || '').trim().toUpperCase();
+  if (!/^AG-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) {
+    throw new Error('Enter a valid claim code like AG-XXXX-XXXX.');
+  }
+
+  const { db } = initializeAdmin();
+  const claimRef = db.collection('pending_agent_claims').doc(code);
+  const claimSnap = await claimRef.get();
+  if (!claimSnap.exists) throw new Error('Claim code not found.');
+  const claim = claimSnap.data()!;
+  if (claim.status !== 'pending') throw new Error('This claim code has already been redeemed.');
+  if (claim.expires_at && claim.expires_at < Date.now()) throw new Error('This claim code has expired (24h limit).');
+
+  const manifest = claim.manifest;
+  const dup = await db.collection('agents').where('handle', '==', manifest.handle).limit(1).get();
+  if (!dup.empty) throw new Error(`Handle ${manifest.handle} was already claimed by another agent.`);
+
+  const searchText = [
+    manifest.name,
+    manifest.handle,
+    manifest.category,
+    manifest.introduction,
+    (manifest.specialties || []).join(', '),
+    manifest.stack,
+    manifest.system_instruction,
+  ].join('\n');
+
+  let searchEmbedding: number[] | null = null;
+  try {
+    if (geminiConfigured()) searchEmbedding = await embedText(searchText);
+  } catch (e) {
+    console.warn('Claim embedding skipped:', e);
+  }
+
+  const agentRef = db.collection('agents').doc();
+  const now = Date.now();
+  await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(claimRef);
+    if (!fresh.exists || fresh.data()?.status !== 'pending') {
+      throw new Error('This claim code is no longer available.');
+    }
+    tx.set(agentRef, {
+      id: agentRef.id,
+      owner_id: decoded.uid,
+      name: manifest.name,
+      handle: manifest.handle,
+      category: manifest.category || 'General',
+      introduction: manifest.introduction,
+      system_instruction: manifest.system_instruction,
+      specialties: manifest.specialties || [],
+      stack: manifest.stack || 'Autonomous Agent',
+      location: manifest.location || 'Cloud',
+      timezone: manifest.timezone || 'UTC',
+      public_key: manifest.public_key || '',
+      signing_public_key: manifest.signing_public_key || '',
+      endpoint_url: manifest.endpoint_url || null,
+      solana_address: manifest.solana_address || null,
+      supports_x402: !!manifest.solana_address,
+      payment_address: manifest.solana_address || null,
+      base_fee_lamports: Number(manifest.base_fee_lamports || 0),
+      base_fee_cents: 0,
+      spend_allowance_lamports: 0,
+      spend_allowance_cents: 0,
+      search_text: searchText,
+      ...(searchEmbedding ? { search_embedding: FieldValue.vector(searchEmbedding) } : {}),
+      status: 'active',
+      availability: 'Active',
+      verified: false,
+      is_machine_verified: true,
+      trust_level: 1,
+      review_count: 0,
+      reputation: 0,
+      verified_task_count: 0,
+      follower_count: 0,
+      security_status: claim.audit?.status || 'unverified',
+      security_risk_level: claim.audit?.risk_level || 'low',
+      security_findings: claim.audit?.findings || [],
+      last_heartbeat: now,
+      created_at: now,
+    });
+    tx.set(db.collection('agent_keys').doc(claim.key_hash), {
+      agent_id: agentRef.id,
+      owner_id: decoded.uid,
+      created_at: now,
+    });
+    tx.update(claimRef, {
+      status: 'claimed',
+      claimed_by: decoded.uid,
+      agent_id: agentRef.id,
+      claimed_at: now,
+    });
+  });
+
+  return { success: true, agentId: agentRef.id, name: manifest.name, handle: manifest.handle };
+}

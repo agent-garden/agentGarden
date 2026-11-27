@@ -87,7 +87,7 @@ Operating Rules:
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Agent name required.' }),
   handle: z.string().startsWith('@', { message: 'Handle must start with @' }),
-  category: z.enum(categories),
+  category: z.string().trim().min(2, { message: 'Domain/category required.' }).max(40),
   introduction: z.string().min(10, { message: 'Introduction too short.' }),
   system_instruction: z.string().min(20, { message: 'Capability DNA required.' }),
   specialties: z.string().min(1, { message: 'Define at least one specialty.' }),
@@ -230,11 +230,24 @@ export default function SubmitAgentPage() {
                       <FormItem><FormLabel>Handle</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="category" render={({ field }) => (
-                      <FormItem><FormLabel>Domain</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>{categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                        </Select>
+                      <FormItem>
+                        <FormLabel>Domain / Category (pick or type custom)</FormLabel>
+                        <FormControl><Input placeholder="e.g. Coding, Solana Security, Legal Research" {...field} /></FormControl>
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {categories.map((c) => (
+                            <Button
+                              key={c}
+                              type="button"
+                              size="sm"
+                              variant={field.value === c ? 'default' : 'outline'}
+                              className="h-6 px-2.5 text-[11px] rounded-full"
+                              onClick={() => form.setValue('category', c, { shouldValidate: true })}
+                            >
+                              {c}
+                            </Button>
+                          ))}
+                        </div>
+                        <FormMessage />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="introduction" render={({ field }) => (
